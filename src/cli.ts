@@ -27,6 +27,7 @@ import {
   formatHistoryRecord,
   formatReport,
   historyRecordToJson,
+  maskSecret,
 } from "./format.js";
 import {
   RequestRepository,
@@ -39,6 +40,7 @@ import {
   validateTemplateBody,
   type TemplateContext,
 } from "./template.js";
+import { createTuiBackend, runTui, type TuiBackend } from "./tui.js";
 import type { JevRequest, JevResponse, Question, RequestLog, State } from "./types.js";
 
 export const VERSION = "1.0.0";
@@ -61,6 +63,10 @@ export interface CliIO {
    * define, `templates edit` solo acepta --file.
    */
   openInEditor?(filePath: string, initial: string): Promise<string>;
+  /** Indica si hay una terminal interactiva (TTY). Default: se asume que sí. */
+  isTty?: boolean;
+  /** Ejecuta el modo interactivo (inyectable en tests). Default: driver real. */
+  runTui?: (backend: TuiBackend) => Promise<number>;
 }
 
 const USAGE = `jev-client — CLI para la API de Jev (System One)
@@ -73,6 +79,7 @@ Uso:
   jev-client template <comando> gestiona plantillas JSON con macros
   jev-client templates <comando> alias de template
   jev-client batch <plantilla> --contexts <fichero.json>  ejecuta una plantilla para muchos contextos
+  jev-client tui [--db <ruta>]  modo interactivo (configuración y plantillas)
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -204,6 +211,27 @@ Flags:
   -h, --help                 muestra esta ayuda
 `;
 
+const TUI_USAGE = `Uso: jev-client tui [--db <ruta>]
+
+Abre el modo interactivo para configurar el provider y gestionar plantillas.
+Requiere una terminal (TTY). En entornos sin TTY usa los comandos equivalentes:
+  jev config set <clave> <valor>
+  jev config get <clave>
+  jev template list | show <nombre> | create | edit | validate | render
+`;
+
+const TUI_NO_TTY = `error: el modo interactivo (tui) requiere una terminal (TTY).
+Usa los comandos equivalentes:
+  jev config set <clave> <valor>          configura el provider
+  jev config get <clave>                  consulta un valor
+  jev template list                       lista plantillas
+  jev template show <nombre>              detalle de una plantilla
+  jev template create <nombre> --body ... crea una plantilla
+  jev template edit <nombre>              edita una plantilla (\$EDITOR)
+  jev template validate <nombre>          valida una plantilla
+  jev template render <nombre> --context ... previsualiza
+`;
+
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
 
 const COMMON_OPTIONS = {
@@ -266,6 +294,11 @@ const BATCH_OPTIONS = {
   "fail-fast": { type: "boolean" },
 } satisfies ParseArgsOptions;
 
+const TUI_OPTIONS = {
+  db: { type: "string" },
+  help: { type: "boolean", short: "h" },
+} satisfies ParseArgsOptions;
+
 const MAX_CONCURRENCY = 10;
 
 interface CommonOptions {
@@ -301,6 +334,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return await runTemplate(argv.slice(1), io);
       case "batch":
         return await runBatch(argv.slice(1), io);
+      case "tui":
+        return await runTuiCommand(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -650,6 +685,31 @@ function sumDefined(values: Array<number | undefined>): number {
     }
   }
   return total;
+}
+
+async function runTuiCommand(args: string[], io: CliIO): Promise<number> {
+  const { values, positionals } = parseOptions(args, TUI_OPTIONS);
+  if (values.help === true) {
+    io.stdout(TUI_USAGE);
+    return 0;
+  }
+  if (positionals.length > 0) {
+    throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
+  }
+  if (io.isTty === false) {
+    io.stderr(TUI_NO_TTY);
+    return 1;
+  }
+
+  const path = resolveDatabasePath(asString(values.db), envOf(io));
+  const db = openDatabase(path);
+  try {
+    const backend = createTuiBackend(db);
+    const runner = io.runTui ?? runTui;
+    return await runner(backend);
+  } finally {
+    db.close();
+  }
 }
 
 function runConfig(args: string[], io: CliIO): number {
@@ -1243,14 +1303,6 @@ function safeParseJson(body: string): unknown {
   } catch {
     return body;
   }
-}
-
-/** Enmascara un secreto dejando visibles los primeros y últimos 4 caracteres. */
-function maskSecret(value: string): string {
-  if (value.length <= 8) {
-    return "********";
-  }
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
 
 async function confirm(io: CliIO, prompt: string): Promise<boolean> {

@@ -213,6 +213,45 @@ export function validateTemplateBody(bodyJson: string): JevRequest {
   return validateTemplateRequest(parsed);
 }
 
+/**
+ * Devuelve las claves de macro `{{clave}}` presentes en un body de plantilla,
+ * ordenadas y sin duplicados. No valida la estructura: si el JSON no se puede
+ * parsear, devuelve una lista vacía (la validación la hace `validateTemplateBody`).
+ */
+export function detectMacros(bodyJson: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyJson);
+  } catch {
+    return [];
+  }
+  const keys = new Set<string>();
+  collectMacros(parsed, keys);
+  return [...keys].sort();
+}
+
+function collectMacros(value: unknown, keys: Set<string>): void {
+  if (typeof value === "string") {
+    for (const token of tokenize(value)) {
+      if (token.kind === "macro") {
+        keys.add(token.value);
+      }
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectMacros(item, keys);
+    }
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      collectMacros(item, keys);
+    }
+  }
+}
+
 /** Valida un valor ya resuelto como request de Jev. */
 export function validateTemplateRequest(value: unknown): JevRequest {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

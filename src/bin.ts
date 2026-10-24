@@ -28,6 +28,7 @@ const io: CliIO = {
     process.stderr.write(text);
   },
   readStdin,
+  isTty: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   confirm: async (prompt) => {
     const rl = createInterface({
       input: process.stdin,

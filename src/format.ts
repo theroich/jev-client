@@ -118,6 +118,14 @@ export function formatNumber(value: number): string {
   return Object.is(value, -0) ? "0" : String(value);
 }
 
+/** Enmascara un secreto dejando visibles los primeros y últimos 4 caracteres. */
+export function maskSecret(value: string): string {
+  if (value.length <= 8) {
+    return "********";
+  }
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
 /** Coste con notación científica solo cuando es muy pequeño. */
 export function formatCost(value: number): string {
   if (value !== 0 && Math.abs(value) < 1e-4) {
