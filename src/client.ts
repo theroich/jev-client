@@ -1,5 +1,10 @@
 import { JevApiError } from "./errors.js";
-import { DEFAULT_ENDPOINT, DEFAULT_MODEL } from "./config.js";
+import {
+  DEFAULT_ENDPOINT,
+  DEFAULT_MODEL,
+  DEFAULT_RETRIES,
+  DEFAULT_TIMEOUT_MS,
+} from "./config.js";
 import type {
   Answer,
   JevRequest,
@@ -53,8 +58,8 @@ export class JevClient {
     this.apiKey = options.apiKey;
     this.endpoint = options.endpoint || DEFAULT_ENDPOINT;
     this.model = options.model || DEFAULT_MODEL;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.maxRetries = Math.max(0, options.maxRetries ?? 2);
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxRetries = Math.max(0, options.maxRetries ?? DEFAULT_RETRIES);
     this.backoffMs = Math.max(0, options.backoffMs ?? 500);
     this.maxRetryDelayMs = Math.max(0, options.maxRetryDelayMs ?? 10_000);
     this.fetchImpl =
