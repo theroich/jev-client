@@ -169,6 +169,52 @@ jev ask --key sk-... --url https://…/v1/systemone --model jev-1.13-free \
 El `state` puede ser texto plano, un objeto JSON (`{...}`) o un array (`[...]`).
 Si empieza por `{` o `[` se envía como JSON; si no, como string.
 
+### `jev template`
+
+Plantillas de request en JSON con macros. Una plantilla es un payload de Jev
+con huecos `{{clave}}` que se resuelven con un mapa de contexto:
+
+```json
+{
+  "model": "jev-1.13",
+  "state": {
+    "pedido": "{{estado_de_pedido}}",
+    "cliente": "{{cliente.nombre}}"
+  },
+  "questions": {
+    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+  }
+}
+```
+
+```sh
+# Guardar una plantilla (sobrescribe si el nombre ya existe)
+jev template add pedido --description "Pedido con cliente" \
+  --body-file examples/template.json
+
+jev template list                       # pedido - Pedido con cliente
+jev template show pedido                # imprime el body en JSON
+
+# Previsualizar el request resuelto sin enviar la petición
+jev template render pedido --context-file examples/context.json
+
+jev template remove pedido
+```
+
+Reglas de las macros:
+
+- `{{clave}}` busca la clave en el contexto; admite rutas anidadas
+  (`{{cliente.nombre}}`). Si existe una clave literal con puntos, se prefiere a
+  la ruta anidada.
+- Si el string es **exactamente** una macro, se inserta el valor con su tipo
+  nativo (objeto, array, número, booleano). Si va embebida en texto, se
+  interpola como string.
+- `\{{...}}` escapa una macro literal (`{{...}}` sin resolver).
+- Si falta alguna macro, el comando falla antes de llamar a la API y lista todas
+  las claves ausentes.
+- El resultado se valida como request (model, state, questions y tipos de
+  pregunta).
+
 ## Tipos de pregunta
 
 | `type` | Campos | Devuelve |
@@ -244,6 +290,17 @@ new JevClient({
 
 `run()` acepta un request completo (`{ model, state, questions }`) y `raw`
 contiene el cuerpo original de la API.
+
+Para plantillas, `resolveTemplateBody` resuelve un body con macros y lo valida:
+
+```ts
+import { resolveTemplateBody } from "./dist/src/index.js";
+
+const request = resolveTemplateBody(
+  '{"model":"jev-1.13","state":"{{estado}}","questions":{"q":{"type":"noul"}}}',
+  { estado: { pedido: 42 } },
+);
+```
 
 ## Tests
 
