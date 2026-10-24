@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { JevClient, type FetchLike } from "./client.js";
@@ -34,6 +36,7 @@ import { TemplateRepository } from "./template-repository.js";
 import {
   resolveTemplateBody,
   validateQuestions,
+  validateTemplateBody,
   type TemplateContext,
 } from "./template.js";
 import type { JevRequest, JevResponse, Question, RequestLog, State } from "./types.js";
@@ -48,6 +51,16 @@ export interface CliIO {
   fetch?: FetchLike;
   /** Entorno (tests). Default: process.env. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Confirmación interactiva (tests). Si no se define, las operaciones que
+   * requieren confirmación tratan la respuesta como negativa.
+   */
+  confirm?(prompt: string): Promise<boolean>;
+  /**
+   * Abre un fichero con $EDITOR y devuelve su contenido editado. Si no se
+   * define, `templates edit` solo acepta --file.
+   */
+  openInEditor?(filePath: string, initial: string): Promise<string>;
 }
 
 const USAGE = `jev-client — CLI para la API de Jev (System One)
@@ -58,6 +71,7 @@ Uso:
   jev-client config <comando> gestiona la configuración persistente
   jev-client history <comando> consulta el historial de peticiones
   jev-client template <comando> gestiona plantillas JSON con macros
+  jev-client templates <comando> alias de template
   jev-client batch <plantilla> --contexts <fichero.json>  ejecuta una plantilla para muchos contextos
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
@@ -120,12 +134,16 @@ Flags:
 `;
 
 const CONFIG_USAGE = `Uso:
-  jev-client config list [--db <ruta>]
-  jev-client config get <clave> [--db <ruta>]
+  jev-client config list [--json] [--db <ruta>]
+  jev-client config get <clave> [--json] [--reveal] [--db <ruta>]
   jev-client config set <clave> <valor> [--db <ruta>]
   jev-client config unset <clave> [--db <ruta>]
+  jev-client config path [--db <ruta>]
 
 Claves: api_url, api_key, model, timeout (segundos), retries.
+
+'config get api_key' muestra la key enmascarada; usa --reveal para verla.
+'config path' imprime la ruta de la base de datos que se está usando.
 
 La API key se guarda en claro. Para no persistirla, usa --key o
 OPENCODE_API_KEY/JEV_API_KEY en cada ejecución.
@@ -150,9 +168,14 @@ Flags comunes:
 
 const TEMPLATE_USAGE = `Uso:
   jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)
-  jev-client template list [--db <ruta>]
-  jev-client template show <name> [--db <ruta>]
+  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>)
+  jev-client template list [--json] [--db <ruta>]
+  jev-client template show <name> [--json] [--db <ruta>]
+  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--db <ruta>]
+  jev-client template delete <name> [--yes] [--db <ruta>]
   jev-client template remove <name> [--db <ruta>]
+  jev-client template validate <name> [--db <ruta>]
+  jev-client template validate --file <ruta>
   jev-client template render <name> (--context <json> | --context-file <ruta>) [--db <ruta>]
 
 El body de una plantilla es un request de Jev con macros {{clave}}, que
@@ -197,6 +220,8 @@ const COMMON_OPTIONS = {
 
 const CONFIG_OPTIONS = {
   db: { type: "string" },
+  json: { type: "boolean" },
+  reveal: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
 
@@ -212,6 +237,9 @@ const HISTORY_OPTIONS = {
 
 const TEMPLATE_OPTIONS = {
   db: { type: "string" },
+  json: { type: "boolean" },
+  yes: { type: "boolean" },
+  file: { type: "string" },
   help: { type: "boolean", short: "h" },
   description: { type: "string" },
   body: { type: "string" },
@@ -269,6 +297,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       case "history":
         return runHistory(argv.slice(1), io);
       case "template":
+      case "templates":
         return await runTemplate(argv.slice(1), io);
       case "batch":
         return await runBatch(argv.slice(1), io);
@@ -637,10 +666,19 @@ function runConfig(args: string[], io: CliIO): number {
 
   switch (action) {
     case "list": {
-      expectConfigArity(positionals, 1, "jev config list [--db <ruta>]");
+      expectConfigArity(positionals, 1, "jev config list [--json] [--db <ruta>]");
       return withDatabase(values, io, (repository) => {
-        for (const { key, value } of repository.list()) {
-          io.stdout(`${key}=${value}\n`);
+        const entries = repository.list();
+        if (values.json === true) {
+          const object: Record<string, string> = {};
+          for (const { key, value } of entries) {
+            object[key] = value;
+          }
+          io.stdout(`${JSON.stringify(object, null, 2)}\n`);
+        } else {
+          for (const { key, value } of entries) {
+            io.stdout(`${key}=${key === "api_key" ? maskSecret(value) : value}\n`);
+          }
         }
         return 0;
       });
@@ -653,7 +691,14 @@ function runConfig(args: string[], io: CliIO): number {
         if (value === undefined) {
           throw new Error(`configuración no definida: ${key}`);
         }
-        io.stdout(`${value}\n`);
+        const reveal = values.reveal === true;
+        if (values.json === true) {
+          io.stdout(`${JSON.stringify(value)}\n`);
+        } else if (key === "api_key" && !reveal) {
+          io.stdout(`${maskSecret(value)}\n`);
+        } else {
+          io.stdout(`${value}\n`);
+        }
         return 0;
       });
     }
@@ -695,8 +740,16 @@ function runConfig(args: string[], io: CliIO): number {
         return 0;
       });
     }
+    case "path": {
+      expectConfigArity(positionals, 1, "jev config path [--db <ruta>]");
+      const path = resolveDatabasePath(asString(values.db), envOf(io));
+      io.stdout(`${path}\n`);
+      return 0;
+    }
     default:
-      throw new UsageError(`comando de config desconocido: ${JSON.stringify(action)}`);
+      throw new UsageError(
+        `comando de config desconocido: ${JSON.stringify(action)}`,
+      );
   }
 }
 
@@ -843,19 +896,26 @@ async function runTemplate(args: string[], io: CliIO): Promise<number> {
   const action = positionals[0];
   if (action === undefined) {
     throw new UsageError(
-      "falta un comando de template (add, list, show, remove o render)",
+      "falta un comando de template (add, create, list, show, edit, delete, remove, validate o render)",
     );
   }
 
   switch (action) {
     case "add":
+    case "create":
       return await templateAdd(values, positionals, io);
     case "list":
       return templateList(values, positionals, io);
     case "show":
       return templateShow(values, positionals, io);
+    case "edit":
+      return await templateEdit(values, positionals, io);
+    case "delete":
+      return await templateDelete(values, positionals, io);
     case "remove":
       return templateRemove(values, positionals, io);
+    case "validate":
+      return await templateValidate(values, positionals, io);
     case "render":
       return await templateRender(values, positionals, io);
     default:
@@ -894,25 +954,8 @@ async function templateAdd(
     "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)",
   );
   const name = templateName(positionals);
-  const raw = await readInput(
-    asString(values.body),
-    asString(values["body-file"]),
-    io,
-  );
-  if (raw === undefined || raw.trim() === "") {
-    throw new Error("falta el body de la plantilla (--body o --body-file)");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`JSON inválido en la plantilla: ${messageOf(error)}`);
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("el body de la plantilla debe ser un objeto JSON");
-  }
-
+  const raw = await readTemplateBodyInput(values, io);
+  validateTemplateBody(raw);
   const description = asString(values.description) ?? "";
   return withTemplates(values, io, (repository) => {
     repository.save(name, description, raw);
@@ -926,13 +969,29 @@ function templateList(
   positionals: string[],
   io: CliIO,
 ): number {
-  expectTemplateArity(positionals, 1, "jev template list");
+  expectTemplateArity(positionals, 1, "jev template list [--json]");
   return withTemplates(values, io, (repository) => {
-    for (const template of repository.list()) {
-      const suffix = template.description
-        ? ` - ${template.description}`
-        : "";
-      io.stdout(`${template.name}${suffix}\n`);
+    const templates = repository.list();
+    if (values.json === true) {
+      io.stdout(
+        `${JSON.stringify(
+          templates.map(({ name, description, created_at, updated_at }) => ({
+            name,
+            description,
+            created_at,
+            updated_at,
+          })),
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      for (const template of templates) {
+        const suffix = template.description
+          ? ` - ${template.description}`
+          : "";
+        io.stdout(`${template.name}${suffix}\n`);
+      }
     }
     return 0;
   });
@@ -943,14 +1002,51 @@ function templateShow(
   positionals: string[],
   io: CliIO,
 ): number {
-  expectTemplateArity(positionals, 2, "jev template show <name>");
+  expectTemplateArity(positionals, 2, "jev template show <name> [--json]");
   const name = templateName(positionals);
   return withTemplates(values, io, (repository) => {
     const template = repository.get(name);
     if (template === undefined) {
       throw new Error(`plantilla no encontrada: ${name}`);
     }
-    io.stdout(`${prettyJson(template.body_json)}\n`);
+    if (values.json === true) {
+      const body = safeParseJson(template.body_json);
+      io.stdout(
+        `${JSON.stringify(
+          {
+            name: template.name,
+            description: template.description,
+            body,
+            created_at: template.created_at,
+            updated_at: template.updated_at,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      io.stdout(`${prettyJson(template.body_json)}\n`);
+    }
+    return 0;
+  });
+}
+
+async function templateDelete(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): Promise<number> {
+  expectTemplateArity(positionals, 2, "jev template delete <name> [--yes]");
+  const name = templateName(positionals);
+  if (values.yes !== true && !(await confirm(io, `¿Eliminar la plantilla ${name}? [s/N] `))) {
+    io.stdout("cancelado\n");
+    return 0;
+  }
+  return withTemplates(values, io, (repository) => {
+    if (!repository.remove(name)) {
+      throw new Error(`plantilla no encontrada: ${name}`);
+    }
+    io.stdout(`plantilla eliminada: ${name}\n`);
     return 0;
   });
 }
@@ -969,6 +1065,109 @@ function templateRemove(
     io.stdout(`plantilla eliminada: ${name}\n`);
     return 0;
   });
+}
+
+async function templateEdit(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): Promise<number> {
+  expectTemplateArity(
+    positionals,
+    2,
+    "jev template edit <name> (--file <ruta> | usa $EDITOR)",
+  );
+  const name = templateName(positionals);
+  const file = asString(values.file);
+  const description = asString(values.description);
+
+  const existing = withTemplates(values, io, (repository) =>
+    repository.get(name),
+  );
+  if (existing === undefined) {
+    throw new Error(`plantilla no encontrada: ${name}`);
+  }
+
+  const raw = await (async () => {
+    if (file !== undefined) {
+      const content = await readTemplateBodyInput(values, io);
+      return content;
+    }
+    if (io.openInEditor === undefined) {
+      throw new Error(
+        "$EDITOR no está definido. Define EDITOR/VISUAL o usa --file <ruta>.",
+      );
+    }
+    const path = join(
+      tmpdir(),
+      `jev-template-${name}-${process.pid}-${Date.now()}.json`,
+    );
+    await writeFile(path, existing.body_json, "utf8");
+    try {
+      return await io.openInEditor(path, existing.body_json);
+    } finally {
+      await rmTemplateFile(path);
+    }
+  })();
+
+  validateTemplateBody(raw);
+  const finalDescription = description ?? existing.description;
+  withTemplates(values, io, (repository) => {
+    repository.save(name, finalDescription, raw);
+  });
+  io.stdout(`plantilla guardada: ${name}\n`);
+  return 0;
+}
+
+async function templateValidate(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): Promise<number> {
+  const file = asString(values.file);
+  let name: string | undefined;
+  if (file === undefined) {
+    expectTemplateArity(
+      positionals,
+      2,
+      "jev template validate <name> [--db <ruta>]",
+    );
+    name = templateName(positionals);
+  } else {
+    expectTemplateArity(positionals, 1, "jev template validate --file <ruta>");
+  }
+
+  const raw =
+    name === undefined
+      ? await readTemplateBodyInput(values, io)
+      : withTemplates(values, io, (repository) => repository.get(name)?.body_json);
+  if (raw === undefined) {
+    throw new Error(`plantilla no encontrada: ${name}`);
+  }
+
+  validateTemplateBody(raw);
+  const label = name ?? file;
+  io.stdout(`plantilla válida: ${label}\n`);
+  return 0;
+}
+
+async function readTemplateBodyInput(
+  values: Values,
+  io: CliIO,
+): Promise<string> {
+  const raw = await readInput(
+    asString(values.body),
+    asString(values.file) ?? asString(values["body-file"]),
+    io,
+  );
+  if (raw === undefined || raw.trim() === "") {
+    throw new Error("falta el body de la plantilla (--body o --file)");
+  }
+  return raw;
+}
+
+async function rmTemplateFile(path: string): Promise<void> {
+  await rm(path, { force: true });
 }
 
 async function templateRender(
@@ -1036,6 +1235,29 @@ function prettyJson(body: string): string {
   } catch {
     return body;
   }
+}
+
+function safeParseJson(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+}
+
+/** Enmascara un secreto dejando visibles los primeros y últimos 4 caracteres. */
+function maskSecret(value: string): string {
+  if (value.length <= 8) {
+    return "********";
+  }
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
+async function confirm(io: CliIO, prompt: string): Promise<boolean> {
+  if (io.confirm === undefined) {
+    return false;
+  }
+  return io.confirm(prompt);
 }
 
 function parseOptions(

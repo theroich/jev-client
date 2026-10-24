@@ -108,8 +108,14 @@ jev config set retries 2
 
 jev config get model
 jev config list
+jev config list --json          # objeto JSON clave -> valor
 jev config unset model
+jev config path                 # ruta de la base de datos que se está usando
 ```
+
+`config get api_key` muestra la key enmascarada (por ejemplo
+`sk-a…1234`); usa `--reveal` para verla completa o `--json` para el valor sin
+máscara (orientado a scripting).
 
 Para guardar la key (con el aviso explícito de que quedará en claro):
 
@@ -214,19 +220,40 @@ con huecos `{{clave}}` que se resuelven con un mapa de contexto:
 }
 ```
 
+`templates` es un alias de `template`. Subcomandos:
+
 ```sh
 # Guardar una plantilla (sobrescribe si el nombre ya existe)
-jev template add pedido --description "Pedido con cliente" \
-  --body-file examples/template.json
+jev template create pedido --description "Pedido con cliente" \
+  --file examples/template.json
+# ... o con el body inline / desde stdin
+jev template create pedido --body '{"model":"jev-1.13", ...}'
+cat body.json | jev template create pedido --body -
 
 jev template list                       # pedido - Pedido con cliente
+jev template list --json                # array JSON con nombre, descripción y fechas
 jev template show pedido                # imprime el body en JSON
+jev template show pedido --json         # { name, description, body, ... }
+
+# Editar con $EDITOR (o VISUAL); falla si no está definido
+jev template edit pedido
+# ... o reemplazar el body desde un fichero sin abrir el editor
+jev template edit pedido --file nuevo.json
+
+# Validar una plantilla guardada o un fichero, sin enviar nada
+jev template validate pedido
+jev template validate --file examples/template.json
 
 # Previsualizar el request resuelto sin enviar la petición
 jev template render pedido --context-file examples/context.json
 
-jev template remove pedido
+# Borrar (con confirmación) o forzar con --yes
+jev template delete pedido
+jev template delete pedido --yes
 ```
+
+`template add` y `template remove` se mantienen como sinónimos de `create` y
+`delete` sin confirmación, respectivamente.
 
 Reglas de las macros:
 
