@@ -38,6 +38,7 @@ export {
   resolveStringMacros,
   resolveTemplateBody,
   validateQuestions,
+  validateTemplateBody,
   validateTemplateRequest,
   type MacroResolution,
   type TemplateContext,
