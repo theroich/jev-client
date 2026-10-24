@@ -37,6 +37,7 @@ export {
   resolveJsonMacros,
   resolveStringMacros,
   resolveTemplateBody,
+  detectMacros,
   validateQuestions,
   validateTemplateBody,
   validateTemplateRequest,
@@ -54,6 +55,7 @@ export {
   formatReport,
   historyRecordToJson,
   legendLevel,
+  maskSecret,
 } from "./format.js";
 export {
   RequestRepository,
@@ -70,3 +72,4 @@ export type {
   Usage,
 } from "./types.js";
 export { runCli, VERSION, type CliIO } from "./cli.js";
+export { TuiApp, createTuiBackend, keyToAction, runTui, type TuiBackend } from "./tui.js";

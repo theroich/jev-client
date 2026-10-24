@@ -312,6 +312,75 @@ coste: 3.0e-6 (1 sin coste informado)
   `cost_unknown`) y el array `items` (uno por contexto, en orden, con su
   `index`, `ok`, `model`, tokens, `cost`, `error` y `response` cruda).
 
+### `jev tui`
+
+Modo interactivo a pantalla completa para configurar el provider y gestionar
+plantillas sin memorizar comandos:
+
+```sh
+jev tui
+jev tui --db /ruta/jev.db
+```
+
+Con dos pantallas principales:
+
+- **Configuración del provider**: edita `api_url`, `api_key`, `model`, `timeout`
+  y `retries` con validación en vivo. La `api_key` se muestra enmascarada (y
+  nunca se muestra completa) y cada cambio confirmado se guarda en SQLite.
+- **Plantillas**: listado con búsqueda incremental, detalle, creación y edición
+  con editor de JSON y validación en vivo. Muestra las macros detectadas
+  (`{{clave}}`) para avisar de las claves de contexto necesarias.
+
+| Tecla | Acción |
+| --- | --- |
+| `↑` / `↓` | mover la selección |
+| `Enter` | elegir / confirmar |
+| `Esc` | cancelar / volver |
+| `q` | volver al menú (o salir) |
+| `Ctrl-C` | salir (pide confirmación si hay cambios) |
+| En plantillas: `n` nueva, `e` editar, `d` borrar, `/` buscar, `Enter` ver |
+
+Los cambios se guardan en las mismas tablas SQLite (`config` y `templates`) que
+usan los comandos no interactivos, así que se ven con `jev config get` o
+`jev template show`. Al salir con cambios sin guardar en el editor de plantillas
+se pide confirmación.
+
+**Sin TTY.** Si no hay terminal interactiva, `jev tui` sale con código `1` y un
+mensaje claro listando los comandos equivalentes, sin bloquear ni dejar la
+terminal en mal estado:
+
+```sh
+echo "" | jev tui   # error: requiere una terminal (TTY)
+```
+
+**Decisión de librería.** Se eligió una TUI propia basada en `readline` y modos
+raw de Node, en lugar de `ink` o `blessed`:
+
+- **Sin dependencias nuevas** (solo `better-sqlite3`, que ya estaba): `ink`
+  arrastra React y `blessed` dejó de mantenerse y usa bindings nativos.
+- **Soporta Node 20** sin problemas; `blessed` y el ecosistema de `ink` han ido
+  subiendo el mínimo de Node.
+- **Testeable en CI**: la máquina de estados (`TuiApp`) no toca la terminal, por
+  lo que se prueba sin TTY; el driver raw queda aislado en `runTui`.
+
+### Checklist de pruebas manuales
+
+Lo siguiente no se puede automatizar del todo (depende de un TTY real) y conviene
+revisarlo a mano antes de publicar:
+
+- [ ] `jev tui` abre el menú y `↑`/`↓` mueven la selección.
+- [ ] Cambiar `model` y `api_url` desde la TUI y comprobar que persisten con
+      `jev config get model` y `jev config get api_url` en otra ejecución.
+- [ ] La `api_key` se muestra enmascarada al consultarla y al editarla; nunca se
+      ve el valor completo.
+- [ ] Crear una plantilla desde la TUI y verla después con `jev template show`.
+- [ ] Editar una plantilla con un JSON inválido muestra el error y bloquea el
+      guardado; con JSON válido muestra las macros detectadas.
+- [ ] Salir con `Ctrl-C` en mitad de una edición pide confirmación si hay cambios.
+- [ ] `echo "" | jev tui` imprime el error de "requiere una terminal" y sale con
+      código `1`; la terminal queda usable.
+- [ ] Redimensionar la ventana no corrompe la pantalla (cada tecla redibuja).
+
 ## Tipos de pregunta
 
 | `type` | Campos | Devuelve |
