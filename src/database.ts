@@ -3,7 +3,7 @@ import { chmodSync, closeSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type SqliteDatabase = Database.Database;
 
@@ -26,6 +26,20 @@ const MIGRATIONS: readonly Migration[] = [
   },
   {
     version: 2,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS templates (
+          name TEXT PRIMARY KEY,
+          description TEXT NOT NULL DEFAULT '',
+          body_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `);
+    },
+  },
+  {
+    version: 3,
     up(db) {
       db.exec(`
         CREATE TABLE IF NOT EXISTS requests (

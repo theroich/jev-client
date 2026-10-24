@@ -416,3 +416,81 @@ test("una key pasada por flag no se persiste", async (t) => {
   const list = await run(["config", "list"], { dbPath, env: {} });
   assert.equal(list.stdout, "");
 });
+
+test("template gestiona plantillas y render previsualiza sin llamar a la API", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "jev-1.13",
+    state: {
+      pedido: "{{estado_de_pedido}}",
+      cliente: "{{cliente.nombre}}",
+    },
+    questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  });
+
+  const add = await run(
+    ["template", "add", "pedido", "--description", "Pedido con cliente", "--body", body],
+    { dbPath, env: {} },
+  );
+  assert.equal(add.code, 0);
+  assert.match(add.stdout, /plantilla guardada: pedido/);
+
+  const list = await run(["template", "list"], { dbPath, env: {} });
+  assert.equal(list.code, 0);
+  assert.equal(list.stdout, "pedido - Pedido con cliente\n");
+
+  const show = await run(["template", "show", "pedido"], { dbPath, env: {} });
+  assert.equal(show.code, 0);
+  const shown = JSON.parse(show.stdout) as { state: unknown };
+  assert.deepEqual(shown.state, {
+    pedido: "{{estado_de_pedido}}",
+    cliente: "{{cliente.nombre}}",
+  });
+
+  const render = await run(
+    [
+      "template",
+      "render",
+      "pedido",
+      "--context",
+      '{"estado_de_pedido":"pendiente","cliente":{"nombre":"Ana"}}',
+    ],
+    { dbPath, env: {} },
+  );
+  assert.equal(render.code, 0);
+  assert.equal(render.calls.length, 0);
+  const rendered = JSON.parse(render.stdout) as { state: unknown };
+  assert.deepEqual(rendered.state, { pedido: "pendiente", cliente: "Ana" });
+
+  const remove = await run(["template", "remove", "pedido"], { dbPath, env: {} });
+  assert.equal(remove.code, 0);
+  const missing = await run(["template", "show", "pedido"], { dbPath, env: {} });
+  assert.equal(missing.code, 1);
+  assert.match(missing.stderr, /plantilla no encontrada/);
+});
+
+test("template render con contexto incompleto falla antes de la API", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "{{modelo}}",
+    state: "{{estado}}",
+    questions: { q: { type: "noul" } },
+  });
+  await run(["template", "add", "t", "--body", body], { dbPath, env: {} });
+
+  const render = await run(
+    ["template", "render", "t", "--context", "{}"],
+    { dbPath, env: {} },
+  );
+  assert.equal(render.code, 1);
+  assert.equal(render.calls.length, 0);
+  assert.match(render.stderr, /faltan macros en el contexto/);
+  assert.match(render.stderr, /estado/);
+  assert.match(render.stderr, /modelo/);
+});

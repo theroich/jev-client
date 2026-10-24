@@ -29,6 +29,12 @@ import {
   RequestRepository,
   type HistoryFilters,
 } from "./request-repository.js";
+import { TemplateRepository } from "./template-repository.js";
+import {
+  resolveTemplateBody,
+  validateQuestions,
+  type TemplateContext,
+} from "./template.js";
 import type { JevRequest, JevResponse, Question, RequestLog, State } from "./types.js";
 
 export const VERSION = "1.0.0";
@@ -50,6 +56,7 @@ Uso:
   jev-client demo [flags]     ejecuta un ejemplo integrado
   jev-client config <comando> gestiona la configuración persistente
   jev-client history <comando> consulta el historial de peticiones
+  jev-client template <comando> gestiona plantillas JSON con macros
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -72,6 +79,7 @@ Ejemplos:
   jev-client ask --state-file ticket.txt --questions-file preguntas.json
   jev-client ask --request-file request.json
   jev-client config set model jev-1.13-free
+  jev-client template render pedido --context '{"estado":"pendiente"}'
 `;
 
 const ASK_USAGE = `Uso: jev-client ask [flags]
@@ -137,6 +145,18 @@ Flags comunes:
   -h, --help               muestra esta ayuda
 `;
 
+const TEMPLATE_USAGE = `Uso:
+  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)
+  jev-client template list [--db <ruta>]
+  jev-client template show <name> [--db <ruta>]
+  jev-client template remove <name> [--db <ruta>]
+  jev-client template render <name> (--context <json> | --context-file <ruta>) [--db <ruta>]
+
+El body de una plantilla es un request de Jev con macros {{clave}}, que
+admiten rutas anidadas ({{cliente.nombre}}). 'render' resuelve las macros con
+un contexto JSON y previsualiza el request sin enviarlo.
+`;
+
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
 
 const COMMON_OPTIONS = {
@@ -164,6 +184,16 @@ const HISTORY_OPTIONS = {
   template: { type: "string" },
   limit: { type: "string" },
   help: { type: "boolean", short: "h" },
+} satisfies ParseArgsOptions;
+
+const TEMPLATE_OPTIONS = {
+  db: { type: "string" },
+  help: { type: "boolean", short: "h" },
+  description: { type: "string" },
+  body: { type: "string" },
+  "body-file": { type: "string" },
+  context: { type: "string" },
+  "context-file": { type: "string" },
 } satisfies ParseArgsOptions;
 
 const ASK_OPTIONS = {
@@ -204,6 +234,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return runConfig(argv.slice(1), io);
       case "history":
         return runHistory(argv.slice(1), io);
+      case "template":
+        return await runTemplate(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -484,6 +516,212 @@ function parseConfigKey(value: string | undefined): ConfigKey {
   return value;
 }
 
+async function runTemplate(args: string[], io: CliIO): Promise<number> {
+  const { values, positionals } = parseOptions(args, TEMPLATE_OPTIONS);
+
+  if (values.help === true) {
+    io.stdout(TEMPLATE_USAGE);
+    return 0;
+  }
+
+  const action = positionals[0];
+  if (action === undefined) {
+    throw new UsageError(
+      "falta un comando de template (add, list, show, remove o render)",
+    );
+  }
+
+  switch (action) {
+    case "add":
+      return await templateAdd(values, positionals, io);
+    case "list":
+      return templateList(values, positionals, io);
+    case "show":
+      return templateShow(values, positionals, io);
+    case "remove":
+      return templateRemove(values, positionals, io);
+    case "render":
+      return await templateRender(values, positionals, io);
+    default:
+      throw new UsageError(
+        `comando de template desconocido: ${JSON.stringify(action)}`,
+      );
+  }
+}
+
+function expectTemplateArity(
+  positionals: string[],
+  expected: number,
+  usage: string,
+): void {
+  if (positionals.length !== expected) {
+    throw new UsageError(`uso: ${usage}`);
+  }
+}
+
+function templateName(positionals: string[]): string {
+  const name = positionals[1] as string;
+  if (name.trim() === "") {
+    throw new UsageError("el nombre de la plantilla no puede estar vacío");
+  }
+  return name;
+}
+
+async function templateAdd(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): Promise<number> {
+  expectTemplateArity(
+    positionals,
+    2,
+    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)",
+  );
+  const name = templateName(positionals);
+  const raw = await readInput(
+    asString(values.body),
+    asString(values["body-file"]),
+    io,
+  );
+  if (raw === undefined || raw.trim() === "") {
+    throw new Error("falta el body de la plantilla (--body o --body-file)");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`JSON inválido en la plantilla: ${messageOf(error)}`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("el body de la plantilla debe ser un objeto JSON");
+  }
+
+  const description = asString(values.description) ?? "";
+  return withTemplates(values, io, (repository) => {
+    repository.save(name, description, raw);
+    io.stdout(`plantilla guardada: ${name}\n`);
+    return 0;
+  });
+}
+
+function templateList(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): number {
+  expectTemplateArity(positionals, 1, "jev template list");
+  return withTemplates(values, io, (repository) => {
+    for (const template of repository.list()) {
+      const suffix = template.description
+        ? ` - ${template.description}`
+        : "";
+      io.stdout(`${template.name}${suffix}\n`);
+    }
+    return 0;
+  });
+}
+
+function templateShow(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): number {
+  expectTemplateArity(positionals, 2, "jev template show <name>");
+  const name = templateName(positionals);
+  return withTemplates(values, io, (repository) => {
+    const template = repository.get(name);
+    if (template === undefined) {
+      throw new Error(`plantilla no encontrada: ${name}`);
+    }
+    io.stdout(`${prettyJson(template.body_json)}\n`);
+    return 0;
+  });
+}
+
+function templateRemove(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): number {
+  expectTemplateArity(positionals, 2, "jev template remove <name>");
+  const name = templateName(positionals);
+  return withTemplates(values, io, (repository) => {
+    if (!repository.remove(name)) {
+      throw new Error(`plantilla no encontrada: ${name}`);
+    }
+    io.stdout(`plantilla eliminada: ${name}\n`);
+    return 0;
+  });
+}
+
+async function templateRender(
+  values: Values,
+  positionals: string[],
+  io: CliIO,
+): Promise<number> {
+  expectTemplateArity(
+    positionals,
+    2,
+    "jev template render <name> (--context <json> | --context-file <ruta>)",
+  );
+  const name = templateName(positionals);
+  const context = parseContext(
+    await readInput(
+      asString(values.context),
+      asString(values["context-file"]),
+      io,
+    ),
+  );
+  return withTemplates(values, io, (repository) => {
+    const template = repository.get(name);
+    if (template === undefined) {
+      throw new Error(`plantilla no encontrada: ${name}`);
+    }
+    const request = resolveTemplateBody(template.body_json, context);
+    io.stdout(`${JSON.stringify(request, null, 2)}\n`);
+    return 0;
+  });
+}
+
+function parseContext(raw: string | undefined): TemplateContext {
+  if (raw === undefined || raw.trim() === "") {
+    return {};
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`JSON inválido en el contexto: ${messageOf(error)}`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("el contexto debe ser un objeto JSON");
+  }
+  return parsed as TemplateContext;
+}
+
+function withTemplates<T>(
+  values: Values,
+  io: CliIO,
+  action: (repository: TemplateRepository) => T,
+): T {
+  const path = resolveDatabasePath(asString(values.db), envOf(io));
+  const db = openDatabase(path);
+  try {
+    return action(new TemplateRepository(db));
+  } finally {
+    db.close();
+  }
+}
+
+function prettyJson(body: string): string {
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body;
+  }
+}
+
 function parseOptions(
   args: string[],
   options: ParseArgsOptions,
@@ -733,28 +971,7 @@ export function decodeQuestions(raw: string): Record<string, Question> {
   } catch (error) {
     throw new Error(`JSON inválido en las preguntas: ${messageOf(error)}`);
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("las preguntas deben ser un objeto JSON");
-  }
-
-  const questions = parsed as Record<string, Question>;
-  if (Object.keys(questions).length === 0) {
-    throw new Error("se necesita al menos una pregunta");
-  }
-
-  for (const [name, question] of Object.entries(questions)) {
-    if (!question || typeof question.type !== "string" || question.type === "") {
-      throw new Error(`la pregunta ${JSON.stringify(name)} no tiene type`);
-    }
-    if (!["noul", "choice", "score"].includes(question.type)) {
-      throw new Error(
-        `la pregunta ${JSON.stringify(name)} usa un tipo no soportado: ` +
-          `${JSON.stringify(question.type)} (usa noul, choice o score)`,
-      );
-    }
-  }
-
-  return questions;
+  return validateQuestions(parsed);
 }
 
 function writeResponse(
