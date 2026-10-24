@@ -1,0 +1,52 @@
+.gitignore
+  h_34a594f8693459 1-4
+README.md
+  h_34a594f8693459 1-210
+examples/questions.json
+  h_34a594f8693459 1-20
+examples/request.json
+  h_34a594f8693459 1-21
+examples/state.json
+  h_34a594f8693459 1-6
+package-lock.json
+  h_34a594f8693459 1-51
+package.json
+  h_34a594f8693459 1-37
+src/bin.ts
+  h_34a594f8693459 1-20
+src/cli.ts
+  h_34a594f8693459 1-495
+src/client.ts
+  h_34a594f8693459 1-266
+src/config.ts
+  h_34a594f8693459 1-58
+src/errors.ts
+  h_34a594f8693459 1-13
+src/format.ts
+  h_34a594f8693459 1-126
+src/index.ts
+  h_34a594f8693459 1-33
+src/types.ts
+  h_34a594f8693459 1-44
+test/cli.test.ts
+  h_34a594f8693459 1-276
+test/client.test.ts
+  h_34a594f8693459 1-278
+test/config.test.ts
+  h_34a594f8693459 1-70
+test/format.test.ts
+  h_34a594f8693459 1-83
+tsconfig.json
+  h_34a594f8693459 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8559dbc33fbd1318d5c14792d98a4c1ac388911f",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
