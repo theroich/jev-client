@@ -1,3 +1,4 @@
+import type { RequestRecord } from "./request-repository.js";
 import type { Answer, JevResponse } from "./types.js";
 
 /** Resume una respuesta en una línea. */
@@ -123,4 +124,90 @@ export function formatCost(value: number): string {
     return value.toExponential(3);
   }
   return String(value);
+}
+
+/** Una línea por petición para `history list`. */
+export function formatHistoryRecord(record: RequestRecord): string {
+  const model = record.model ?? "-";
+  const status = record.statusCode === null ? "-" : String(record.statusCode);
+  const ok = record.ok ? "ok" : "fail";
+  const duration =
+    record.durationMs === null ? "-" : `${record.durationMs}ms`;
+  const tokens = `${record.inputTokens ?? "-"}/${record.outputTokens ?? "-"}`;
+  const cost = record.cost === null ? "-" : formatCost(record.cost);
+  return `#${record.id} ${record.createdAt} ${model} ${status} ${ok} ${duration} ${tokens} ${cost}`;
+}
+
+/** Detalle completo para `history show`. */
+export function formatHistoryDetail(record: RequestRecord): string {
+  const lines = [
+    `id: ${record.id}`,
+    `created_at: ${record.createdAt}`,
+    `started_at: ${record.startedAt ?? "-"}`,
+    `finished_at: ${record.finishedAt ?? "-"}`,
+    `duration: ${record.durationMs === null ? "-" : `${record.durationMs}ms`}`,
+    `endpoint: ${record.endpoint ?? "-"}`,
+    `model: ${record.model ?? "-"}`,
+    `status: ${record.statusCode === null ? "-" : String(record.statusCode)}`,
+    `ok: ${record.ok}`,
+    `tokens: ${record.inputTokens ?? "-"} in / ${record.outputTokens ?? "-"} out`,
+    `cost: ${record.cost === null ? "-" : formatCost(record.cost)}`,
+    `error_code: ${record.errorCode ?? "-"}`,
+    `error_message: ${record.errorMessage ?? "-"}`,
+    `template_name: ${record.templateName ?? "-"}`,
+    `batch_id: ${record.batchId ?? "-"}`,
+    `request:`,
+    prettyJson(record.requestJson),
+    `response:`,
+    prettyJson(record.responseJson),
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+/** Objeto JSON para `history export` (una línea por petición). */
+export function historyRecordToJson(
+  record: RequestRecord,
+): Record<string, unknown> {
+  return {
+    id: record.id,
+    created_at: record.createdAt,
+    started_at: record.startedAt,
+    finished_at: record.finishedAt,
+    duration_ms: record.durationMs,
+    endpoint: record.endpoint,
+    model: record.model,
+    status_code: record.statusCode,
+    ok: record.ok,
+    request: parseJson(record.requestJson),
+    response: parseJson(record.responseJson),
+    input_tokens: record.inputTokens,
+    output_tokens: record.outputTokens,
+    cost: record.cost,
+    error_code: record.errorCode,
+    error_message: record.errorMessage,
+    template_name: record.templateName,
+    batch_id: record.batchId,
+  };
+}
+
+function prettyJson(text: string | null): string {
+  if (text === null) {
+    return "null";
+  }
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function parseJson(text: string | null): unknown {
+  if (text === null) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }

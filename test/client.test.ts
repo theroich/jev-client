@@ -245,6 +245,83 @@ test("parsea los formatos de error conocidos", () => {
   }
 });
 
+test("emite el hook onRequest en una petición correcta", async () => {
+  let log: import("../src/types.js").RequestLog | undefined;
+  const { fetchImpl } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    onRequest: (entry) => {
+      log = entry;
+    },
+  });
+
+  await client.systemOne("x", { q: { type: "noul" } });
+
+  assert.ok(log);
+  assert.equal(log.ok, true);
+  assert.equal(log.statusCode, 200);
+  assert.equal(log.model, "jev-1.13");
+  assert.equal(log.inputTokens, 449);
+  assert.equal(log.outputTokens, 73);
+  assert.equal(log.cost, 1.886e-5);
+  assert.deepEqual(log.requestBody, {
+    model: "jev-1.13",
+    state: "x",
+    questions: { q: { type: "noul" } },
+  });
+  assert.equal(log.responseBody, JSON.stringify(okBody));
+  assert.equal(log.errorCode, undefined);
+  assert.ok(log.durationMs >= 0);
+});
+
+test("emite el hook onRequest en un error de API", async () => {
+  let log: import("../src/types.js").RequestLog | undefined;
+  const { fetchImpl } = fakeFetch(() =>
+    jsonResponse({ error: { code: "api_key_expired", message: "expired" } }, 401),
+  );
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    onRequest: (entry) => {
+      log = entry;
+    },
+  });
+
+  await assert.rejects(client.systemOne("x", { q: { type: "noul" } }));
+
+  assert.ok(log);
+  assert.equal(log.ok, false);
+  assert.equal(log.statusCode, 401);
+  assert.equal(log.errorCode, "api_key_expired");
+  assert.equal(log.errorMessage, "expired");
+  assert.equal(log.inputTokens, undefined);
+  assert.equal(log.cost, undefined);
+});
+
+test("emite el hook onRequest en un error de red", async () => {
+  let log: import("../src/types.js").RequestLog | undefined;
+  const { fetchImpl } = fakeFetch(() => {
+    throw new Error("conexión rechazada");
+  });
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    maxRetries: 0,
+    onRequest: (entry) => {
+      log = entry;
+    },
+  });
+
+  await assert.rejects(client.systemOne("x", { q: { type: "noul" } }));
+
+  assert.ok(log);
+  assert.equal(log.ok, false);
+  assert.equal(log.statusCode, null);
+  assert.match(log.errorMessage ?? "", /no se pudo conectar/);
+  assert.equal(log.responseBody, null);
+});
+
 test("funciona contra un servidor HTTP real", async (t) => {
   let receivedAuth = "";
   let receivedPath = "";

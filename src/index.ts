@@ -46,16 +46,25 @@ export { TemplateRepository, type Template } from "./template-repository.js";
 export {
   answerSummary,
   formatCost,
+  formatHistoryDetail,
+  formatHistoryRecord,
   formatNumber,
   formatProbabilities,
   formatReport,
+  historyRecordToJson,
   legendLevel,
 } from "./format.js";
+export {
+  RequestRepository,
+  type HistoryFilters,
+  type RequestRecord,
+} from "./request-repository.js";
 export type {
   Answer,
   JevRequest,
   JevResponse,
   Question,
+  RequestLog,
   State,
   Usage,
 } from "./types.js";

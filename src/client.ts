@@ -10,6 +10,7 @@ import type {
   JevRequest,
   JevResponse,
   Question,
+  RequestLog,
   State,
   Usage,
 } from "./types.js";
@@ -35,6 +36,8 @@ export interface ClientOptions {
   maxRetryDelayMs?: number;
   /** fetch inyectable (tests). Default: fetch global. */
   fetch?: FetchLike;
+  /** Hook que recibe el registro de cada ejecución (con o sin éxito). */
+  onRequest?: (log: RequestLog) => void;
 }
 
 const RETRYABLE_STATUS = new Set([
@@ -50,6 +53,7 @@ export class JevClient {
   private readonly backoffMs: number;
   private readonly maxRetryDelayMs: number;
   private readonly fetchImpl: FetchLike;
+  private readonly onRequest?: (log: RequestLog) => void;
 
   constructor(options: ClientOptions) {
     if (!options.apiKey) {
@@ -64,6 +68,7 @@ export class JevClient {
     this.maxRetryDelayMs = Math.max(0, options.maxRetryDelayMs ?? 10_000);
     this.fetchImpl =
       options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+    this.onRequest = options.onRequest;
   }
 
   /** Evalúa `state` contra `questions` con el modelo del cliente. */
@@ -82,63 +87,107 @@ export class JevClient {
       throw new Error("el request necesita al menos una pregunta");
     }
 
-    const body = JSON.stringify({
-      model: request.model || this.model,
-      state: request.state,
-      questions,
-    });
+    const model = request.model || this.model;
+    const bodyObject = { model, state: request.state, questions };
+    const body = JSON.stringify(bodyObject);
 
-    const attempts = this.maxRetries + 1;
-    let lastError: unknown = new Error("no se intentó la petición");
+    const startedAt = new Date();
+    let statusCode: number | null = null;
+    let responseBody: string | null = null;
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+    let cost: number | undefined;
+    let errorCode: string | undefined;
+    let errorMessage: string | undefined;
+    let ok = false;
 
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      let response: Response;
-      try {
-        response = await this.fetchImpl(this.endpoint, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            "User-Agent": USER_AGENT,
-          },
-          body,
-          signal: AbortSignal.timeout(this.timeoutMs),
-        });
-      } catch (error) {
-        lastError = this.networkError(error);
-        if (attempt === attempts - 1) {
-          throw lastError;
+    try {
+      const attempts = this.maxRetries + 1;
+      let lastError: unknown = new Error("no se intentó la petición");
+
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        let response: Response;
+        try {
+          response = await this.fetchImpl(this.endpoint, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "User-Agent": USER_AGENT,
+            },
+            body,
+            signal: AbortSignal.timeout(this.timeoutMs),
+          });
+        } catch (error) {
+          lastError = this.networkError(error);
+          if (attempt === attempts - 1) {
+            throw lastError;
+          }
+          await sleep(this.retryDelay(attempt));
+          continue;
         }
-        await sleep(this.retryDelay(attempt));
-        continue;
+
+        const text = await response.text();
+        statusCode = response.status;
+        responseBody = text;
+
+        if (response.ok) {
+          const result = normalizeResponse(text);
+          const usage = usageFromText(text);
+          inputTokens = usage.inputTokens;
+          outputTokens = usage.outputTokens;
+          cost = usage.cost;
+          ok = true;
+          return result;
+        }
+
+        const apiError = parseApiError(response.status, text);
+        lastError = apiError;
+
+        // Un 429 de cuota trae Retry-After de horas: no tiene sentido reintentar.
+        const retryable =
+          RETRYABLE_STATUS.has(response.status) &&
+          apiError.code !== "FreeUsageLimitError" &&
+          attempt < attempts - 1;
+
+        if (!retryable) {
+          throw apiError;
+        }
+
+        await sleep(
+          this.retryDelay(attempt, response.headers.get("retry-after") ?? undefined),
+        );
       }
 
-      const text = await response.text();
-
-      if (response.ok) {
-        return normalizeResponse(text);
+      throw lastError;
+    } catch (error) {
+      errorMessage = messageOf(error);
+      if (error instanceof JevApiError) {
+        errorCode = error.code;
+        statusCode = error.statusCode;
+        responseBody = responseBody ?? error.body;
       }
-
-      const apiError = parseApiError(response.status, text);
-      lastError = apiError;
-
-      // Un 429 de cuota trae Retry-After de horas: no tiene sentido reintentar.
-      const retryable =
-        RETRYABLE_STATUS.has(response.status) &&
-        apiError.code !== "FreeUsageLimitError" &&
-        attempt < attempts - 1;
-
-      if (!retryable) {
-        throw apiError;
-      }
-
-      await sleep(
-        this.retryDelay(attempt, response.headers.get("retry-after") ?? undefined),
-      );
+      throw error;
+    } finally {
+      const finishedAt = new Date();
+      this.onRequest?.({
+        startedAt,
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        endpoint: this.endpoint,
+        model,
+        statusCode,
+        ok,
+        requestBody: bodyObject,
+        responseBody,
+        inputTokens,
+        outputTokens,
+        cost,
+        errorCode,
+        errorMessage,
+      });
     }
-
-    throw lastError;
   }
 
   private networkError(error: unknown): Error {
@@ -177,6 +226,40 @@ export class JevClient {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Extrae tokens/coste del cuerpo crudo sin forzar valores por defecto. */
+function usageFromText(
+  text: string,
+): { inputTokens?: number; outputTokens?: number; cost?: number } {
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const usage = parsed.usage;
+    if (usage && typeof usage === "object") {
+      const record = usage as Record<string, unknown>;
+      return {
+        inputTokens: asNumber(record.input_tokens),
+        outputTokens: asNumber(record.output_tokens),
+        cost: asNumber(record.cost),
+      };
+    }
+  } catch {
+    // El cuerpo no es JSON: no hay tokens ni coste.
+  }
+  return {};
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function messageOf(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 function normalizeResponse(text: string): JevResponse {
