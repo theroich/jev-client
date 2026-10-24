@@ -1,0 +1,7 @@
+{
+  "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
+  "cliente": {
+    "nombre": "Ana",
+    "plan": "pro"
+  }
+}

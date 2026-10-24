@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import Database from "better-sqlite3";
 
 import { ConfigRepository } from "../src/config-repository.js";
 import {
@@ -91,5 +92,34 @@ test("no se abre una base con un esquema más reciente", () => {
   const db = openDatabase(":memory:");
   db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
   assert.throws(() => migrateDatabase(db), /esquema/);
+  db.close();
+});
+
+test("actualiza de v1 a v2 conservando config y creando templates", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-db-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "jev.db");
+
+  const legacy = new Database(path);
+  legacy.exec(
+    "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+  );
+  legacy
+    .prepare("INSERT INTO config (key, value) VALUES (?, ?)")
+    .run("model", "legacy-model");
+  legacy.pragma("user_version = 1");
+  legacy.close();
+
+  const db = openDatabase(path);
+  assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
+  assert.equal(new ConfigRepository(db).get("model"), "legacy-model");
+  assert.deepEqual(
+    db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'templates'",
+      )
+      .get(),
+    { name: "templates" },
+  );
   db.close();
 });

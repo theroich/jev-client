@@ -1,0 +1,11 @@
+{
+  "model": "jev-1.13",
+  "state": {
+    "pedido": "{{estado_de_pedido}}",
+    "cliente": "{{cliente.nombre}}",
+    "plan": "{{cliente.plan}}"
+  },
+  "questions": {
+    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+  }
+}

@@ -34,6 +34,16 @@ export {
   type SqliteDatabase,
 } from "./database.js";
 export {
+  resolveJsonMacros,
+  resolveStringMacros,
+  resolveTemplateBody,
+  validateQuestions,
+  validateTemplateRequest,
+  type MacroResolution,
+  type TemplateContext,
+} from "./template.js";
+export { TemplateRepository, type Template } from "./template-repository.js";
+export {
   answerSummary,
   formatCost,
   formatNumber,
