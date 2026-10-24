@@ -2,7 +2,21 @@ import { readFile } from "node:fs/promises";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { JevClient, type FetchLike } from "./client.js";
-import { DEFAULT_ENDPOINT, DEFAULT_MODEL, resolveConfig, resolveModel } from "./config.js";
+import {
+  DEFAULT_ENDPOINT,
+  DEFAULT_MODEL,
+  resolveConfig,
+  resolveModel,
+  type StoredConfig,
+} from "./config.js";
+import {
+  CONFIG_KEYS,
+  ConfigRepository,
+  isConfigKey,
+  validateConfigValue,
+  type ConfigKey,
+} from "./config-repository.js";
+import { openDatabase, resolveDatabasePath } from "./database.js";
 import { JevApiError } from "./errors.js";
 import { formatCost, formatReport } from "./format.js";
 import type { JevRequest, JevResponse, Question, State } from "./types.js";
@@ -24,6 +38,7 @@ const USAGE = `jev-client — CLI para la API de Jev (System One)
 Uso:
   jev-client ask [flags]      evalúa un state contra una o más preguntas
   jev-client demo [flags]     ejecuta un ejemplo integrado
+  jev-client config <comando> gestiona la configuración persistente
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -31,10 +46,12 @@ Variables de entorno:
   OPENCODE_API_KEY (o JEV_API_KEY)  API key
   JEV_URL                           endpoint
   JEV_MODEL                         modelo
+  JEV_DB                            ruta de la base SQLite
 
-Precedencia: flag > variable de entorno > valor por defecto.
+Precedencia: flag > variable de entorno > base de datos > valor por defecto.
 Endpoint por defecto: ${DEFAULT_ENDPOINT}
 Modelo por defecto:   ${DEFAULT_MODEL}
+Base por defecto:     <home-del-SO>/.jev-client/db/jev.db
 
 Ejemplos:
   jev-client demo
@@ -43,6 +60,7 @@ Ejemplos:
       --questions '{"billing":{"type":"noul","instructions":"¿Es de facturación?"}}'
   jev-client ask --state-file ticket.txt --questions-file preguntas.json
   jev-client ask --request-file request.json
+  jev-client config set model jev-1.13-free
 `;
 
 const ASK_USAGE = `Uso: jev-client ask [flags]
@@ -57,6 +75,7 @@ Flags:
   --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
   --url <endpoint>         endpoint completo (env: JEV_URL)
   --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
+  --db <ruta>              base SQLite (env: JEV_DB)
   --timeout <segundos>     timeout de cada intento HTTP (default 30)
   --retries <n>            reintentos ante 429/5xx (default 2)
   --json                   imprime la respuesta cruda en JSON
@@ -69,10 +88,23 @@ Flags:
   --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
   --url <endpoint>         endpoint completo (env: JEV_URL)
   --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
+  --db <ruta>              base SQLite (env: JEV_DB)
   --timeout <segundos>     timeout de cada intento HTTP (default 30)
   --retries <n>            reintentos ante 429/5xx (default 2)
   --json                   imprime la respuesta cruda en JSON
   -h, --help               muestra esta ayuda
+`;
+
+const CONFIG_USAGE = `Uso:
+  jev-client config list [--db <ruta>]
+  jev-client config get <clave> [--db <ruta>]
+  jev-client config set <clave> <valor> [--db <ruta>]
+  jev-client config unset <clave> [--db <ruta>]
+
+Claves: api_url, api_key, model, timeout (segundos), retries.
+
+La API key se guarda en claro. Para no persistirla, usa --key o
+OPENCODE_API_KEY/JEV_API_KEY en cada ejecución.
 `;
 
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
@@ -83,7 +115,13 @@ const COMMON_OPTIONS = {
   model: { type: "string" },
   timeout: { type: "string" },
   retries: { type: "string" },
+  db: { type: "string" },
   json: { type: "boolean" },
+  help: { type: "boolean", short: "h" },
+} satisfies ParseArgsOptions;
+
+const CONFIG_OPTIONS = {
+  db: { type: "string" },
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
 
@@ -98,11 +136,9 @@ const ASK_OPTIONS = {
 } satisfies ParseArgsOptions;
 
 interface CommonOptions {
-  key?: string | undefined;
-  url?: string | undefined;
+  config: ReturnType<typeof resolveConfig>;
   model?: string | undefined;
-  timeoutMs: number;
-  retries: number;
+  storedModel?: string | undefined;
   json: boolean;
 }
 
@@ -123,6 +159,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return await runAsk(argv.slice(1), io);
       case "demo":
         return await runDemo(argv.slice(1), io);
+      case "config":
+        return runConfig(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -164,7 +202,7 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
     throw new UsageError("falta --state, --state-file o --request-file");
   }
 
-  const options = readCommonOptions(values);
+  const options = readCommonOptions(values, io);
   const client = createClient(options, io);
   const request = await buildRequest(values, options, io);
   const response = await client.run(request);
@@ -183,15 +221,111 @@ async function runDemo(args: string[], io: CliIO): Promise<number> {
     throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
   }
 
-  const options = readCommonOptions(values);
+  const options = readCommonOptions(values, io);
   const client = createClient(options, io);
   const response = await client.run({
-    model: resolveModel(options.model, undefined, envOf(io)),
+    model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
     state: DEMO_STATE,
     questions: demoQuestions(),
   });
   writeResponse(io, response, options.json);
   return 0;
+}
+
+function runConfig(args: string[], io: CliIO): number {
+  const { values, positionals } = parseOptions(args, CONFIG_OPTIONS);
+  if (values.help === true) {
+    io.stdout(CONFIG_USAGE);
+    return 0;
+  }
+
+  const action = positionals[0];
+  if (action === undefined) {
+    throw new UsageError("falta un comando de config (list, get, set o unset)");
+  }
+
+  switch (action) {
+    case "list": {
+      expectConfigArity(positionals, 1, "jev config list [--db <ruta>]");
+      return withDatabase(values, io, (repository) => {
+        for (const { key, value } of repository.list()) {
+          io.stdout(`${key}=${value}\n`);
+        }
+        return 0;
+      });
+    }
+    case "get": {
+      expectConfigArity(positionals, 2, "jev config get <clave> [--db <ruta>]");
+      const key = parseConfigKey(positionals[1]);
+      return withDatabase(values, io, (repository) => {
+        const value = repository.get(key);
+        if (value === undefined) {
+          throw new Error(`configuración no definida: ${key}`);
+        }
+        io.stdout(`${value}\n`);
+        return 0;
+      });
+    }
+    case "set": {
+      expectConfigArity(
+        positionals,
+        3,
+        "jev config set <clave> <valor> [--db <ruta>]",
+      );
+      const key = parseConfigKey(positionals[1]);
+      const value = positionals[2] as string;
+      try {
+        validateConfigValue(key, value);
+      } catch (error) {
+        throw new UsageError(messageOf(error));
+      }
+      return withDatabase(values, io, (repository, path) => {
+        repository.set(key, value);
+        io.stdout(`configuración guardada: ${key}\n`);
+        if (key === "api_key") {
+          io.stderr(
+            `aviso: la API key se guarda en claro en ${path}. ` +
+              "Para no persistirla, usa --key o OPENCODE_API_KEY/JEV_API_KEY.\n",
+          );
+        }
+        return 0;
+      });
+    }
+    case "unset": {
+      expectConfigArity(
+        positionals,
+        2,
+        "jev config unset <clave> [--db <ruta>]",
+      );
+      const key = parseConfigKey(positionals[1]);
+      return withDatabase(values, io, (repository) => {
+        repository.unset(key);
+        io.stdout(`configuración eliminada: ${key}\n`);
+        return 0;
+      });
+    }
+    default:
+      throw new UsageError(`comando de config desconocido: ${JSON.stringify(action)}`);
+  }
+}
+
+function expectConfigArity(
+  positionals: string[],
+  expected: number,
+  usage: string,
+): void {
+  if (positionals.length !== expected) {
+    throw new UsageError(`uso: ${usage}`);
+  }
+}
+
+function parseConfigKey(value: string | undefined): ConfigKey {
+  if (value === undefined || !isConfigKey(value)) {
+    throw new UsageError(
+      `clave inválida: ${JSON.stringify(value)} (usa ${CONFIG_KEYS.join(", ")})`,
+    );
+  }
+  return value;
 }
 
 function parseOptions(
@@ -211,36 +345,73 @@ function parseOptions(
   }
 }
 
-function readCommonOptions(values: Values): CommonOptions {
-  const timeoutSeconds =
-    values.timeout === undefined ? 30 : Number(values.timeout);
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+function readCommonOptions(values: Values, io: CliIO): CommonOptions {
+  const timeout = asString(values.timeout);
+  const timeoutSeconds = timeout === undefined ? undefined : Number(timeout);
+  if (
+    timeoutSeconds !== undefined &&
+    (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0)
+  ) {
     throw new UsageError("--timeout debe ser un número positivo en segundos");
   }
 
-  const retries = values.retries === undefined ? 2 : Number(values.retries);
-  if (!Number.isInteger(retries) || retries < 0) {
+  const retriesValue = asString(values.retries);
+  const retries = retriesValue === undefined ? undefined : Number(retriesValue);
+  if (retries !== undefined && (!Number.isInteger(retries) || retries < 0)) {
     throw new UsageError("--retries debe ser un entero >= 0");
   }
 
+  const stored = withDatabase(values, io, (repository) => {
+    const entries = repository.list();
+    const config: StoredConfig = {};
+    for (const { key, value } of entries) {
+      config[key] = value;
+    }
+    return config;
+  });
+  const model = asString(values.model);
+
   return {
-    key: asString(values.key),
-    url: asString(values.url),
-    model: asString(values.model),
-    timeoutMs: Math.round(timeoutSeconds * 1000),
-    retries,
+    config: resolveConfig(
+      {
+        key: asString(values.key),
+        url: asString(values.url),
+        model,
+        timeoutMs:
+          timeoutSeconds === undefined
+            ? undefined
+            : Math.round(timeoutSeconds * 1000),
+        retries,
+      },
+      envOf(io),
+      stored,
+    ),
+    model,
+    storedModel: stored.model,
     json: values.json === true,
   };
 }
 
+function withDatabase<T>(
+  values: Values,
+  io: CliIO,
+  action: (repository: ConfigRepository, path: string) => T,
+): T {
+  const path = resolveDatabasePath(asString(values.db), envOf(io));
+  const db = openDatabase(path);
+  try {
+    return action(new ConfigRepository(db), path);
+  } finally {
+    db.close();
+  }
+}
+
 function createClient(options: CommonOptions, io: CliIO): JevClient {
-  const config = resolveConfig(
-    { key: options.key, url: options.url, model: options.model },
-    envOf(io),
-  );
+  const { config } = options;
   if (!config.apiKey) {
     throw new Error(
-      "falta la API key: usa --key o define OPENCODE_API_KEY (o JEV_API_KEY)",
+      "falta la API key: usa --key, define OPENCODE_API_KEY (o JEV_API_KEY) " +
+        "o guarda api_key con 'jev config set'",
     );
   }
 
@@ -248,8 +419,8 @@ function createClient(options: CommonOptions, io: CliIO): JevClient {
     apiKey: config.apiKey,
     endpoint: config.endpoint,
     model: config.model,
-    timeoutMs: options.timeoutMs,
-    maxRetries: options.retries,
+    timeoutMs: config.timeoutMs,
+    maxRetries: config.retries,
     fetch: io.fetch,
   });
 }
@@ -289,7 +460,7 @@ async function buildRequest(
   }
 
   return {
-    model: resolveModel(options.model, undefined, envOf(io)),
+    model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
     state: decodeState(stateRaw),
     questions: decodeQuestions(questionsRaw),
   };
@@ -327,7 +498,12 @@ function buildRequestFromPayload(
   }
 
   return {
-    model: resolveModel(options.model, request.model, envOf(io)),
+    model: resolveModel(
+      options.model,
+      request.model,
+      envOf(io),
+      options.storedModel,
+    ),
     state: request.state,
     questions: request.questions,
   };

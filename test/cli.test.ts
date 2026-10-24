@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -25,6 +25,7 @@ async function run(
   options: {
     stdin?: string;
     env?: NodeJS.ProcessEnv;
+    dbPath?: string;
     handler?: (url: string, init: RequestInit) => Response;
   } = {},
 ): Promise<Harness> {
@@ -49,6 +50,15 @@ async function run(
     });
   };
 
+  const temporaryDir =
+    options.dbPath === undefined
+      ? await mkdtemp(join(tmpdir(), "jev-cli-db-"))
+      : undefined;
+  const dbPath = options.dbPath ?? join(temporaryDir as string, "jev.db");
+  const env = options.env
+    ? { JEV_DB: dbPath, ...options.env }
+    : { OPENCODE_API_KEY: "test-key", JEV_DB: dbPath };
+
   const io: CliIO = {
     stdout: (text) => {
       stdout += text;
@@ -58,11 +68,17 @@ async function run(
     },
     readStdin: async () => options.stdin ?? "",
     fetch: fetchImpl,
-    env: options.env ?? { OPENCODE_API_KEY: "test-key" },
+    env,
   };
 
-  const code = await runCli(argv, io);
-  return { code, stdout, stderr, calls };
+  try {
+    const code = await runCli(argv, io);
+    return { code, stdout, stderr, calls };
+  } finally {
+    if (temporaryDir !== undefined) {
+      await rm(temporaryDir, { recursive: true, force: true });
+    }
+  }
 }
 
 test("sin argumentos muestra el uso y sale con 2", async () => {
@@ -273,4 +289,130 @@ test("--timeout y --retries inválidos son error de uso", async () => {
 
   const badRetries = await run(["demo", "--retries", "-1"]);
   assert.equal(badRetries.code, 2);
+});
+
+test("config gestiona los valores persistentes", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const setModel = await run(
+    ["config", "set", "model", "jev-1.13-free"],
+    { dbPath, env: {} },
+  );
+  assert.equal(setModel.code, 0);
+  await run(["config", "set", "timeout", "15"], { dbPath, env: {} });
+
+  const get = await run(["config", "get", "model"], { dbPath, env: {} });
+  assert.equal(get.code, 0);
+  assert.equal(get.stdout, "jev-1.13-free\n");
+
+  const list = await run(["config", "list"], { dbPath, env: {} });
+  assert.equal(list.stdout, "model=jev-1.13-free\ntimeout=15\n");
+
+  const unset = await run(["config", "unset", "model"], { dbPath, env: {} });
+  assert.equal(unset.code, 0);
+  const missing = await run(["config", "get", "model"], { dbPath, env: {} });
+  assert.equal(missing.code, 1);
+  assert.match(missing.stderr, /no definida/);
+
+  const invalid = await run(
+    ["config", "set", "retries", "-1"],
+    { dbPath, env: {} },
+  );
+  assert.equal(invalid.code, 2);
+});
+
+test("demo resuelve key, URL y modelo desde SQLite", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const savedKey = await run(
+    ["config", "set", "api_key", "stored-key"],
+    { dbPath, env: {} },
+  );
+  assert.equal(savedKey.code, 0);
+  assert.match(savedKey.stderr, /se guarda en claro/);
+  assert.match(savedKey.stderr, /Para no persistirla/);
+  await run(
+    ["config", "set", "api_url", "https://stored.test/systemone"],
+    { dbPath, env: {} },
+  );
+  await run(
+    ["config", "set", "model", "stored-model"],
+    { dbPath, env: {} },
+  );
+
+  const fromDatabase = await run(["demo"], { dbPath, env: {} });
+  assert.equal(fromDatabase.code, 0);
+  assert.equal(fromDatabase.calls[0]?.url, "https://stored.test/systemone");
+  let headers = new Headers(fromDatabase.calls[0]?.init.headers);
+  assert.equal(headers.get("authorization"), "Bearer stored-key");
+  let sent = JSON.parse(String(fromDatabase.calls[0]?.init.body)) as { model: string };
+  assert.equal(sent.model, "stored-model");
+
+  const fromEnv = await run(["demo"], {
+    dbPath,
+    env: {
+      OPENCODE_API_KEY: "env-key",
+      JEV_URL: "https://env.test/systemone",
+      JEV_MODEL: "env-model",
+    },
+  });
+  assert.equal(fromEnv.calls[0]?.url, "https://env.test/systemone");
+  headers = new Headers(fromEnv.calls[0]?.init.headers);
+  assert.equal(headers.get("authorization"), "Bearer env-key");
+  sent = JSON.parse(String(fromEnv.calls[0]?.init.body)) as { model: string };
+  assert.equal(sent.model, "env-model");
+
+  const fromFlags = await run(
+    ["demo", "--key", "flag-key", "--url", "https://flag.test", "--model", "flag-model"],
+    {
+      dbPath,
+      env: {
+        OPENCODE_API_KEY: "env-key",
+        JEV_URL: "https://env.test/systemone",
+        JEV_MODEL: "env-model",
+      },
+    },
+  );
+  assert.equal(fromFlags.calls[0]?.url, "https://flag.test");
+  headers = new Headers(fromFlags.calls[0]?.init.headers);
+  assert.equal(headers.get("authorization"), "Bearer flag-key");
+  sent = JSON.parse(String(fromFlags.calls[0]?.init.body)) as { model: string };
+  assert.equal(sent.model, "flag-model");
+});
+
+test("--db gana a JEV_DB", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const envPath = join(root, "env.db");
+  const flagPath = join(root, "flag.db");
+  const env = { JEV_DB: envPath };
+
+  const set = await run(
+    ["config", "set", "model", "flag-model", "--db", flagPath],
+    { dbPath: envPath, env },
+  );
+  assert.equal(set.code, 0);
+
+  const fromFlag = await run(
+    ["config", "get", "model", "--db", flagPath],
+    { dbPath: envPath, env },
+  );
+  assert.equal(fromFlag.stdout, "flag-model\n");
+  const fromEnv = await run(["config", "get", "model"], { dbPath: envPath, env });
+  assert.equal(fromEnv.code, 1);
+});
+
+test("una key pasada por flag no se persiste", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const demo = await run(["demo", "--key", "temporary-key"], { dbPath, env: {} });
+  assert.equal(demo.code, 0);
+  const list = await run(["config", "list"], { dbPath, env: {} });
+  assert.equal(list.stdout, "");
 });

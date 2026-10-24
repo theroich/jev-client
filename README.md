@@ -41,30 +41,86 @@ npm run dev -- demo   # compila y ejecuta
 
 ## Configuración
 
-La key, la URL y el modelo se pueden pasar por flag **o** por variable de
-entorno. Precedencia: **flag > entorno > valor por defecto**.
+La configuración se resuelve con esta precedencia: **flag > variable de entorno >
+base SQLite > valor por defecto**. Las cadenas vacías cuentan como no definidas.
 
-| Qué | Flag | Variable | Default |
-| --- | --- | --- | --- |
-| API key | `--key` | `OPENCODE_API_KEY` o `JEV_API_KEY` | — (obligatoria) |
-| Endpoint | `--url` | `JEV_URL` | `https://opencode.ai/inference/systemone/v1/systemone` |
-| Modelo | `--model` | `JEV_MODEL` | `jev-1.13` |
+| Qué | Flag | Variable | Clave SQLite | Default |
+| --- | --- | --- | --- | --- |
+| API key | `--key` | `OPENCODE_API_KEY` o `JEV_API_KEY` | `api_key` | — (obligatoria) |
+| Endpoint | `--url` | `JEV_URL` | `api_url` | `https://opencode.ai/inference/systemone/v1/systemone` |
+| Modelo | `--model` | `JEV_MODEL` | `model` | `jev-1.13` |
+| Timeout (segundos) | `--timeout` | — | `timeout` | `30` |
+| Reintentos | `--retries` | — | `retries` | `2` |
+| Base SQLite | `--db` | `JEV_DB` | — | ver abajo |
 
 ```sh
 export OPENCODE_API_KEY="sk-..."
 ```
 
-`--url` espera el **endpoint completo**, no la base.
+`--url` espera el **endpoint completo**, no la base. Si un request completo
+incluye `model`, ese modelo explícito se mantiene por delante del guardado en
+SQLite.
 
 Otros flags comunes a `ask` y `demo`:
 
 ```
---timeout 30     timeout de cada intento HTTP, en segundos
---retries 2      reintentos ante 429/5xx y errores de red
---json           imprime la respuesta cruda de la API
+--db ~/.jev-client/db/jev.db     ruta de la base (también en config)
+--timeout 30                     timeout de cada intento HTTP, en segundos
+--retries 2                      reintentos ante 429/5xx y errores de red
+--json                           imprime la respuesta cruda de la API
 ```
 
+### Persistencia SQLite
+
+Se eligió **`better-sqlite3` 12.x** porque mantiene el requisito actual de
+**Node.js 20 o superior**. La versión 13 del driver ya exige Node 22, igual que
+la alternativa `node:sqlite`, por lo que no se sube el mínimo de Node.
+
+La base se crea y migra automáticamente en el primer uso de `ask`, `demo` o
+`config`. Vive por defecto en `<home-del-SO>/.jev-client/db/jev.db`. El
+directorio personal se obtiene mediante `os.homedir()`, por lo que funciona en
+Linux, macOS y Windows; por ejemplo, `~/.jev-client/db/jev.db` en Unix y
+`%USERPROFILE%\.jev-client\db\jev.db` en Windows.
+
+Se puede cambiar en `ask`, `demo` y `config` con `--db /ruta/jev.db` o
+`JEV_DB=/ruta/jev.db`. Al crear el directorio y el fichero se usan permisos
+restrictivos (`0700` y `0600` en sistemas POSIX). Las migraciones están
+versionadas con `PRAGMA user_version` y se pueden reaplicar sin duplicar datos.
+
+**La API key guardada en SQLite queda en claro.** Los permisos del fichero no la
+cifran. Para no persistirla, no uses `config set api_key`: pásala con `--key` o
+mediante `OPENCODE_API_KEY`/`JEV_API_KEY`; esas dos vías nunca la guardan
+automáticamente.
+
 ## Comandos
+
+### `jev config`
+
+Gestiona las claves persistentes `api_url`, `api_key`, `model`, `timeout` y
+`retries`:
+
+```sh
+jev config set api_url https://opencode.ai/inference/systemone/v1/systemone
+jev config set model jev-1.13
+jev config set timeout 30
+jev config set retries 2
+
+jev config get model
+jev config list
+jev config unset model
+```
+
+Para guardar la key (con el aviso explícito de que quedará en claro):
+
+```sh
+jev config set api_key "sk-..."
+# aviso: la API key se guarda en claro en ...
+```
+
+Todos los subcomandos aceptan `--db`. `config get` devuelve un error si la clave
+no existe; `config unset` es idempotente. Los valores de `timeout` deben ser
+números positivos en segundos y los de `retries`, enteros mayores o iguales a
+cero.
 
 ### `jev demo`
 
@@ -198,7 +254,9 @@ npm run typecheck
 
 Los tests no hacen red contra la API: usan un `fetch` inyectado y un servidor
 HTTP local para comprobar cabeceras, cuerpo, reintentos, 401 sin reintento, 429
-de cuota, parseo de errores, formato y CLI.
+de cuota, parseo de errores, formato y CLI. Las bases SQLite se crean en
+directorios temporales para probar migraciones, repositorio, precedencia y
+permisos.
 
 ## Notas
 
