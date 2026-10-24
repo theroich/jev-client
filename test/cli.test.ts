@@ -27,6 +27,8 @@ async function run(
     env?: NodeJS.ProcessEnv;
     dbPath?: string;
     handler?: (url: string, init: RequestInit) => Response;
+    confirm?: (prompt: string) => Promise<boolean> | boolean;
+    editor?: (filePath: string, initial: string) => Promise<string> | string;
   } = {},
 ): Promise<Harness> {
   let stdout = "";
@@ -69,6 +71,13 @@ async function run(
     readStdin: async () => options.stdin ?? "",
     fetch: fetchImpl,
     env,
+    confirm: options.confirm
+      ? async (prompt) => (await options.confirm!(prompt)) as boolean
+      : undefined,
+    openInEditor: options.editor
+      ? async (filePath, initial) =>
+          (await options.editor!(filePath, initial)) as string
+      : undefined,
   };
 
   try {
@@ -493,4 +502,281 @@ test("template render con contexto incompleto falla antes de la API", async (t) 
   assert.match(render.stderr, /faltan macros en el contexto/);
   assert.match(render.stderr, /estado/);
   assert.match(render.stderr, /modelo/);
+});
+
+test("config path imprime la ruta resuelta", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const result = await run(["config", "path", "--db", dbPath], {
+    env: {},
+    dbPath,
+  });
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout.trim(), dbPath);
+});
+
+test("config get api_key enmascara y --reveal la muestra", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  await run(["config", "set", "api_key", "sk-abcdefgh-1234"], {
+    dbPath,
+    env: {},
+  });
+
+  const masked = await run(["config", "get", "api_key"], { dbPath, env: {} });
+  assert.equal(masked.code, 0);
+  assert.match(masked.stdout, /sk-a/);
+  assert.doesNotMatch(masked.stdout, /abcdefgh/);
+
+  const revealed = await run(
+    ["config", "get", "api_key", "--reveal"],
+    { dbPath, env: {} },
+  );
+  assert.equal(revealed.stdout, "sk-abcdefgh-1234\n");
+
+  const asJson = await run(["config", "get", "api_key", "--json"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(asJson.code, 0);
+  assert.equal(JSON.parse(asJson.stdout), "sk-abcdefgh-1234");
+});
+
+test("config list --json devuelve un objeto", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  await run(["config", "set", "model", "jev-1.13-free"], { dbPath, env: {} });
+
+  const list = await run(["config", "list", "--json"], { dbPath, env: {} });
+  assert.equal(list.code, 0);
+  assert.deepEqual(JSON.parse(list.stdout), { model: "jev-1.13-free" });
+});
+
+test("templates (plural) crea, lista, muestra, edita, valida y borra", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "jev-1.13",
+    state: "{{estado}}",
+    questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  });
+
+  const create = await run(
+    [
+      "templates",
+      "create",
+      "pedido",
+      "--description",
+      "Pedido con cliente",
+      "--body",
+      body,
+    ],
+    { dbPath, env: {} },
+  );
+  assert.equal(create.code, 0);
+  assert.match(create.stdout, /plantilla guardada: pedido/);
+
+  const list = await run(["templates", "list"], { dbPath, env: {} });
+  assert.equal(list.code, 0);
+  assert.equal(list.stdout, "pedido - Pedido con cliente\n");
+
+  const listJson = await run(["templates", "list", "--json"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(listJson.code, 0);
+  const listed = JSON.parse(listJson.stdout) as Array<{ name: string }>;
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0]?.name, "pedido");
+
+  const show = await run(["templates", "show", "pedido"], { dbPath, env: {} });
+  assert.equal(show.code, 0);
+  assert.equal(JSON.parse(show.stdout).model, "jev-1.13");
+
+  const editedBody = JSON.stringify({
+    model: "jev-1.13",
+    state: "{{estado}}",
+    questions: { urgente: { type: "noul", instructions: "¿Urgente?" } },
+  });
+  const edit = await run(
+    ["templates", "edit", "pedido"],
+    {
+      dbPath,
+      env: {},
+      editor: async (_path, _initial) => editedBody,
+    },
+  );
+  assert.equal(edit.code, 0);
+
+  const edited = await run(["templates", "show", "pedido"], {
+    dbPath,
+    env: {},
+  });
+  const editedShown = JSON.parse(edited.stdout) as { questions: unknown };
+  assert.deepEqual(Object.keys(editedShown.questions as object), ["urgente"]);
+
+  const validate = await run(["templates", "validate", "pedido"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(validate.code, 0);
+  assert.match(validate.stdout, /plantilla válida: pedido/);
+
+  const decline = await run(["templates", "delete", "pedido"], {
+    dbPath,
+    env: {},
+    confirm: async () => false,
+  });
+  assert.equal(decline.code, 0);
+  assert.match(decline.stdout, /cancelado/);
+  const stillThere = await run(["templates", "show", "pedido"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(stillThere.code, 0);
+
+  const accept = await run(["templates", "delete", "pedido"], {
+    dbPath,
+    env: {},
+    confirm: async () => true,
+  });
+  assert.equal(accept.code, 0);
+  assert.match(accept.stdout, /plantilla eliminada: pedido/);
+
+  const gone = await run(["templates", "show", "pedido"], { dbPath, env: {} });
+  assert.equal(gone.code, 1);
+  assert.match(gone.stderr, /plantilla no encontrada/);
+});
+
+test("templates delete con --yes no pide confirmación", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "m",
+    state: "s",
+    questions: { q: { type: "noul" } },
+  });
+  await run(["templates", "create", "t", "--body", body], { dbPath, env: {} });
+
+  const result = await run(["templates", "delete", "t", "--yes"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /plantilla eliminada: t/);
+});
+
+test("templates create desde fichero", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const file = join(root, "body.json");
+  await writeFile(
+    file,
+    JSON.stringify({
+      model: "m",
+      state: "s",
+      questions: { q: { type: "noul" } },
+    }),
+    "utf8",
+  );
+
+  const result = await run(
+    ["templates", "create", "t", "--description", "Desde fichero", "--file", file],
+    { dbPath, env: {} },
+  );
+  assert.equal(result.code, 0);
+
+  const show = await run(["templates", "show", "t"], { dbPath, env: {} });
+  assert.equal(JSON.parse(show.stdout).state, "s");
+});
+
+test("templates validate --file valida sin persistir", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const file = join(root, "body.json");
+  await writeFile(
+    file,
+    JSON.stringify({
+      model: "m",
+      state: "s",
+      questions: { q: { type: "noul" } },
+    }),
+    "utf8",
+  );
+
+  const valid = await run(["templates", "validate", "--file", file], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(valid.code, 0);
+  assert.match(valid.stdout, /plantilla válida/);
+
+  const badFile = join(root, "bad.json");
+  await writeFile(badFile, '{"state":"s"}', "utf8");
+  const invalid = await run(["templates", "validate", "--file", badFile], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(invalid.code, 1);
+  assert.match(invalid.stderr, /no tiene model/);
+});
+
+test("templates edit sin $EDITOR y sin --file falla con mensaje claro", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "m",
+    state: "s",
+    questions: { q: { type: "noul" } },
+  });
+  await run(["templates", "create", "t", "--body", body], { dbPath, env: {} });
+
+  const result = await run(["templates", "edit", "t"], { dbPath, env: {} });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /\$EDITOR no está definido/);
+});
+
+test("templates edit con --file reemplaza el body", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "m",
+    state: "s",
+    questions: { q: { type: "noul" } },
+  });
+  await run(["templates", "create", "t", "--body", body], { dbPath, env: {} });
+
+  const file = join(root, "nuevo.json");
+  await writeFile(
+    file,
+    JSON.stringify({ model: "m", state: "nuevo", questions: { q: { type: "noul" } } }),
+    "utf8",
+  );
+
+  const result = await run(["templates", "edit", "t", "--file", file], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(result.code, 0);
+
+  const show = await run(["templates", "show", "t"], { dbPath, env: {} });
+  assert.equal(JSON.parse(show.stdout).state, "nuevo");
 });

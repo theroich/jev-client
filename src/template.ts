@@ -199,6 +199,20 @@ export function resolveTemplateBody(
   return validateTemplateRequest(value);
 }
 
+/**
+ * Parsea y valida el cuerpo de una plantilla (con macros sin resolver) como
+ * request de Jev. No resuelve macros: solo comprueba la estructura y los tipos.
+ */
+export function validateTemplateBody(bodyJson: string): JevRequest {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyJson);
+  } catch (error) {
+    throw new Error(`JSON inválido en la plantilla: ${messageOf(error)}`);
+  }
+  return validateTemplateRequest(parsed);
+}
+
 /** Valida un valor ya resuelto como request de Jev. */
 export function validateTemplateRequest(value: unknown): JevRequest {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
