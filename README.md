@@ -93,6 +93,65 @@ cifran. Para no persistirla, no uses `config set api_key`: pásala con `--key` o
 mediante `OPENCODE_API_KEY`/`JEV_API_KEY`; esas dos vías nunca la guardan
 automáticamente.
 
+### Esquema SQLite
+
+La base usa tres tablas. El esquema está versionado con `PRAGMA user_version`
+(versión actual: **3**): cada versión se aplica en una transacción, las
+migraciones son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS`) y se
+pueden reaplicar sin duplicar datos. Si una base es más reciente de lo que
+soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
+
+**`config`** — clave/valor de la configuración persistente.
+
+| Columna | Tipo | Notas |
+| --- | --- | --- |
+| `key` | `TEXT PRIMARY KEY` | `api_url`, `api_key`, `model`, `timeout`, `retries` |
+| `value` | `TEXT NOT NULL` | siempre texto; `timeout`/`retries` se validan como números |
+
+**`templates`** — plantillas JSON con macros.
+
+| Columna | Tipo | Notas |
+| --- | --- | --- |
+| `name` | `TEXT PRIMARY KEY` | nombre de la plantilla |
+| `description` | `TEXT NOT NULL DEFAULT ''` | descripción opcional |
+| `body_json` | `TEXT NOT NULL` | body de la plantilla (con macros `{{clave}}`) |
+| `created_at` | `TEXT NOT NULL` | ISO 8601 |
+| `updated_at` | `TEXT NOT NULL` | ISO 8601 |
+
+**`requests`** — historial de peticiones (una fila por ejecución de `ask`, `demo`
+o por cada petición de un `batch`).
+
+| Columna | Tipo | Notas |
+| --- | --- | --- |
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | id de la petición |
+| `created_at` | `TEXT NOT NULL` | ISO 8601 |
+| `started_at` / `finished_at` | `TEXT` | marcas de inicio y fin |
+| `duration_ms` | `INTEGER` | duración en milisegundos |
+| `endpoint` | `TEXT` | URL usada |
+| `model` | `TEXT` | modelo usado |
+| `status_code` | `INTEGER` | código HTTP (o `NULL`) |
+| `ok` | `INTEGER NOT NULL` | `1` éxito, `0` fallo |
+| `request_json` | `TEXT` | payload enviado (`model`, `state`, `questions`) |
+| `response_json` | `TEXT` | cuerpo crudo recibido |
+| `input_tokens` / `output_tokens` | `INTEGER` | tokens, `NULL` si no se informan |
+| `cost` | `REAL` | coste, `NULL` si no se informa |
+| `error_code` / `error_message` | `TEXT` | error si la petición falló |
+| `template_name` / `batch_id` | `TEXT` | sellos de plantilla y batch |
+
+Índices sobre `requests`: `idx_requests_created_at`, `idx_requests_model` e
+`idx_requests_template_name`.
+
+**Qué NO se guarda.** El historial no persiste cabeceras (ni la `Authorization`
+con la API key): solo el payload enviado y el cuerpo devuelto por la API. Para
+no conservar una ejecución concreta, usa `--no-save`.
+
+Para inspeccionar o migrar la base a mano, `sqlite3` sirve:
+
+```sh
+sqlite3 ~/.jev-client/db/jev.db '.schema'
+sqlite3 ~/.jev-client/db/jev.db 'PRAGMA user_version;'
+```
+
 ## Comandos
 
 ### `jev config`
@@ -480,6 +539,13 @@ HTTP local para comprobar cabeceras, cuerpo, reintentos, 401 sin reintento, 429
 de cuota, parseo de errores, formato y CLI. Las bases SQLite se crean en
 directorios temporales para probar migraciones, repositorios, precedencia,
 permisos y el historial de peticiones (`requests`).
+
+### CI
+
+Hay un workflow de GitHub Actions (`.github/workflows/ci.yml`) que, en cada push
+a `main` y en cada pull request, ejecuta `npm ci`, `npm run typecheck` y
+`npm test` sobre Node 20 y 22. Como la suite no necesita red ni una API key
+real, el CI funciona sin secretos.
 
 ## Notas
 
