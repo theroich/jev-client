@@ -242,6 +242,49 @@ Reglas de las macros:
 - El resultado se valida como request (model, state, questions y tipos de
   pregunta).
 
+### `jev batch`
+
+Ejecuta una plantilla una vez por cada mapa de contexto de un fichero JSON (un
+array de objetos). Cada mapa produce una petición y una fila en el historial,
+todas con el mismo `batch_id` y su `template_name`:
+
+```sh
+# Fichero con un array de mapas de contexto
+jev batch pedido --contexts examples/contexts.json
+
+# Hasta 3 peticiones concurrentes
+jev batch pedido --contexts examples/contexts.json --concurrency 3
+
+# Detenerse ante el primer error (por defecto sigue con el resto)
+jev batch pedido --contexts examples/contexts.json --fail-fast
+```
+
+```text
+batch: pedido — 3 peticiones (batch 4f3c…)
+  1: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
+  2: error faltan macros en el contexto: cliente.plan
+  3: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
+resumen: 2 ok, 1 error
+tokens: 24 in / 6 out
+coste: 3.0e-6 (1 sin coste informado)
+```
+
+- `--contexts <fichero.json>` espera un array de mapas de contexto; `-` lee de
+  stdin.
+- `--concurrency <n>` controla cuántas peticiones van a la vez; por defecto `1`
+  para no saturar la API. El máximo es `10`.
+- Con `--continue-on-error` (por defecto) un contexto inválido o una petición
+  fallida no cancelan el resto; el proceso sale con código `1` si hubo errores.
+  Con `--fail-fast` se detiene ante el primer error.
+- El resumen de coste suma solo los costes informados y cuenta aparte los que
+  la API no devolvió (`sin coste informado`).
+- Los resultados se imprimen en el orden del fichero de contextos, con
+  independencia de la concurrencia.
+- `--json` imprime un único objeto JSON con el `batch_id`, la plantilla, el
+  resumen (`ok`, `errors`, `input_tokens`, `output_tokens`, `cost`,
+  `cost_unknown`) y el array `items` (uno por contexto, en orden, con su
+  `index`, `ok`, `model`, tokens, `cost`, `error` y `response` cruda).
+
 ## Tipos de pregunta
 
 | `type` | Campos | Devuelve |

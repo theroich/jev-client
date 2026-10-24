@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
@@ -57,6 +58,7 @@ Uso:
   jev-client config <comando> gestiona la configuración persistente
   jev-client history <comando> consulta el historial de peticiones
   jev-client template <comando> gestiona plantillas JSON con macros
+  jev-client batch <plantilla> --contexts <fichero.json>  ejecuta una plantilla para muchos contextos
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -80,6 +82,7 @@ Ejemplos:
   jev-client ask --request-file request.json
   jev-client config set model jev-1.13-free
   jev-client template render pedido --context '{"estado":"pendiente"}'
+  jev-client batch pedido --contexts examples/contexts.json
 `;
 
 const ASK_USAGE = `Uso: jev-client ask [flags]
@@ -157,6 +160,27 @@ admiten rutas anidadas ({{cliente.nombre}}). 'render' resuelve las macros con
 un contexto JSON y previsualiza el request sin enviarlo.
 `;
 
+const BATCH_USAGE = `Uso: jev-client batch <plantilla> --contexts <fichero.json> [flags]
+
+Ejecuta una plantilla con macros una vez por cada mapa de contexto del fichero.
+Cada mapa produce una petición y una fila en el historial (mismo batch_id).
+
+Flags:
+  --contexts <fichero.json>  array de mapas de contexto ('-' para stdin)
+  --concurrency <n>          peticiones concurrentes (default 1, max 10)
+  --continue-on-error        sigue con el resto ante errores (default)
+  --fail-fast                detiene la ejecución ante el primer error
+  --key <clave>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --url <endpoint>           endpoint completo (env: JEV_URL)
+  --model <modelo>           p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
+  --db <ruta>                base SQLite (env: JEV_DB)
+  --timeout <segundos>       timeout de cada intento HTTP (default 30)
+  --retries <n>              reintentos ante 429/5xx (default 2)
+  --no-save                  no registrar la ejecución en el historial
+  --json                     imprime el resumen en JSON
+  -h, --help                 muestra esta ayuda
+`;
+
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
 
 const COMMON_OPTIONS = {
@@ -206,6 +230,16 @@ const ASK_OPTIONS = {
   "request-file": { type: "string" },
 } satisfies ParseArgsOptions;
 
+const BATCH_OPTIONS = {
+  ...COMMON_OPTIONS,
+  contexts: { type: "string" },
+  concurrency: { type: "string" },
+  "continue-on-error": { type: "boolean" },
+  "fail-fast": { type: "boolean" },
+} satisfies ParseArgsOptions;
+
+const MAX_CONCURRENCY = 10;
+
 interface CommonOptions {
   config: ReturnType<typeof resolveConfig>;
   model?: string | undefined;
@@ -236,6 +270,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return runHistory(argv.slice(1), io);
       case "template":
         return await runTemplate(argv.slice(1), io);
+      case "batch":
+        return await runBatch(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -305,6 +341,286 @@ async function runDemo(args: string[], io: CliIO): Promise<number> {
   });
   writeResponse(io, response, options.json);
   return 0;
+}
+
+interface BatchItemResult {
+  index: number;
+  ok: boolean;
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cost?: number;
+  error?: string;
+  raw?: unknown;
+}
+
+async function runBatch(args: string[], io: CliIO): Promise<number> {
+  const { values, positionals } = parseOptions(args, BATCH_OPTIONS);
+
+  if (values.help === true) {
+    io.stdout(BATCH_USAGE);
+    return 0;
+  }
+  if (positionals.length !== 1) {
+    throw new UsageError(
+      "uso: jev batch <plantilla> --contexts <fichero.json> [flags]",
+    );
+  }
+  const templateName = positionals[0] as string;
+  if (templateName.trim() === "") {
+    throw new UsageError("el nombre de la plantilla no puede estar vacío");
+  }
+
+  const concurrency = parseConcurrency(asString(values.concurrency));
+  const failFast = values["fail-fast"] === true;
+
+  const contextsFlag = asString(values.contexts);
+  if (contextsFlag === undefined) {
+    throw new UsageError("falta --contexts <fichero.json>");
+  }
+
+  const bodyJson = withTemplates(values, io, (repository) => {
+    const template = repository.get(templateName);
+    if (template === undefined) {
+      throw new Error(`plantilla no encontrada: ${templateName}`);
+    }
+    return template.body_json;
+  });
+
+  const raw = await readInput(undefined, contextsFlag, io);
+  if (raw === undefined || raw.trim() === "") {
+    throw new Error("--contexts está vacío");
+  }
+  const contexts = parseContextsArray(raw);
+
+  const options = readCommonOptions(values, io);
+  const batchId = randomUUID();
+  const client = createClient(
+    options,
+    io,
+    createRecorder(values, io, { templateName, batchId }),
+  );
+
+  const results = await executeBatch(
+    contexts,
+    bodyJson,
+    options,
+    io,
+    client,
+    concurrency,
+    failFast,
+  );
+
+  const skipped = contexts.length - results.length;
+
+  if (options.json) {
+    io.stdout(
+      `${JSON.stringify(batchToJson(batchId, templateName, results, contexts.length, skipped), null, 2)}\n`,
+    );
+  } else {
+    io.stdout(formatBatchReport(templateName, batchId, results, skipped));
+  }
+
+  return results.some((result) => !result.ok) || skipped > 0 ? 1 : 0;
+}
+
+function parseConcurrency(value: string | undefined): number {
+  if (value === undefined) {
+    return 1;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_CONCURRENCY) {
+    throw new UsageError(
+      `--concurrency debe ser un entero entre 1 y ${MAX_CONCURRENCY}`,
+    );
+  }
+  return parsed;
+}
+
+function parseContextsArray(raw: string): unknown[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`JSON inválido en --contexts: ${messageOf(error)}`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("--contexts debe ser un array de mapas de contexto");
+  }
+  return parsed;
+}
+
+/**
+ * Ejecuta una petición por mapa de contexto conservando el orden del fichero.
+ * Con `failFast` procesa en serie y se detiene ante el primer error; si no,
+ * usa un pool de `concurrency` trabajadores.
+ */
+async function executeBatch(
+  contexts: unknown[],
+  bodyJson: string,
+  options: CommonOptions,
+  io: CliIO,
+  client: JevClient,
+  concurrency: number,
+  failFast: boolean,
+): Promise<BatchItemResult[]> {
+  const results: BatchItemResult[] = [];
+
+  const run = async (index: number): Promise<void> => {
+    const rawContext = contexts[index];
+    if (
+      !rawContext ||
+      typeof rawContext !== "object" ||
+      Array.isArray(rawContext)
+    ) {
+      results[index] = {
+        index,
+        ok: false,
+        error: `el contexto #${index + 1} no es un objeto`,
+      };
+      return;
+    }
+
+    let request: JevRequest;
+    try {
+      request = resolveTemplateBody(bodyJson, rawContext as TemplateContext);
+      request.model = resolveModel(
+        options.model,
+        request.model,
+        envOf(io),
+        options.storedModel,
+      );
+    } catch (error) {
+      results[index] = { index, ok: false, error: messageOf(error) };
+      return;
+    }
+
+    try {
+      const response = await client.run(request);
+      results[index] = {
+        index,
+        ok: true,
+        model: response.model,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        cost: response.usage.cost,
+        raw: response.raw,
+      };
+    } catch (error) {
+      results[index] = { index, ok: false, error: messageOf(error) };
+    }
+  };
+
+  if (failFast) {
+    for (let index = 0; index < contexts.length; index += 1) {
+      if (results.some((result) => result !== undefined && !result.ok)) {
+        break;
+      }
+      await run(index);
+    }
+    return results;
+  }
+
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < contexts.length) {
+      const index = cursor;
+      cursor += 1;
+      await run(index);
+    }
+  };
+  const workers = Math.max(1, Math.min(concurrency, contexts.length));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
+}
+
+function batchToJson(
+  batchId: string,
+  templateName: string,
+  results: BatchItemResult[],
+  total: number,
+  skipped: number,
+): Record<string, unknown> {
+  const ok = results.filter((result) => result.ok).length;
+  const costUnknown = results.filter(
+    (result) => result.ok && result.cost === undefined,
+  ).length;
+  return {
+    batch_id: batchId,
+    template: templateName,
+    total,
+    processed: results.length,
+    skipped,
+    ok,
+    errors: results.length - ok,
+    input_tokens: sumDefined(results.map((result) => result.inputTokens)),
+    output_tokens: sumDefined(results.map((result) => result.outputTokens)),
+    cost: sumDefined(results.map((result) => result.cost)),
+    cost_unknown: costUnknown,
+    items: results.map((result) => ({
+      index: result.index,
+      ok: result.ok,
+      model: result.model ?? null,
+      input_tokens: result.inputTokens ?? null,
+      output_tokens: result.outputTokens ?? null,
+      cost: result.cost ?? null,
+      error: result.error ?? null,
+      response: result.raw ?? null,
+    })),
+  };
+}
+
+function formatBatchReport(
+  templateName: string,
+  batchId: string,
+  results: BatchItemResult[],
+  skipped: number,
+): string {
+  const ok = results.filter((result) => result.ok).length;
+  const errors = results.length - ok;
+  const inputTokens = sumDefined(results.map((result) => result.inputTokens));
+  const outputTokens = sumDefined(results.map((result) => result.outputTokens));
+  const costTotal = sumDefined(results.map((result) => result.cost));
+  const costUnknown = results.filter(
+    (result) => result.ok && result.cost === undefined,
+  ).length;
+
+  const lines = [
+    `batch: ${templateName} — ${results.length} peticiones (batch ${batchId})`,
+  ];
+  for (const result of results) {
+    if (result.ok) {
+      const cost =
+        result.cost === undefined ? "-" : formatCost(result.cost);
+      lines.push(
+        `  ${result.index + 1}: ok    ${result.model ?? "-"}  ` +
+          `${result.inputTokens ?? 0} in / ${result.outputTokens ?? 0} out  ` +
+          `cost=${cost}`,
+      );
+    } else {
+      lines.push(`  ${result.index + 1}: error ${result.error ?? "desconocido"}`);
+    }
+  }
+  if (skipped > 0) {
+    lines.push(`  (${skipped} omitidos por --fail-fast)`);
+  }
+  lines.push(`resumen: ${ok} ok, ${errors} error`);
+  lines.push(`tokens: ${inputTokens} in / ${outputTokens} out`);
+  lines.push(
+    `coste: ${formatCost(costTotal)}` +
+      (costUnknown > 0 ? ` (${costUnknown} sin coste informado)` : ""),
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function sumDefined(values: Array<number | undefined>): number {
+  let total = 0;
+  for (const value of values) {
+    if (value !== undefined) {
+      total += value;
+    }
+  }
+  return total;
 }
 
 function runConfig(args: string[], io: CliIO): number {
@@ -827,16 +1143,24 @@ function createClient(
 /**
  * Devuelve un hook que guarda cada ejecución en la base, salvo con --no-save.
  * Abre y cierra la base por petición para no mantener conexiones abiertas.
+ * Con `metadata`, sella cada registro con su plantilla y batch.
  */
 function createRecorder(
   values: Values,
   io: CliIO,
+  metadata?: { templateName?: string; batchId?: string },
 ): ((log: RequestLog) => void) | undefined {
   if (values["no-save"] === true) {
     return undefined;
   }
   const path = resolveDatabasePath(asString(values.db), envOf(io));
   return (log) => {
+    if (metadata?.templateName !== undefined) {
+      log.templateName = metadata.templateName;
+    }
+    if (metadata?.batchId !== undefined) {
+      log.batchId = metadata.batchId;
+    }
     const db = openDatabase(path);
     try {
       new RequestRepository(db).insert(log);
