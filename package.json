@@ -1,0 +1,37 @@
+{
+  "name": "jev-client",
+  "version": "1.0.0",
+  "description": "CLI y librería para la API de Jev (System One) vía OpenCode",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "jev": "./dist/src/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/test/",
+    "start": "node dist/src/bin.js",
+    "dev": "npm run build && node dist/src/bin.js",
+    "prepublishOnly": "npm run build",
+    "postbuild": "node -e \"require('node:fs').chmodSync('dist/src/bin.js', 0o755)\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  }
+}

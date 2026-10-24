@@ -1,0 +1,6 @@
+{
+  "ticket": "El cliente pide que le devolvamos el importe de la última factura.",
+  "importe_eur": 1800,
+  "historial": "Tercera solicitud de reembolso este trimestre.",
+  "politica": "Las devoluciones superiores a 500 EUR requieren revisión legal por riesgo de chargeback."
+}

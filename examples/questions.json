@@ -1,0 +1,20 @@
+{
+  "billing": {
+    "type": "noul",
+    "instructions": "¿El mensaje trata sobre facturación o pagos?"
+  },
+  "team": {
+    "type": "choice",
+    "instructions": "¿Qué equipo debería gestionar la incidencia?",
+    "criteria": {
+      "billing": "Cobros, facturas o pagos",
+      "infra": "Caídas, errores 500 o problemas de plataforma",
+      "sales": "Precios o dudas comerciales"
+    }
+  },
+  "urgency": {
+    "type": "score",
+    "instructions": "¿Cómo de urgente es la incidencia?",
+    "criteria": ["Puede esperar", "Esta semana", "Hoy mismo"]
+  }
+}
