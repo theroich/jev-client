@@ -67,6 +67,7 @@ Otros flags comunes a `ask` y `demo`:
 --db ~/.jev-client/db/jev.db     ruta de la base (también en config)
 --timeout 30                     timeout de cada intento HTTP, en segundos
 --retries 2                      reintentos ante 429/5xx y errores de red
+--no-save                        no registrar esta ejecución en el historial
 --json                           imprime la respuesta cruda de la API
 ```
 
@@ -169,6 +170,32 @@ jev ask --key sk-... --url https://…/v1/systemone --model jev-1.13-free \
 El `state` puede ser texto plano, un objeto JSON (`{...}`) o un array (`[...]`).
 Si empieza por `{` o `[` se envía como JSON; si no, como string.
 
+### `jev history`
+
+Todas las ejecuciones de `ask` y `demo` (correctas y fallidas) quedan registradas
+en la tabla `requests` de la base SQLite. Se guarda el payload enviado, el cuerpo
+recibido, el código de estado, la duración, los tokens y el coste cuando la API
+los informa (`NULL` cuando no), y el código/mensaje de error si lo hubo.
+
+```sh
+jev history list               # una línea por petición, la más reciente primero
+jev history show 12            # petición y respuesta completas
+jev history export > hist.jsonl  # volcado JSONL (una petición por línea)
+```
+
+Filtros de `list` y `export`:
+
+| Flag | Filtro |
+| --- | --- |
+| `--since <ISO>` | solo peticiones con `created_at` mayor o igual |
+| `--status <código>` | código HTTP (p. ej. `200`, `429`) |
+| `--model <modelo>` | modelo exacto |
+| `--template <nombre>` | nombre de plantilla |
+| `--limit <n>` | número máximo de resultados |
+
+Todos los subcomandos aceptan `--db`. Si no quieres registrar una ejecución
+concreta, añade `--no-save` a `ask` o `demo`.
+
 ## Tipos de pregunta
 
 | `type` | Campos | Devuelve |
@@ -255,8 +282,8 @@ npm run typecheck
 Los tests no hacen red contra la API: usan un `fetch` inyectado y un servidor
 HTTP local para comprobar cabeceras, cuerpo, reintentos, 401 sin reintento, 429
 de cuota, parseo de errores, formato y CLI. Las bases SQLite se crean en
-directorios temporales para probar migraciones, repositorio, precedencia y
-permisos.
+directorios temporales para probar migraciones, repositorios, precedencia,
+permisos y el historial de peticiones (`requests`).
 
 ## Notas
 

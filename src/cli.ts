@@ -18,8 +18,18 @@ import {
 } from "./config-repository.js";
 import { openDatabase, resolveDatabasePath } from "./database.js";
 import { JevApiError } from "./errors.js";
-import { formatCost, formatReport } from "./format.js";
-import type { JevRequest, JevResponse, Question, State } from "./types.js";
+import {
+  formatCost,
+  formatHistoryDetail,
+  formatHistoryRecord,
+  formatReport,
+  historyRecordToJson,
+} from "./format.js";
+import {
+  RequestRepository,
+  type HistoryFilters,
+} from "./request-repository.js";
+import type { JevRequest, JevResponse, Question, RequestLog, State } from "./types.js";
 
 export const VERSION = "1.0.0";
 
@@ -39,6 +49,7 @@ Uso:
   jev-client ask [flags]      evalúa un state contra una o más preguntas
   jev-client demo [flags]     ejecuta un ejemplo integrado
   jev-client config <comando> gestiona la configuración persistente
+  jev-client history <comando> consulta el historial de peticiones
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -78,6 +89,7 @@ Flags:
   --db <ruta>              base SQLite (env: JEV_DB)
   --timeout <segundos>     timeout de cada intento HTTP (default 30)
   --retries <n>            reintentos ante 429/5xx (default 2)
+  --no-save                no registrar esta ejecución en el historial
   --json                   imprime la respuesta cruda en JSON
   -h, --help               muestra esta ayuda
 `;
@@ -91,6 +103,7 @@ Flags:
   --db <ruta>              base SQLite (env: JEV_DB)
   --timeout <segundos>     timeout de cada intento HTTP (default 30)
   --retries <n>            reintentos ante 429/5xx (default 2)
+  --no-save                no registrar esta ejecución en el historial
   --json                   imprime la respuesta cruda en JSON
   -h, --help               muestra esta ayuda
 `;
@@ -107,6 +120,23 @@ La API key se guarda en claro. Para no persistirla, usa --key o
 OPENCODE_API_KEY/JEV_API_KEY en cada ejecución.
 `;
 
+const HISTORY_USAGE = `Uso:
+  jev-client history list [filtros] [--db <ruta>]
+  jev-client history show <id> [--db <ruta>]
+  jev-client history export [filtros] [--db <ruta>]
+
+Filtros (list y export):
+  --since <ISO>            solo peticiones desde esta fecha (created_at)
+  --status <código>        código HTTP (p. ej. 200, 429)
+  --model <modelo>         modelo exacto
+  --template <nombre>      nombre de plantilla
+  --limit <n>              número máximo de resultados
+
+Flags comunes:
+  --db <ruta>              base SQLite (env: JEV_DB)
+  -h, --help               muestra esta ayuda
+`;
+
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
 
 const COMMON_OPTIONS = {
@@ -116,12 +146,23 @@ const COMMON_OPTIONS = {
   timeout: { type: "string" },
   retries: { type: "string" },
   db: { type: "string" },
+  "no-save": { type: "boolean" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
 
 const CONFIG_OPTIONS = {
   db: { type: "string" },
+  help: { type: "boolean", short: "h" },
+} satisfies ParseArgsOptions;
+
+const HISTORY_OPTIONS = {
+  db: { type: "string" },
+  since: { type: "string" },
+  status: { type: "string" },
+  model: { type: "string" },
+  template: { type: "string" },
+  limit: { type: "string" },
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
 
@@ -161,6 +202,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return await runDemo(argv.slice(1), io);
       case "config":
         return runConfig(argv.slice(1), io);
+      case "history":
+        return runHistory(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -203,7 +246,7 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
   }
 
   const options = readCommonOptions(values, io);
-  const client = createClient(options, io);
+  const client = createClient(options, io, createRecorder(values, io));
   const request = await buildRequest(values, options, io);
   const response = await client.run(request);
   writeResponse(io, response, options.json);
@@ -222,7 +265,7 @@ async function runDemo(args: string[], io: CliIO): Promise<number> {
   }
 
   const options = readCommonOptions(values, io);
-  const client = createClient(options, io);
+  const client = createClient(options, io, createRecorder(values, io));
   const response = await client.run({
     model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
     state: DEMO_STATE,
@@ -306,6 +349,119 @@ function runConfig(args: string[], io: CliIO): number {
     }
     default:
       throw new UsageError(`comando de config desconocido: ${JSON.stringify(action)}`);
+  }
+}
+
+function runHistory(args: string[], io: CliIO): number {
+  const { values, positionals } = parseOptions(args, HISTORY_OPTIONS);
+  if (values.help === true) {
+    io.stdout(HISTORY_USAGE);
+    return 0;
+  }
+
+  const action = positionals[0];
+  if (action === undefined) {
+    throw new UsageError("falta un comando de history (list, show o export)");
+  }
+
+  switch (action) {
+    case "list": {
+      expectConfigArity(positionals, 1, "jev history list [filtros]");
+      const filters = parseHistoryFilters(values);
+      return withRequestDatabase(values, io, (repository) => {
+        for (const record of repository.list(filters)) {
+          io.stdout(`${formatHistoryRecord(record)}\n`);
+        }
+        return 0;
+      });
+    }
+    case "show": {
+      expectConfigArity(positionals, 2, "jev history show <id> [--db <ruta>]");
+      const id = parseHistoryId(positionals[1]);
+      return withRequestDatabase(values, io, (repository) => {
+        const record = repository.get(id);
+        if (record === undefined) {
+          throw new Error(`no existe la petición ${id}`);
+        }
+        io.stdout(formatHistoryDetail(record));
+        return 0;
+      });
+    }
+    case "export": {
+      expectConfigArity(positionals, 1, "jev history export [filtros]");
+      const filters = parseHistoryFilters(values);
+      return withRequestDatabase(values, io, (repository) => {
+        for (const record of repository.list(filters)) {
+          io.stdout(`${JSON.stringify(historyRecordToJson(record))}\n`);
+        }
+        return 0;
+      });
+    }
+    default:
+      throw new UsageError(
+        `comando de history desconocido: ${JSON.stringify(action)}`,
+      );
+  }
+}
+
+function parseHistoryFilters(values: Values): HistoryFilters {
+  const filters: HistoryFilters = {};
+
+  const since = asString(values.since);
+  if (since !== undefined) {
+    filters.since = since;
+  }
+
+  const status = asString(values.status);
+  if (status !== undefined) {
+    const code = Number(status);
+    if (!Number.isInteger(code) || code < 100 || code > 599) {
+      throw new UsageError("--status debe ser un código HTTP (100-599)");
+    }
+    filters.status = code;
+  }
+
+  const model = asString(values.model);
+  if (model !== undefined) {
+    filters.model = model;
+  }
+
+  const template = asString(values.template);
+  if (template !== undefined) {
+    filters.template = template;
+  }
+
+  const limit = asString(values.limit);
+  if (limit !== undefined) {
+    const parsed = Number(limit);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new UsageError("--limit debe ser un entero >= 0");
+    }
+    filters.limit = parsed;
+  }
+
+  return filters;
+}
+
+function parseHistoryId(value: string | undefined): number {
+  const id = value === undefined ? NaN : Number(value);
+  if (!Number.isInteger(id) || id < 1) {
+    throw new UsageError("el id debe ser un entero positivo");
+  }
+  return id;
+}
+
+function withRequestDatabase<T>(
+  values: Values,
+  io: CliIO,
+  action: (repository: RequestRepository) => T,
+): T {
+  const path = resolveDatabasePath(asString(values.db), envOf(io));
+  const db = openDatabase(path);
+  try {
+    return action(new RequestRepository(db));
+  } finally {
+    db.close();
   }
 }
 
@@ -406,7 +562,11 @@ function withDatabase<T>(
   }
 }
 
-function createClient(options: CommonOptions, io: CliIO): JevClient {
+function createClient(
+  options: CommonOptions,
+  io: CliIO,
+  onRequest?: (log: RequestLog) => void,
+): JevClient {
   const { config } = options;
   if (!config.apiKey) {
     throw new Error(
@@ -422,7 +582,30 @@ function createClient(options: CommonOptions, io: CliIO): JevClient {
     timeoutMs: config.timeoutMs,
     maxRetries: config.retries,
     fetch: io.fetch,
+    onRequest,
   });
+}
+
+/**
+ * Devuelve un hook que guarda cada ejecución en la base, salvo con --no-save.
+ * Abre y cierra la base por petición para no mantener conexiones abiertas.
+ */
+function createRecorder(
+  values: Values,
+  io: CliIO,
+): ((log: RequestLog) => void) | undefined {
+  if (values["no-save"] === true) {
+    return undefined;
+  }
+  const path = resolveDatabasePath(asString(values.db), envOf(io));
+  return (log) => {
+    const db = openDatabase(path);
+    try {
+      new RequestRepository(db).insert(log);
+    } finally {
+      db.close();
+    }
+  };
 }
 
 async function buildRequest(
