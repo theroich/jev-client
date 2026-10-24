@@ -1,0 +1,14 @@
+[
+  {
+    "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
+    "cliente": { "nombre": "Ana", "plan": "pro" }
+  },
+  {
+    "estado_de_pedido": "El checkout se queda colgado al pagar.",
+    "cliente": { "nombre": "Luis", "plan": "free" }
+  },
+  {
+    "estado_de_pedido": "No me llega la factura de este mes.",
+    "cliente": { "nombre": "Marta", "plan": "pro" }
+  }
+]
