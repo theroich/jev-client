@@ -46,7 +46,12 @@ export {
   type MacroResolution,
   type TemplateContext,
 } from "./template.js";
-export { TemplateRepository, type Template } from "./template-repository.js";
+export {
+  MAX_MACRO_DESCRIPTION_LENGTH,
+  TemplateRepository,
+  type Template,
+  type TemplateMacro,
+} from "./template-repository.js";
 export {
   createTemplateStarterBody,
   DEFAULT_TEMPLATE_STARTER,
