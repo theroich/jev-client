@@ -26,6 +26,7 @@ import type {
   JevResponse,
   Question,
   RequestLog,
+  RequestSource,
 } from "./types.js";
 
 export const MAX_CONCURRENCY = 10;
@@ -74,6 +75,10 @@ export interface ExecutionOptions {
   model?: string;
   /** Guarda la petición en requests. Default: true. */
   save?: boolean;
+  /** Origen de la ejecución, para auditar el historial. Default: 'cli'. */
+  source?: RequestSource;
+  /** Nombre de plantilla asociado; se guarda en `requests.template_name`. */
+  templateName?: string;
   signal?: AbortSignal;
 }
 
@@ -212,7 +217,9 @@ export class JevService {
   ): Promise<ExecutionResult> {
     const prepared = this.prepare();
     const resolved = this.withModel(request, options, prepared.stored);
-    return this.executeRequest(resolved, options, prepared.config);
+    return this.executeRequest(resolved, options, prepared.config, {
+      templateName: options.templateName,
+    });
   }
 
   async demo(options: ExecutionOptions = {}): Promise<ExecutionResult> {
@@ -452,6 +459,7 @@ export class JevService {
         if (metadata.batchId !== undefined) {
           log.batchId = metadata.batchId;
         }
+        log.source = options.source ?? "cli";
         capture.log = log;
         if (options.save !== false) {
           capture.requestId = this.requests.insert(log);

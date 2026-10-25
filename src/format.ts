@@ -164,6 +164,7 @@ export function formatHistoryDetail(record: RequestRecord): string {
     `error_message: ${record.errorMessage ?? "-"}`,
     `template_name: ${record.templateName ?? "-"}`,
     `batch_id: ${record.batchId ?? "-"}`,
+    `source: ${record.source ?? "-"}`,
     `request:`,
     prettyJson(record.requestJson),
     `response:`,
@@ -195,6 +196,7 @@ export function historyRecordToJson(
     error_message: record.errorMessage,
     template_name: record.templateName,
     batch_id: record.batchId,
+    source: record.source,
   };
 }
 

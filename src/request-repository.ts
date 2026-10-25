@@ -1,5 +1,5 @@
 import type { SqliteDatabase } from "./database.js";
-import type { RequestLog } from "./types.js";
+import type { RequestLog, RequestSource } from "./types.js";
 
 /** Registro leído de la tabla `requests`. */
 export interface RequestRecord {
@@ -23,6 +23,8 @@ export interface RequestRecord {
   errorMessage: string | null;
   templateName: string | null;
   batchId: string | null;
+  /** Origen de la ejecución. */
+  source: RequestSource;
 }
 
 export interface HistoryFilters {
@@ -61,6 +63,7 @@ interface RequestRow {
   error_message: string | null;
   template_name: string | null;
   batch_id: string | null;
+  source: RequestSource;
 }
 
 const INSERT_SQL = `
@@ -68,12 +71,12 @@ const INSERT_SQL = `
     created_at, started_at, finished_at, duration_ms, endpoint, model,
     status_code, ok, request_json, response_json,
     input_tokens, output_tokens, cost,
-    error_code, error_message, template_name, batch_id
+    error_code, error_message, template_name, batch_id, source
   ) VALUES (
     @created_at, @started_at, @finished_at, @duration_ms, @endpoint, @model,
     @status_code, @ok, @request_json, @response_json,
     @input_tokens, @output_tokens, @cost,
-    @error_code, @error_message, @template_name, @batch_id
+    @error_code, @error_message, @template_name, @batch_id, @source
   )
 `;
 
@@ -101,6 +104,7 @@ export class RequestRepository {
       error_message: log.errorMessage ?? null,
       template_name: log.templateName ?? null,
       batch_id: log.batchId ?? null,
+      source: log.source ?? "cli",
     });
     return Number(result.lastInsertRowid);
   }
@@ -216,5 +220,6 @@ function toRecord(row: RequestRow): RequestRecord {
     errorMessage: row.error_message,
     templateName: row.template_name,
     batchId: row.batch_id,
+    source: row.source,
   };
 }

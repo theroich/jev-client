@@ -51,9 +51,10 @@ import {
 } from "./template.js";
 import { createTuiBackend, runTui, type TuiBackend } from "./tui.js";
 import type { JevRequest, JevResponse, Question, State } from "./types.js";
+import { VERSION } from "./version.js";
 import { runWebConsoleCommand } from "./web-console.js";
 
-export const VERSION = "1.0.0";
+export { VERSION };
 
 export interface CliIO {
   stdout(text: string): void;
@@ -92,6 +93,7 @@ Uso:
   jev-client tui [--db <ruta>]  modo interactivo (configuración y plantillas)
   jev-client web-console [flags]  consola web local Next.js
   jev-client --web-console [flags] alias de web-console
+  jev-client mcp [flags]        servidor MCP stdio (tools de plantillas y ejecución)
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -366,6 +368,10 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return await runTuiCommand(argv.slice(1), io);
       case "web-console":
         return await runWebConsoleCommand(argv.slice(1), io);
+      case "mcp": {
+        const { runMcpCommand } = await import("./mcp/run.js");
+        return await runMcpCommand(argv.slice(1), io);
+      }
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);

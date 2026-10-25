@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "jev": {
+        "type": "local",
+        "command": ["node", "dist/src/mcp-bin.js"]
+      }
+    }
+  }
+}

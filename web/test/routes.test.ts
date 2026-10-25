@@ -189,7 +189,7 @@ test("ask/demo/provider comparten historial y export es idéntico a la CLI", asy
   assert.equal(await runCli(["history", "export"], io), 0);
   assert.equal(webJsonl, cliJsonl);
   const keys = Object.keys(JSON.parse(webJsonl.trim()) as Record<string, unknown>);
-  assert.deepEqual(keys, ["id", "created_at", "started_at", "finished_at", "duration_ms", "endpoint", "model", "status_code", "ok", "request", "response", "input_tokens", "output_tokens", "cost", "error_code", "error_message", "template_name", "batch_id"]);
+  assert.deepEqual(keys, ["id", "created_at", "started_at", "finished_at", "duration_ms", "endpoint", "model", "status_code", "ok", "request", "response", "input_tokens", "output_tokens", "cost", "error_code", "error_message", "template_name", "batch_id", "source"]);
 });
 
 test("plantillas validan macros, renderizan y renombran sin duplicar", async () => {

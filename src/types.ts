@@ -43,6 +43,9 @@ export interface JevResponse {
   raw: unknown;
 }
 
+/** Origen de una ejecución, para auditar el historial. */
+export type RequestSource = "cli" | "tui" | "web" | "mcp";
+
 /**
  * Registro de una petición completa (con o sin éxito) que el cliente emite
  * mediante el hook `onRequest`. Sirve para persistir el historial.
@@ -67,4 +70,6 @@ export interface RequestLog {
   errorMessage?: string;
   templateName?: string;
   batchId?: string;
+  /** Origen de la ejecución (cli, tui, web o mcp). */
+  source?: RequestSource;
 }
