@@ -26,7 +26,12 @@ import {
   type RequestRecord,
 } from "../../../dist/src/request-repository.js";
 import { JevService } from "../../../dist/src/service.js";
-import { TemplateRepository, type Template } from "../../../dist/src/template-repository.js";
+import {
+  TemplateRepository,
+  MAX_MACRO_DESCRIPTION_LENGTH,
+  type Template,
+  type TemplateMacro,
+} from "../../../dist/src/template-repository.js";
 import {
   detectMacros,
   resolveTemplateBody,
@@ -178,7 +183,7 @@ export function getConfigSnapshot(runtime = getConsoleRuntime()): ConfigSnapshot
       schemaVersion: runtime.service.db.pragma("user_version", { simple: true }) as number,
       directoryMode: "0700",
       fileMode: "0600",
-      tables: ["config", "templates", "requests"],
+      tables: ["config", "templates", "template_macros", "requests"],
     },
   };
 }
@@ -311,7 +316,7 @@ function templateSummary(template: Template): TemplateSummary {
     description: template.description,
     createdAt: template.created_at,
     updatedAt: template.updated_at,
-    macros: detectMacros(template.body_json),
+    macros: template.macros,
   };
 }
 
@@ -342,13 +347,60 @@ export function bodyJsonFromInput(body: Record<string, unknown>): string {
   throw new ConsoleError(400, "invalid_template_body", "falta bodyJson o body de la plantilla");
 }
 
+function macrosFromInput(
+  body: Record<string, unknown>,
+  bodyJson: string,
+): TemplateMacro[] | undefined {
+  if (body.macros === undefined) return undefined;
+  if (!Array.isArray(body.macros)) {
+    throw new ConsoleError(400, "invalid_macros", "macros debe ser un array de {name, description}");
+  }
+  const detected = new Set(detectMacros(bodyJson));
+  const descriptions = new Map<string, string>();
+  for (const entry of body.macros) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new ConsoleError(400, "invalid_macro", "cada macro debe ser un objeto {name, description}");
+    }
+    const record = entry as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    if (name === "") {
+      throw new ConsoleError(400, "invalid_macro", "cada macro necesita un name no vacío");
+    }
+    if (!detected.has(name)) {
+      throw new ConsoleError(
+        400,
+        "invalid_macro",
+        `la macro ${JSON.stringify(name)} no está en el body de la plantilla`,
+      );
+    }
+    if (record.description !== undefined && typeof record.description !== "string") {
+      throw new ConsoleError(
+        400,
+        "invalid_macro_description",
+        `la descripción de la macro ${JSON.stringify(name)} debe ser texto`,
+      );
+    }
+    const description = (record.description ?? "").trim();
+    if (description.length > MAX_MACRO_DESCRIPTION_LENGTH) {
+      throw new ConsoleError(
+        400,
+        "invalid_macro_description",
+        `la descripción de la macro ${JSON.stringify(name)} supera los ${MAX_MACRO_DESCRIPTION_LENGTH} caracteres`,
+      );
+    }
+    descriptions.set(name, description);
+  }
+  return [...descriptions].map(([name, description]) => ({ name, description }));
+}
+
 export function createTemplate(body: Record<string, unknown>, runtime = getConsoleRuntime()): TemplateDetail {
   const name = validTemplateName(body.name);
   const description = typeof body.description === "string" ? body.description : "";
   const bodyJson = bodyJsonFromInput(body);
   validateBody(bodyJson);
+  const macros = macrosFromInput(body, bodyJson);
   if (runtime.templates.get(name)) throw new ConsoleError(409, "template_conflict", `ya existe la plantilla: ${name}`);
-  runtime.templates.save(name, description, bodyJson);
+  runtime.templates.save(name, description, bodyJson, macros);
   return getTemplate(name, runtime);
 }
 
@@ -357,7 +409,8 @@ export function updateTemplate(nameValue: string, body: Record<string, unknown>,
   const description = typeof body.description === "string" ? body.description : "";
   const bodyJson = bodyJsonFromInput(body);
   validateBody(bodyJson);
-  runtime.templates.save(name, description, bodyJson);
+  const macros = macrosFromInput(body, bodyJson);
+  runtime.templates.save(name, description, bodyJson, macros);
   return getTemplate(name, runtime);
 }
 

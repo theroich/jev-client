@@ -250,3 +250,156 @@ test("TemplateRepository.rename revierte el cambio si SQLite falla", () => {
   assert.equal(repository.get("destino"), undefined);
   db.close();
 });
+
+const MACRO_BODY = JSON.stringify({
+  model: "m",
+  state: { ticket: "{{ticket}}", plan: "{{cliente.plan}}" },
+  questions: { q: { type: "noul" } },
+});
+
+test("TemplateRepository guarda una fila por macro con descripción vacía", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+
+  repository.save("pedido", "", MACRO_BODY);
+
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "cliente.plan", description: "" },
+    { name: "ticket", description: "" },
+  ]);
+  assert.deepEqual(
+    db
+      .prepare(
+        "SELECT template_name, macro, description FROM template_macros ORDER BY macro",
+      )
+      .all(),
+    [
+      { template_name: "pedido", macro: "cliente.plan", description: "" },
+      { template_name: "pedido", macro: "ticket", description: "" },
+    ],
+  );
+  db.close();
+});
+
+test("TemplateRepository persiste y recorta descripciones de macros", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+
+  repository.save("pedido", "", MACRO_BODY, [
+    { name: "ticket", description: "  Identificador del pedido (TCK-1042)  " },
+    { name: "cliente.plan", description: "free | pro | enterprise" },
+  ]);
+
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "cliente.plan", description: "free | pro | enterprise" },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+  ]);
+  assert.deepEqual(repository.list()[0]?.macros, repository.get("pedido")?.macros);
+  db.close();
+});
+
+test("TemplateRepository conserva descripciones al editar y borra huérfanas", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("pedido", "", MACRO_BODY, [
+    { name: "ticket", description: "Identificador" },
+    { name: "cliente.plan", description: "Plan" },
+  ]);
+
+  // Editar sin pasar macros conserva las descripciones existentes.
+  repository.save("pedido", "", MACRO_BODY);
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "cliente.plan", description: "Plan" },
+    { name: "ticket", description: "Identificador" },
+  ]);
+
+  const withoutTicket = JSON.stringify({
+    model: "m",
+    state: { plan: "{{cliente.plan}}", nuevo: "{{nuevo}}" },
+    questions: { q: { type: "noul" } },
+  });
+  repository.save("pedido", "", withoutTicket);
+
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "cliente.plan", description: "Plan" },
+    { name: "nuevo", description: "" },
+  ]);
+  assert.deepEqual(
+    db
+      .prepare("SELECT macro FROM template_macros ORDER BY macro")
+      .all(),
+    [{ macro: "cliente.plan" }, { macro: "nuevo" }],
+  );
+  db.close();
+});
+
+test("TemplateRepository valida macros desconocidas y descripciones largas", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+
+  assert.throws(
+    () =>
+      repository.save("pedido", "", MACRO_BODY, [
+        { name: "inexistente", description: "x" },
+      ]),
+    /no está en el body/,
+  );
+  assert.throws(
+    () =>
+      repository.save("pedido", "", MACRO_BODY, [
+        { name: "ticket", description: "x".repeat(501) },
+      ]),
+    /supera los 500/,
+  );
+  assert.equal(repository.get("pedido"), undefined);
+  db.close();
+});
+
+test("TemplateRepository fusiona el body con las filas y descarta huérfanas al leer", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("pedido", "", MACRO_BODY, [
+    { name: "ticket", description: "Identificador" },
+  ]);
+  // Simula un body editado a mano o una base v3: aparece una macro nueva.
+  db.prepare("UPDATE templates SET body_json = ? WHERE name = ?").run(
+    JSON.stringify({ model: "m", state: "{{extra}} {{ticket}}" }),
+    "pedido",
+  );
+  // Y una fila huérfana que ya no está en el body.
+  db.prepare(
+    "INSERT INTO template_macros (template_name, macro, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+  ).run("pedido", "huerfana", "no debe salir", "2024-01-01", "2024-01-01");
+
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "extra", description: "" },
+    { name: "ticket", description: "Identificador" },
+  ]);
+  db.close();
+});
+
+test("TemplateRepository rename y delete arrastran template_macros (CASCADE)", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("pedido", "", MACRO_BODY, [
+    { name: "ticket", description: "Identificador" },
+  ]);
+
+  repository.rename("pedido", "renombrada");
+  assert.deepEqual(repository.get("renombrada")?.macros, [
+    { name: "cliente.plan", description: "" },
+    { name: "ticket", description: "Identificador" },
+  ]);
+  assert.deepEqual(
+    db
+      .prepare("SELECT COUNT(*) AS total FROM template_macros WHERE template_name = 'pedido'")
+      .get() as { total: number },
+    { total: 0 },
+  );
+
+  assert.equal(repository.remove("renombrada"), true);
+  assert.deepEqual(db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(), {
+    total: 0,
+  });
+  db.close();
+});

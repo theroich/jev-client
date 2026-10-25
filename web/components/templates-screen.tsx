@@ -10,7 +10,7 @@ import {
   getTemplateStarter,
   type TemplateStarterId,
 } from "../../dist/src/template-starters.js";
-import type { JevRequest, TemplateDetail, TemplateSummary } from "@/lib/types";
+import type { JevRequest, TemplateDetail, TemplateMacro, TemplateSummary } from "@/lib/types";
 import { parseJsonObject, relativeDate, shellQuote } from "@/lib/utils";
 import { describeApiError, useConsole } from "./console-context";
 import { ConfirmModal } from "./modal";
@@ -21,6 +21,7 @@ import {
   CliBar,
   EmptyState,
   Icon,
+  IconButton,
   JsonBlock,
   Panel,
   ScreenHead,
@@ -32,6 +33,11 @@ interface Draft {
   name: string;
   description: string;
   bodyJson: string;
+  macroDescriptions: Record<string, string>;
+}
+
+function descriptionsFromMacros(macros: TemplateMacro[]): Record<string, string> {
+  return Object.fromEntries(macros.map((macro) => [macro.name, macro.description]));
 }
 
 function uniqueDraftName(templates: TemplateSummary[]): string {
@@ -53,6 +59,7 @@ function starterDraft(id: TemplateStarterId, model: string, templates: TemplateS
     name: uniqueDraftName(templates),
     description: starter?.description ?? "",
     bodyJson: starterBodyJson(id, model),
+    macroDescriptions: {},
   };
 }
 
@@ -62,6 +69,7 @@ function fromDetail(detail: TemplateDetail): Draft {
     name: detail.name,
     description: detail.description,
     bodyJson: JSON.stringify(JSON.parse(detail.bodyJson), null, 2),
+    macroDescriptions: descriptionsFromMacros(detail.macros),
   };
 }
 
@@ -107,6 +115,16 @@ export function TemplatesScreen({
     }
   }, [draft]);
   const macros = useMemo(() => draft ? detectMacros(draft.bodyJson) : [], [draft]);
+  const describedCount = useMemo(
+    () => draft ? macros.filter((name) => (draft.macroDescriptions[name] ?? "").trim() !== "").length : 0,
+    [draft, macros],
+  );
+  const removedDescribed = useMemo(
+    () => draft
+      ? Object.entries(draft.macroDescriptions).filter(([name, description]) => description.trim() !== "" && !macros.includes(name))
+      : [],
+    [draft, macros],
+  );
   const nameError = useMemo(() => {
     if (!draft) return null;
     if (!draft.name.trim()) return "El nombre no puede estar vacío.";
@@ -118,8 +136,15 @@ export function TemplatesScreen({
   const dirty = useMemo(() => {
     if (!draft) return false;
     if (!draft.originalName || !selected) return true;
-    return draft.name !== selected.name || draft.description !== selected.description || draft.bodyJson !== JSON.stringify(JSON.parse(selected.bodyJson), null, 2);
-  }, [draft, selected]);
+    const currentMacros = JSON.stringify(macros.map((name) => ({
+      name,
+      description: (draft.macroDescriptions[name] ?? "").trim(),
+    })));
+    return draft.name !== selected.name
+      || draft.description !== selected.description
+      || draft.bodyJson !== JSON.stringify(JSON.parse(selected.bodyJson), null, 2)
+      || currentMacros !== JSON.stringify(selected.macros);
+  }, [draft, selected, macros]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -200,10 +225,19 @@ export function TemplatesScreen({
       const path = originalName && originalName === name
         ? `/api/templates/${encodeURIComponent(originalName)}`
         : originalName ? `/api/templates/${encodeURIComponent(name)}` : "/api/templates";
-      await request(path, {
+      const saved = await request<TemplateDetail>(path, {
         method: originalName ? "PUT" : "POST",
-        body: JSON.stringify({ name, description: draft.description, bodyJson: draft.bodyJson }),
+        body: JSON.stringify({
+          name,
+          description: draft.description,
+          bodyJson: draft.bodyJson,
+          macros: macros.map((macro) => ({
+            name: macro,
+            description: draft.macroDescriptions[macro] ?? "",
+          })),
+        }),
       });
+      setDraft(fromDetail(saved));
       notify(originalName ? "Plantilla guardada en SQLite" : "Plantilla creada en SQLite");
       router.push(`/plantillas/${encodeURIComponent(name)}`);
       router.refresh();
@@ -254,6 +288,14 @@ export function TemplatesScreen({
     }
   };
 
+  const updateMacroDescription = (name: string, value: string) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      macroDescriptions: { ...draft.macroDescriptions, [name]: value },
+    });
+  };
+
   const createBody = (() => {
     if (!draft) return "";
     try {
@@ -262,11 +304,18 @@ export function TemplatesScreen({
       return draft.bodyJson;
     }
   })();
+  const macroFlags = draft
+    ? macros
+        .filter((name) => (draft.macroDescriptions[name] ?? "").trim() !== "")
+        .map((name) => `--macro-desc ${shellQuote(`${name}=${(draft.macroDescriptions[name] ?? "").trim()}`)}`)
+        .join(" ")
+    : "";
+  const withMacroFlags = (base: string) => macroFlags ? `${base} ${macroFlags}` : base;
   const command = !draft ? "jev template list" : tab === "render"
     ? `jev template render ${shellQuote(draft.name)} --context-file context.json`
-    : tab === "macros" ? `jev template show ${shellQuote(draft.name)} --json`
-      : draft.originalName ? `jev template edit ${shellQuote(draft.name)} --file plantilla.json`
-        : `jev template create ${shellQuote(draft.name)} --description ${shellQuote(draft.description)} --body ${shellQuote(createBody)}`;
+    : draft.originalName
+      ? withMacroFlags(`jev template edit ${shellQuote(draft.name)} --file plantilla.json`)
+      : withMacroFlags(`jev template create ${shellQuote(draft.name)} --description ${shellQuote(draft.description)} --body ${shellQuote(createBody)}`);
 
   return (
     <section>
@@ -315,8 +364,44 @@ export function TemplatesScreen({
                 {rendered ? <JsonBlock value={rendered} /> : null}
               </div> : null}
               {tab === "macros" ? <div className="stack" style={{ gap: 10 }}>
-                <p className="hint">Claves necesarias detectadas en el draft. Se admiten rutas anidadas como <code>{"{{cliente.nombre}}"}</code>; <code>\{"{{literal}}"}</code> escapa una macro.</p>
-                <div className="chip-row">{macros.length ? macros.map((macro) => <span className="chip" key={macro}>{"{{"}{macro}{"}}"}</span>) : <span className="hint">Sin macros.</span>}</div>
+                <div className="row-between" style={{ alignItems: "flex-start" }}>
+                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Claves necesarias detectadas en el draft. Se admiten rutas anidadas como <code>{"{{cliente.nombre}}"}</code>; <code>\{"{{literal}}"}</code> escapa una macro. La descripción es opcional y no se envía a Jev.</p>
+                  <span className="chip" aria-live="polite">{describedCount} de {macros.length} descritas</span>
+                </div>
+                {macros.length ? <div className="macro-rows">
+                  {macros.map((macro) => {
+                    const description = draft.macroDescriptions[macro] ?? "";
+                    return <div className="macro-row" key={macro}>
+                      <code className="macro-key">{"{{"}{macro}{"}}"}</code>
+                      <div className="field">
+                        <input
+                          className="input"
+                          type="text"
+                          maxLength={500}
+                          value={description}
+                          aria-label={`Descripción de {{${macro}}}`}
+                          aria-describedby="template-macros-hint"
+                          placeholder="Qué representa y qué formato/valores espera"
+                          onChange={(event) => updateMacroDescription(macro, event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape" && description !== "") {
+                              event.preventDefault();
+                              updateMacroDescription(macro, "");
+                            }
+                          }}
+                        />
+                      </div>
+                      <IconButton
+                        label={`Limpiar descripción de {{${macro}}}`}
+                        disabled={description === ""}
+                        onClick={() => updateMacroDescription(macro, "")}
+                      >
+                        <Icon name="close" />
+                      </IconButton>
+                    </div>;
+                  })}
+                </div> : <span className="hint">Sin macros.</span>}
+                {removedDescribed.length ? <Callout tone="warn">Al guardar se eliminará la descripción de {removedDescribed.map(([name]) => `{{${name}}}`).join(", ")} porque ya no aparece en el body.</Callout> : null}
                 {macros.length ? <Callout tone="info">El contexto debe proporcionar {macros.length === 1 ? "esta clave" : "todas estas claves"}. El render valida las ausentes antes de cualquier llamada.</Callout> : null}
               </div> : null}
             </div>

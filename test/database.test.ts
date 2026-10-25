@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
 
 import { ConfigRepository } from "../src/config-repository.js";
+import { TemplateRepository } from "../src/template-repository.js";
 import {
   SCHEMA_VERSION,
   defaultDatabasePath,
@@ -121,5 +122,49 @@ test("actualiza de v1 a v2 conservando config y creando templates", async (t) =>
       .get(),
     { name: "templates" },
   );
+  db.close();
+});
+
+test("actualiza de v3 a v4 creando template_macros sin backfill", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-db-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "jev.db");
+
+  const legacy = new Database(path);
+  legacy.exec(`
+    CREATE TABLE templates (
+      name TEXT PRIMARY KEY,
+      description TEXT NOT NULL DEFAULT '',
+      body_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  legacy
+    .prepare(
+      "INSERT INTO templates (name, description, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    .run("legacy", "", '{"model":"m","state":"{{estado}}"}', "2024-01-01", "2024-01-01");
+  legacy.pragma("user_version = 3");
+  legacy.close();
+
+  const db = openDatabase(path);
+  assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
+  assert.equal(
+    db.prepare("SELECT description FROM templates WHERE name = 'legacy'").get() !== undefined,
+    true,
+  );
+  assert.deepEqual(
+    db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'template_macros'",
+      )
+      .get(),
+    { name: "template_macros" },
+  );
+  // Una base v3 sin backfill funciona: el repositorio fusiona las macros del body.
+  assert.deepEqual(new TemplateRepository(db).get("legacy")?.macros, [
+    { name: "estado", description: "" },
+  ]);
   db.close();
 });

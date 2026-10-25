@@ -95,8 +95,8 @@ automáticamente.
 
 ### Esquema SQLite
 
-La base usa tres tablas. El esquema está versionado con `PRAGMA user_version`
-(versión actual: **3**): cada versión se aplica en una transacción, las
+La base usa cuatro tablas. El esquema está versionado con `PRAGMA user_version`
+(versión actual: **4**): cada versión se aplica en una transacción, las
 migraciones son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS`) y se
 pueden reaplicar sin duplicar datos. Si una base es más reciente de lo que
 soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
@@ -117,6 +117,25 @@ soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
 | `body_json` | `TEXT NOT NULL` | body de la plantilla (con macros `{{clave}}`) |
 | `created_at` | `TEXT NOT NULL` | ISO 8601 |
 | `updated_at` | `TEXT NOT NULL` | ISO 8601 |
+
+**`template_macros`** — descripciones opcionales de las macros de cada
+plantilla. El body sigue siendo la única fuente de verdad de **qué** macros
+existen; esta tabla solo aporta su significado para humanos y agentes.
+
+| Columna | Tipo | Notas |
+| --- | --- | --- |
+| `template_name` | `TEXT NOT NULL` | FK a `templates.name` con `ON DELETE/UPDATE CASCADE` |
+| `macro` | `TEXT NOT NULL` | clave completa, p. ej. `cliente.nombre` |
+| `description` | `TEXT NOT NULL DEFAULT ''` | texto libre (máx. 500), `''` si no se describió |
+| `created_at` | `TEXT NOT NULL` | ISO 8601 |
+| `updated_at` | `TEXT NOT NULL` | ISO 8601 |
+
+La clave primaria es `(template_name, macro)`. Al leer, el repositorio fusiona
+`detectMacros(body_json)` con las filas guardadas: toda macro del body aparece
+aunque no tenga fila, y nunca se devuelven filas huérfanas. Al guardar se
+eliminan las filas de macros que ya no están en el body y se conservan las
+descripciones existentes si no se pasan explícitamente. Las descripciones **no**
+se envían a Jev.
 
 **`requests`** — historial de peticiones (una fila por ejecución de `ask`, `demo`
 o por cada petición de un `batch`).
@@ -285,20 +304,26 @@ con huecos `{{clave}}` que se resuelven con un mapa de contexto:
 ```sh
 # Guardar una plantilla (sobrescribe si el nombre ya existe)
 jev template create pedido --description "Pedido con cliente" \
-  --file examples/template.json
+  --file examples/template.json \
+  --macro-desc 'estado_de_pedido=Qué pide el cliente, en texto libre' \
+  --macro-desc 'cliente.nombre=Nombre del cliente'
 # ... o con el body inline / desde stdin
 jev template create pedido --body '{"model":"jev-1.13", ...}'
 cat body.json | jev template create pedido --body -
 
 jev template list                       # pedido - Pedido con cliente
-jev template list --json                # array JSON con nombre, descripción y fechas
-jev template show pedido                # imprime el body en JSON
-jev template show pedido --json         # { name, description, body, ... }
+jev template list --json                # array JSON con descripción, fechas y macros
+jev template show pedido                # imprime el body y las macros con su descripción
+jev template show pedido --json         # { name, description, body, macros, ... }
 
 # Editar con $EDITOR (o VISUAL); falla si no está definido
 jev template edit pedido
 # ... o reemplazar el body desde un fichero sin abrir el editor
 jev template edit pedido --file nuevo.json
+# Ajustar o vaciar descripciones sin tocar el body
+jev template edit pedido --file nuevo.json \
+  --macro-desc 'ticket=Identificador del pedido (TCK-1042)' \
+  --clear-macro-desc 'cliente.nombre'
 
 # Validar una plantilla guardada o un fichero, sin enviar nada
 jev template validate pedido
@@ -313,7 +338,11 @@ jev template delete pedido --yes
 ```
 
 `template add` y `template remove` se mantienen como sinónimos de `create` y
-`delete` sin confirmación, respectivamente.
+`delete` sin confirmación, respectivamente. `--macro-desc <clave>=<texto>` es
+repetible y exige que la macro exista en el body; `--clear-macro-desc <clave>`
+vacía su descripción. Sin estos flags, `edit` conserva las descripciones
+existentes. Las descripciones se recortan, admiten hasta 500 caracteres y son
+solo metadatos: no se envían a Jev ni se usan al renderizar.
 
 Reglas de las macros:
 
@@ -389,7 +418,8 @@ Con dos pantallas principales:
   nunca se muestra completa) y cada cambio confirmado se guarda en SQLite.
 - **Plantillas**: listado con búsqueda incremental, detalle, creación y edición
   con editor de JSON y validación en vivo. Muestra las macros detectadas
-  (`{{clave}}`) para avisar de las claves de contexto necesarias.
+  (`{{clave}}`) y sus descripciones (solo lectura) para avisar de las claves de
+  contexto necesarias.
 
 | Tecla | Acción |
 | --- | --- |
@@ -487,7 +517,11 @@ produce un error explícito; nunca elige otro puerto fijo en silencio.
   respuestas siguen el orden de las preguntas del request. El selector admite el
   modelo efectivo, los dos modelos conocidos y un valor libre.
 - **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
-  macros anidadas y escapadas, cambios sin guardar y renombrado transaccional.
+  macros anidadas y escapadas, cambios sin guardar, renombrado transaccional y
+  pestaña **Macros** con una descripción opcional por macro (contador
+  `N de M descritas`, guardado atómico con el body y aviso al quitar una macro
+  descrita). Las descripciones se persisten en `template_macros` y nunca se
+  envían a Jev.
   **Nueva plantilla** abre el modal **Empezar plantilla** con ejemplos válidos de
   `noul`, `choice` y `score` (`src/template-starters.ts`); `noul` llega
   preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`

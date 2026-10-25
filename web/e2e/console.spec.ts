@@ -71,6 +71,16 @@ test.describe.serial("consola real con provider mockeado", () => {
     await expect(page.getByText("guardada en SQLite")).toBeVisible();
     await page.getByRole("tab", { name: "Macros" }).click();
     await expect(page.getByText("{{estado_de_pedido}}", { exact: true })).toBeVisible();
+    await expect(page.getByText("0 de 3 descritas", { exact: true })).toBeVisible();
+    const macroDescription = page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" });
+    await macroDescription.fill("Contenido del ticket de soporte");
+    await expect(page.getByText("1 de 3 descritas", { exact: true })).toBeVisible();
+    await expect(page.locator(".cli-bar").last()).toContainText("--macro-desc");
+    await expect(page.locator(".cli-bar").last()).toContainText("estado_de_pedido=Contenido del ticket de soporte");
+    await macroDescription.press("Escape");
+    await expect(macroDescription).toHaveValue("");
+    await expect(page.getByText("0 de 3 descritas", { exact: true })).toBeVisible();
+    await macroDescription.fill("Contenido del ticket de soporte");
     await page.getByRole("tab", { name: "Renderizar" }).click();
     await page.getByLabel("Contexto JSON").fill('{"estado_de_pedido":"contenido real","cliente":{"nombre":"Ana","plan":"pro"}}');
     await page.getByRole("button", { name: "Renderizar sin enviar" }).click();
@@ -78,12 +88,54 @@ test.describe.serial("consola real con provider mockeado", () => {
     await page.getByLabel("Nombre", { exact: true }).fill("e2e-renamed");
     await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
     await expect(page).toHaveURL(/\/plantillas\/e2e-renamed$/);
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await expect(page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" })).toHaveValue("Contenido del ticket de soporte");
+    await expect(page.getByText("1 de 3 descritas", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Eliminar", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Eliminar", exact: true }).click();
     await expect(page).toHaveURL(/\/plantillas$/);
     await expect(page.getByRole("option", { name: /e2e-renamed/ })).toHaveCount(0);
+  });
+
+  test("avisa y borra la descripción de una macro eliminada del body", async ({ page }) => {
+    await goto(page, "/plantillas");
+    await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+    const starterDialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+    await expect(starterDialog).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(starterDialog).toHaveCount(0);
+    await page.getByLabel("Nombre", { exact: true }).fill("e2e-macro-remove");
+    await page.getByRole("button", { name: "Crear plantilla", exact: true }).click();
+    await expect(page).toHaveURL(/\/plantillas\/e2e-macro-remove$/);
+
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" }).fill("Se va a borrar");
+    await expect(page.getByText("1 de 3 descritas", { exact: true })).toBeVisible();
+
+    const withoutTicket = JSON.stringify({
+      model: "jev-1.13",
+      state: { cliente: "{{cliente.nombre}}", plan: "{{cliente.plan}}" },
+      questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+    }, null, 2);
+    await page.getByRole("tab", { name: "Editor" }).click();
+    await page.getByLabel("Body JSON de la plantilla").fill(withoutTicket);
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await expect(page.getByText(/se eliminará la descripción de \{\{estado_de_pedido\}\}/)).toBeVisible();
+    await expect(page.getByText("0 de 2 descritas", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+    await expect(page.getByText("guardada en SQLite")).toBeVisible();
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await expect(page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" })).toHaveCount(0);
+    await expect(page.getByText("0 de 2 descritas", { exact: true })).toBeVisible();
+    await expect(page.getByText(/se eliminará la descripción/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Eliminar", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Eliminar", exact: true }).click();
+    await expect(page).toHaveURL(/\/plantillas$/);
   });
 
   test("el modal de starters cancela sin crear y choice/score guardan y renderizan", async ({ page }) => {
