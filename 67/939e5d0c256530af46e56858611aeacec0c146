@@ -1,0 +1,78 @@
+README.md
+  h_34a594f8693459 99,168,633-743
+opencode.json
+  h_34a594f8693459 1-11
+package-lock.json
+  h_34a594f8693459 12,17-18,474-484,959-997,1183-1225,1300-1334,1359-1393,1424-1488,1495-1510,1535-1542,1552-1577,1587-1613,1655-1686,1696-1787,1794-1829,1850-1892,1899-1973,2006-2103,2131-2135,2159-2185,2250-2283,2293-2317,2323-2330,2412-2427,2438-2478,2527-2549,2570-2574,2592-2634,2640-2644,2694-2780,2834-2841,2910-2917,2953-2981,3001-3008,3015-3036,3042-3057
+package.json
+  h_34a594f8693459 11-13,38-39,42,55,60-61
+src/cli.ts
+  h_34a594f8693459 54,57,96,371-374
+src/database.ts
+  h_34a594f8693459 6,101-125
+src/format.ts
+  h_34a594f8693459 167,199
+src/index.ts
+  h_34a594f8693459 112
+src/mcp-bin.ts
+  h_34a594f8693459 1-13
+src/mcp/context.ts
+  h_34a594f8693459 1-60
+src/mcp/docs.ts
+  h_34a594f8693459 1-205
+src/mcp/errors.ts
+  h_34a594f8693459 1-59
+src/mcp/resources.ts
+  h_34a594f8693459 1-140
+src/mcp/run.ts
+  h_34a594f8693459 1-147
+src/mcp/schema.ts
+  h_34a594f8693459 1-172
+src/mcp/server.ts
+  h_34a594f8693459 1-200
+src/mcp/tools.ts
+  h_34a594f8693459 1-1013
+src/request-repository.ts
+  h_34a594f8693459 2,26-27,66,74,79,107,223
+src/service.ts
+  h_34a594f8693459 29,78-81,220-222,462
+src/types.ts
+  h_34a594f8693459 46-48,73-74
+src/version.ts
+  h_34a594f8693459 1-2
+test/database.test.ts
+  h_34a594f8693459 287-320
+test/mcp-e2e.test.ts
+  h_34a594f8693459 1-144
+test/mcp-schema.test.ts
+  h_34a594f8693459 1-121
+test/mcp.test.ts
+  h_34a594f8693459 1-286
+web/app/api/docs/examples/route.ts
+  h_34a594f8693459 1-11
+web/app/api/docs/mcp/route.ts
+  h_34a594f8693459 1-11
+web/app/api/docs/route.ts
+  h_34a594f8693459 1-11
+web/app/api/docs/tools/[name]/route.ts
+  h_34a594f8693459 1-12
+web/app/api/docs/tools/route.ts
+  h_34a594f8693459 1-11
+web/lib/server/mcp-docs.ts
+  h_34a594f8693459 1-63
+web/test/docs.test.ts
+  h_34a594f8693459 1-131
+web/test/routes.test.ts
+  h_34a594f8693459 192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67939e5d0c256530af46e56858611aeacec0c146",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
