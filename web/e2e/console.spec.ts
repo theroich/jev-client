@@ -48,16 +48,31 @@ test.describe.serial("consola real con provider mockeado", () => {
   });
 
   test("CRUD, validación, macros y render de plantillas", async ({ page }) => {
-    await goto(page, "/plantillas?new=1");
-    await page.getByLabel("Nombre", { exact: true }).fill("e2e-temp");
+    await goto(page, "/plantillas");
+    await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+    const starterDialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+    await expect(starterDialog).toBeVisible();
+    await expect(starterDialog.getByRole("radio", { name: /Noul/ })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Enter");
+    await expect(starterDialog).toHaveCount(0);
+    await expect(page).toHaveURL(/\/plantillas\?new=1&starter=noul$/);
+
+    const nameInput = page.getByLabel("Nombre", { exact: true });
+    await expect(nameInput).toBeFocused();
+    expect(await nameInput.evaluate((element) => element instanceof HTMLInputElement && element.selectionStart === 0 && element.selectionEnd === element.value.length)).toBe(true);
+    await expect(page.getByLabel("Descripción", { exact: true })).toHaveValue("Una pregunta de sí/no");
+    await expect(page.locator(".cli-bar").last()).toContainText("jev template create");
+    await expect(page.locator(".cli-bar").last()).toContainText("--body");
+
+    await nameInput.fill("e2e-temp");
     await page.getByLabel("Descripción", { exact: true }).fill("Plantilla temporal E2E");
     await page.getByRole("button", { name: "Crear plantilla", exact: true }).click();
     await expect(page).toHaveURL(/\/plantillas\/e2e-temp$/);
     await expect(page.getByText("guardada en SQLite")).toBeVisible();
     await page.getByRole("tab", { name: "Macros" }).click();
-    await expect(page.getByText("{{state}}", { exact: true })).toBeVisible();
+    await expect(page.getByText("{{estado_de_pedido}}", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Renderizar" }).click();
-    await page.getByLabel("Contexto JSON").fill('{"state":"contenido real"}');
+    await page.getByLabel("Contexto JSON").fill('{"estado_de_pedido":"contenido real","cliente":{"nombre":"Ana","plan":"pro"}}');
     await page.getByRole("button", { name: "Renderizar sin enviar" }).click();
     await expect(page.locator("pre.json")).toContainText("contenido real");
     await page.getByLabel("Nombre", { exact: true }).fill("e2e-renamed");
@@ -71,8 +86,51 @@ test.describe.serial("consola real con provider mockeado", () => {
     await expect(page.getByRole("option", { name: /e2e-renamed/ })).toHaveCount(0);
   });
 
+  test("el modal de starters cancela sin crear y choice/score guardan y renderizan", async ({ page }) => {
+    await goto(page, "/plantillas");
+    const dialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+    await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("radio", { name: /Noul/ })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("ArrowRight");
+    const choiceRadio = dialog.getByRole("radio", { name: /Choice/ });
+    await expect(choiceRadio).toHaveAttribute("aria-checked", "true");
+    await expect(choiceRadio).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(dialog.getByRole("radio", { name: /Noul/ })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("borrador nuevo")).toHaveCount(0);
+
+    const context = { estado_de_pedido: "El checkout falla", cliente: { nombre: "Luis", plan: "free" } };
+    const starters = [
+      { label: "Choice", id: "choice", name: "e2e-starter-choice", description: "Una opción entre varias, con descripciones", expected: "billing" },
+      { label: "Score", id: "score", name: "e2e-starter-score", description: "Una nota dentro de una escala ordenada", expected: "Hoy mismo" },
+    ];
+
+    for (const starter of starters) {
+      await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("radio", { name: new RegExp(starter.label) }).click();
+      await dialog.getByRole("button", { name: "Crear plantilla" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(`/plantillas\\?new=1&starter=${starter.id}$`));
+      await expect(page.getByLabel("Descripción", { exact: true })).toHaveValue(starter.description);
+      const body = await page.getByLabel("Body JSON de la plantilla").inputValue();
+      expect(body).toContain(`"type": "${starter.id}"`);
+      await page.getByLabel("Nombre", { exact: true }).fill(starter.name);
+      await page.getByRole("button", { name: "Crear plantilla", exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`/plantillas/${starter.name}$`));
+      await page.getByRole("tab", { name: "Renderizar" }).click();
+      await page.getByLabel("Contexto JSON").fill(JSON.stringify(context));
+      await page.getByRole("button", { name: "Renderizar sin enviar" }).click();
+      await expect(page.locator("pre.json")).toContainText(starter.expected);
+    }
+  });
+
   test("batch muestra progreso y enlaza el historial por batch", async ({ page }) => {
     await goto(page, "/lotes");
+    await page.getByLabel("Plantilla", { exact: true }).selectOption("pedido");
     await page.getByLabel("Contextos (array JSON)").fill(JSON.stringify([
       { estado_de_pedido: "uno", cliente: { nombre: "Ana" } },
       { estado_de_pedido: "dos", cliente: { nombre: "Luis" } },

@@ -48,6 +48,14 @@ export {
 } from "./template.js";
 export { TemplateRepository, type Template } from "./template-repository.js";
 export {
+  createTemplateStarterBody,
+  DEFAULT_TEMPLATE_STARTER,
+  getTemplateStarter,
+  TEMPLATE_STARTERS,
+  type TemplateStarter,
+  type TemplateStarterId,
+} from "./template-starters.js";
+export {
   answerSummary,
   formatCost,
   formatHistoryDetail,

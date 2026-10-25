@@ -4,10 +4,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { detectMacros, validateTemplateBody } from "../../dist/src/template.js";
+import {
+  createTemplateStarterBody,
+  DEFAULT_TEMPLATE_STARTER,
+  getTemplateStarter,
+  type TemplateStarterId,
+} from "../../dist/src/template-starters.js";
 import type { JevRequest, TemplateDetail, TemplateSummary } from "@/lib/types";
 import { parseJsonObject, relativeDate, shellQuote } from "@/lib/utils";
 import { describeApiError, useConsole } from "./console-context";
 import { ConfirmModal } from "./modal";
+import { TemplateStarterModal } from "./template-starter-modal";
 import {
   Button,
   Callout,
@@ -27,12 +34,26 @@ interface Draft {
   bodyJson: string;
 }
 
-function initialBody(model: string): string {
-  return JSON.stringify({
-    model,
-    state: "{{state}}",
-    questions: { q: { type: "noul", instructions: "¿Se cumple la condición?" } },
-  }, null, 2);
+function uniqueDraftName(templates: TemplateSummary[]): string {
+  const used = new Set(templates.map((template) => template.name));
+  if (!used.has("nueva-plantilla")) return "nueva-plantilla";
+  let index = 2;
+  while (used.has(`nueva-plantilla-${index}`)) index += 1;
+  return `nueva-plantilla-${index}`;
+}
+
+function starterBodyJson(id: TemplateStarterId, model: string): string {
+  return JSON.stringify(createTemplateStarterBody(id, model), null, 2);
+}
+
+function starterDraft(id: TemplateStarterId, model: string, templates: TemplateSummary[]): Draft {
+  const starter = getTemplateStarter(id);
+  return {
+    originalName: null,
+    name: uniqueDraftName(templates),
+    description: starter?.description ?? "",
+    bodyJson: starterBodyJson(id, model),
+  };
 }
 
 function fromDetail(detail: TemplateDetail): Draft {
@@ -58,14 +79,10 @@ export function TemplatesScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const startsNew = searchParams.get("new") === "1";
+  const requestedStarter = searchParams.get("starter") as TemplateStarterId | null;
+  const initialStarter = (requestedStarter && getTemplateStarter(requestedStarter)?.id) ?? DEFAULT_TEMPLATE_STARTER;
   const [draft, setDraft] = useState<Draft | null>(() => {
-    if (startsNew) {
-      const used = new Set(templates.map((template) => template.name));
-      let index = 1;
-      let name = "nueva-plantilla";
-      while (used.has(name)) name = `nueva-plantilla-${++index}`;
-      return { originalName: null, name, description: "", bodyJson: initialBody(defaultModel) };
-    }
+    if (startsNew) return starterDraft(initialStarter, defaultModel, templates);
     if (selected) return fromDetail(selected);
     return null;
   });
@@ -76,6 +93,8 @@ export function TemplatesScreen({
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [starterOpen, setStarterOpen] = useState(false);
+  const [focusName, setFocusName] = useState(startsNew);
   const { request, notify } = useConsole();
 
   const bodyError = useMemo(() => {
@@ -128,12 +147,23 @@ export function TemplatesScreen({
     };
   }, [dirty]);
 
+  useEffect(() => {
+    if (!focusName) return;
+    const input = document.getElementById("template-name");
+    if (input instanceof HTMLInputElement) {
+      input.focus();
+      input.select();
+    }
+    setFocusName(false);
+  }, [focusName]);
+
   const filtered = templates.filter((template) => `${template.name} ${template.description}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
   const updateSearch = (value: string) => {
     setSearch(value);
     const params = new URLSearchParams(window.location.search);
     if (value) params.set("q", value); else params.delete("q");
     params.delete("new");
+    params.delete("starter");
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
@@ -144,14 +174,17 @@ export function TemplatesScreen({
   };
   const startNew = () => {
     if (!confirmDiscard()) return;
-    const used = new Set(templates.map((template) => template.name));
-    let index = 1;
-    let name = "nueva-plantilla";
-    while (used.has(name)) name = `nueva-plantilla-${++index}`;
-    setDraft({ originalName: null, name, description: "", bodyJson: initialBody(defaultModel) });
+    setError(null);
+    setStarterOpen(true);
+  };
+  const startWithStarter = (id: TemplateStarterId) => {
+    setDraft(starterDraft(id, defaultModel, templates));
     setRendered(null);
     setError(null);
-    router.replace("/plantillas?new=1", { scroll: false });
+    setTab("editor");
+    setStarterOpen(false);
+    setFocusName(true);
+    router.replace(`/plantillas?new=1&starter=${id}`, { scroll: false });
   };
 
   const save = async () => {
@@ -221,11 +254,19 @@ export function TemplatesScreen({
     }
   };
 
+  const createBody = (() => {
+    if (!draft) return "";
+    try {
+      return JSON.stringify(JSON.parse(draft.bodyJson));
+    } catch {
+      return draft.bodyJson;
+    }
+  })();
   const command = !draft ? "jev template list" : tab === "render"
     ? `jev template render ${shellQuote(draft.name)} --context-file context.json`
     : tab === "macros" ? `jev template show ${shellQuote(draft.name)} --json`
       : draft.originalName ? `jev template edit ${shellQuote(draft.name)} --file plantilla.json`
-        : `jev template create ${shellQuote(draft.name)} --file plantilla.json --description ${shellQuote(draft.description)}`;
+        : `jev template create ${shellQuote(draft.name)} --description ${shellQuote(draft.description)} --body ${shellQuote(createBody)}`;
 
   return (
     <section>
@@ -290,6 +331,7 @@ export function TemplatesScreen({
         )}
       </div>
       <CliBar command={command} />
+      {starterOpen ? <TemplateStarterModal onClose={() => setStarterOpen(false)} onChoose={startWithStarter} /> : null}
       {deleteOpen && draft?.originalName ? <ConfirmModal title={`Eliminar ${draft.originalName}`} description="Se eliminará la plantilla de SQLite. El historial existente conserva template_name y no se borra. Esta acción no se puede deshacer." confirmLabel="Eliminar" danger busy={saving} onClose={() => setDeleteOpen(false)} onConfirm={() => void remove()} /> : null}
     </section>
   );

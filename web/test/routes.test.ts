@@ -8,6 +8,8 @@ import { NextRequest } from "next/server";
 
 import type { FetchLike } from "../../dist/src/client.js";
 import { runCli, type CliIO } from "../../dist/src/cli.js";
+import { resolveTemplateBody } from "../../dist/src/template.js";
+import { TEMPLATE_STARTERS } from "../../dist/src/template-starters.js";
 import { POST as ask } from "../app/api/ask/route";
 import { POST as batch } from "../app/api/batch/route";
 import { GET as configGet, PUT as configPut } from "../app/api/config/route";
@@ -202,6 +204,50 @@ test("plantillas validan macros, renderizan y renombran sin duplicar", async () 
   assert.equal(runtime.templates.get("ticket"), undefined);
   assert.ok(runtime.templates.get("ticket-web"));
   assert.equal((await templatesGet(request("/api/templates"))).status, 200);
+});
+
+test("los starters de plantilla se guardan por la API y coinciden con show y render de la CLI", async () => {
+  const context = {
+    estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.",
+    cliente: { nombre: "Ana", plan: "pro" },
+  };
+  const io = (): { cli: CliIO; output: () => string } => {
+    let output = "";
+    return {
+      cli: {
+        stdout: (text) => { output += text; },
+        stderr: () => {},
+        readStdin: async () => "",
+        env: { NODE_ENV: "test", JEV_DB: runtime.service.databasePath },
+      },
+      output: () => output,
+    };
+  };
+
+  for (const starter of TEMPLATE_STARTERS) {
+    const name = `starter-${starter.id}`;
+    const bodyJson = JSON.stringify(starter.body, null, 2);
+    const created = await templatesPost(request("/api/templates", "POST", { body: { name, description: starter.description, bodyJson } }));
+    assert.equal(created.status, 201, starter.id);
+
+    const show = io();
+    assert.equal(await runCli(["template", "show", name, "--json"], show.cli), 0);
+    const shown = JSON.parse(show.output()) as { name: string; description: string; body: unknown };
+    assert.equal(shown.name, name);
+    assert.equal(shown.description, starter.description);
+    assert.deepEqual(shown.body, starter.body);
+
+    const rendered = await templateRender(request("/api/templates/render", "POST", { body: { bodyJson, context } }));
+    assert.equal(rendered.status, 200, starter.id);
+    const webRequest = (await rendered.json() as { request: unknown }).request;
+
+    const render = io();
+    assert.equal(await runCli(["template", "render", name, "--context", JSON.stringify(context)], render.cli), 0);
+    const cliRequest = JSON.parse(render.output()) as unknown;
+
+    assert.deepEqual(cliRequest, webRequest);
+    assert.deepEqual(cliRequest, resolveTemplateBody(bodyJson, context));
+  }
 });
 
 test("batch stream usa pool, batch_id común y resume en NDJSON", async () => {
