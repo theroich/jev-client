@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildContextsSkeleton,
   buildHistoryCommand,
+  countEmptyContextValues,
   filtersFromSearchParams,
   filtersToSearchParams,
   parseStateInput,
@@ -37,6 +39,49 @@ test("contextos validan array, objetos y límite", () => {
   const result = validateContexts('[{"x":1},null,[],{"x":2}]');
   assert.deepEqual(result.invalid, [1, 2]);
   assert.match(validateContexts(`[${Array.from({ length: 1001 }, () => "{}").join(",")}]`).error ?? "", /1.000/);
+});
+
+test("el esqueleto de contextos usa una clave plana por macro", () => {
+  assert.equal(buildContextsSkeleton([]), "[]");
+  assert.equal(
+    buildContextsSkeleton([{ name: "ticket", description: "Identificador" }]),
+    '[\n  {\n    "ticket": ""\n  }\n]',
+  );
+  assert.equal(
+    buildContextsSkeleton([
+      { name: "cliente.nombre", description: "" },
+      { name: "cliente.plan", description: "free | pro" },
+      { name: "estado_de_pedido", description: "" },
+    ]),
+    '[\n  {\n    "cliente.nombre": "",\n    "cliente.plan": "",\n    "estado_de_pedido": ""\n  }\n]',
+  );
+});
+
+test("el esqueleto conserva rutas con punto y escapa caracteres especiales", () => {
+  const macros = [
+    { name: 'cliente."nombre"', description: "" },
+    { name: "ruta\\anidada", description: "" },
+    { name: "emoji.🛒", description: "" },
+  ];
+  const skeleton = buildContextsSkeleton(macros);
+  assert.deepEqual(JSON.parse(skeleton), [
+    {
+      'cliente."nombre"': "",
+      "ruta\\anidada": "",
+      "emoji.🛒": "",
+    },
+  ]);
+  assert.deepEqual(Object.keys(JSON.parse(skeleton)[0]), macros.map((macro) => macro.name));
+  assert.equal(validateContexts(skeleton).contexts.length, 1);
+  assert.equal(validateContexts(skeleton).error, null);
+});
+
+test("los valores de marcador cuentan también en contextos anidados", () => {
+  assert.equal(countEmptyContextValues([]), 0);
+  assert.equal(countEmptyContextValues([{ ticket: "TCK-1" }]), 0);
+  assert.equal(countEmptyContextValues([{ ticket: "", "cliente.nombre": "" }]), 2);
+  assert.equal(countEmptyContextValues([{ cliente: { nombre: "", plan: "pro" }, notas: ["", "ok"] }]), 2);
+  assert.equal(countEmptyContextValues([{ ticket: "  ", nested: { list: ["", " "] } }]), 3);
 });
 
 test("preguntas conservan tipos, criteria y orden al editar", () => {

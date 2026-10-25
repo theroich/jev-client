@@ -1,4 +1,4 @@
-import type { HistoryFilterValues, Question, State } from "./types";
+import type { HistoryFilterValues, Question, State, TemplateMacro } from "./types";
 
 export const DEFAULT_HISTORY_FILTERS: HistoryFilterValues = {
   since: "",
@@ -168,6 +168,39 @@ export function parseJsonObject(text: string): {
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Esqueleto de contextos con una clave plana por macro y `""` como marcador.
+ * Mantiene el orden alfabético de `detectMacros` y devuelve `[]` sin macros.
+ */
+export function buildContextsSkeleton(
+  macros: readonly TemplateMacro[],
+): string {
+  if (macros.length === 0) return "[]";
+  return JSON.stringify(
+    [Object.fromEntries(macros.map(({ name }) => [name, ""]))],
+    null,
+    2,
+  );
+}
+
+/** Cuenta valores de marcador (`""` o solo espacios) en los contextos, incluidos los anidados. */
+export function countEmptyContextValues(
+  contexts: readonly Record<string, unknown>[],
+): number {
+  let total = 0;
+  const walk = (value: unknown): void => {
+    if (typeof value === "string") {
+      if (value.trim() === "") total += 1;
+    } else if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+    } else if (value && typeof value === "object") {
+      for (const item of Object.values(value)) walk(item);
+    }
+  };
+  for (const context of contexts) walk(context);
+  return total;
 }
 
 export function validateContexts(text: string): {

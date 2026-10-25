@@ -242,8 +242,29 @@ test.describe.serial("consola real con provider mockeado", () => {
 
   test("batch muestra progreso y enlaza el historial por batch", async ({ page }) => {
     await goto(page, "/lotes");
+    const contexts = page.getByLabel("Contextos (array JSON)");
+    expect(JSON.parse(await contexts.inputValue())).toEqual([
+      { "cliente.nombre": "", "cliente.plan": "", estado_de_pedido: "" },
+    ]);
+    const pedidoSkeleton = JSON.stringify([{ "cliente.nombre": "", estado_de_pedido: "" }], null, 2);
+    await contexts.fill('[{"propio":true}]');
     await page.getByLabel("Plantilla", { exact: true }).selectOption("pedido");
-    await page.getByLabel("Contextos (array JSON)").fill(JSON.stringify([
+    await expect(contexts).toHaveValue('[{"propio":true}]');
+    const notice = page.locator(".callout");
+    await expect(notice).toContainText("Has editado los contextos");
+    await notice.getByRole("button", { name: "Rellenar con las macros de pedido" }).click();
+    const fillDialog = page.getByRole("dialog", { name: "Rellenar contextos" });
+    await fillDialog.getByRole("button", { name: "Rellenar", exact: true }).click();
+    await expect(contexts).toHaveValue(pedidoSkeleton);
+    await page.getByRole("button", { name: "Rellenar con las macros de pedido" }).click();
+    await expect(contexts).toBeFocused();
+    await expect(page.getByText(/Hay 2 valores sin rellenar/)).toBeVisible();
+    await page.getByRole("button", { name: "Ejecutar lote" }).click();
+    const emptyDialog = page.getByRole("dialog", { name: "Quedan valores sin rellenar" });
+    await expect(emptyDialog).toBeVisible();
+    await emptyDialog.getByRole("button", { name: "Cancelar" }).click();
+    await expect(emptyDialog).toHaveCount(0);
+    await contexts.fill(JSON.stringify([
       { estado_de_pedido: "uno", cliente: { nombre: "Ana" } },
       { estado_de_pedido: "dos", cliente: { nombre: "Luis" } },
       { estado_de_pedido: "tres", cliente: { nombre: "Marta" } },

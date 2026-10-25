@@ -554,9 +554,16 @@ produce un error explícito; nunca elige otro puerto fijo en silencio.
   preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`
   como array ordenado. El editor queda libre después. Renderizar nunca llama a
   Jev.
-- **Lotes**: pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`,
-  `--no-save` y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta
-  las peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
+- **Lotes**: el editor de contextos arranca con un esqueleto JSON a 2 espacios que
+  contiene una clave plana por macro de la plantilla activa (orden de
+  `detectMacros`), listo para rellenar. Al cambiar de plantilla se regenera solo
+  si no había ediciones; si las hay se conserva el texto y aparece la acción
+  **Rellenar con las macros de <plantilla>** (con confirmación). Un desplegable
+  **Macros de la plantilla** muestra `{{clave}}` y su descripción cuando existe,
+  y los valores todavía vacíos piden confirmación antes de ejecutar. Después,
+  pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`, `--no-save`
+  y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta las
+  peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
   como omitido.
 - **Historial**: filtros `since/status/model/template/batch/limit`, detalle por
   pestañas y export `application/x-ndjson` con exactamente
