@@ -1,0 +1,40 @@
+README.md
+  h_34a594f8693459 98-99,121-139,307-309,315-317,323-326,341-345,421-422,520-524
+src/cli.ts
+  h_34a594f8693459 36,38,182-183,186,196-200,288-289,322,937-997,1006,1012,1014,1031,1036,1074,1084-1090,1140,1177,1179,1579,1583-1587
+src/database.ts
+  h_34a594f8693459 6,71-87
+src/template-repository.ts
+  h_34a594f8693459 2-11,19-20,31-64,69,74-77,80-95,97-139,141,144-152,187,192-231
+src/tui.ts
+  h_34a594f8693459 574,579,584-592
+test/cli.test.ts
+  h_34a594f8693459 454,456-457,484-569,686,688,705,709-710
+test/database.test.ts
+  h_34a594f8693459 9,127-170
+test/template.test.ts
+  h_34a594f8693459 253-405
+web/components/templates-screen.tsx
+  h_34a594f8693459 13,24,36-40,62,72,118-127,139-147,228,230-238,240,291-298,307-313,316-318,367-404
+web/e2e/console.spec.ts
+  h_34a594f8693459 74-83,91-93,102-140
+web/lib/server/runtime.ts
+  h_34a594f8693459 29-34,186,319,350-395,401,403,412-413
+web/lib/types.ts
+  h_34a594f8693459 9,11,120
+web/styles/tokens.css
+  h_34a594f8693459 116,172-175,378-381
+web/test/routes.test.ts
+  h_34a594f8693459 27-32,214-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee56fce8a3b265ea3d9fd5a14227973f8cafaa1c",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
