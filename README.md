@@ -398,7 +398,13 @@ Con dos pantallas principales:
 | `Esc` | cancelar / volver |
 | `q` | volver al menú (o salir) |
 | `Ctrl-C` | salir (pide confirmación si hay cambios) |
-| En plantillas: `n` nueva, `e` editar, `d` borrar, `/` buscar, `Enter` ver |
+| En plantillas: `n` nueva, `e` editar, `d` borrar, `/` buscar, `Enter` ver, `q` menú |
+| En la búsqueda: escribir filtra, `Backspace` borra, `Esc`/`Enter` salen |
+| En el detalle: `e` editar, `d` borrar, `b`/`q` volver |
+
+Los atajos de comando no distinguen mayúsculas (`n`/`N`, `q`/`Q`), pero el
+texto que se escribe en nombre, descripción, body o búsqueda conserva su caso.
+En las confirmaciones, `s`/`S`/`y`/`Y`/`Enter` aceptan y `n`/`N`/`Esc` rechazan.
 
 Los cambios se guardan en las mismas tablas SQLite (`config` y `templates`) que
 usan los comandos no interactivos, así que se ven con `jev config get` o
@@ -429,6 +435,8 @@ Lo siguiente no se puede automatizar del todo (depende de un TTY real) y convien
 revisarlo a mano antes de publicar:
 
 - [ ] `jev tui` abre el menú y `↑`/`↓` mueven la selección.
+- [ ] En Plantillas, `n`/`e`/`d`/`/` responden y `q` vuelve al menú; en el
+      detalle `e`/`d`/`b`/`q` y en provider `q` también responden.
 - [ ] Cambiar `model` y `api_url` desde la TUI y comprobar que persisten con
       `jev config get model` y `jev config get api_url` en otra ejecución.
 - [ ] La `api_key` se muestra enmascarada al consultarla y al editarla; nunca se

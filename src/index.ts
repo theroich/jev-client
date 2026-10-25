@@ -100,4 +100,12 @@ export {
   type WebConsoleSignalTarget,
   type WebConsoleSpawn,
 } from "./web-console.js";
-export { TuiApp, createTuiBackend, keyToAction, runTui, type TuiBackend } from "./tui.js";
+export {
+  TuiApp,
+  createTuiBackend,
+  keyToAction,
+  runTui,
+  type KeypressKey,
+  type TuiAction,
+  type TuiBackend,
+} from "./tui.js";
