@@ -106,6 +106,37 @@ const MENU_ITEMS = [
 const BODY_EMPTY = "el cuerpo no puede estar vacío";
 
 /**
+ * Acción lógica canónica que consume la máquina de estados. Los caracteres
+ * imprimibles siempre llevan el prefijo `char:` para distinguirlos de las
+ * acciones de navegación (`n` es texto, `char:n` es la acción).
+ */
+export type TuiAction =
+  | "up"
+  | "down"
+  | "left"
+  | "right"
+  | "enter"
+  | "esc"
+  | "backspace"
+  | "delete"
+  | "ctrl-a"
+  | "ctrl-c"
+  | "ctrl-e"
+  | `char:${string}`;
+
+/**
+ * Comprueba si la acción es un comando de una tecla, sin distinguir
+ * mayúsculas (`char:n` y `char:N`). El texto de los editores no pasa por aquí,
+ * así que conserva su caso.
+ */
+function isCommand(action: TuiAction, command: string): boolean {
+  if (!action.startsWith("char:")) {
+    return false;
+  }
+  return action.slice("char:".length).toLowerCase() === command.toLowerCase();
+}
+
+/**
  * Máquina de estados de la TUI, pura y testeable: no toca la terminal.
  * Recibe "acciones" lógicas (`up`, `down`, `enter`, `char:x`, …) y expone el
  * frame a renderizar, además de realizar los cambios a través del backend.
@@ -128,7 +159,7 @@ export class TuiApp {
     this.templates = backend.listTemplates();
   }
 
-  handleAction(action: string): void {
+  handleAction(action: TuiAction): void {
     if (this.done) {
       return;
     }
@@ -194,7 +225,11 @@ export class TuiApp {
 
   // ── menú principal ────────────────────────────────────────────────
 
-  private handleMenu(screen: Extract<Screen, { kind: "menu" }>, action: string): void {
+  private handleMenu(screen: Extract<Screen, { kind: "menu" }>, action: TuiAction): void {
+    if (isCommand(action, "q")) {
+      this.requestQuit(this.screen);
+      return;
+    }
     switch (action) {
       case "up":
         screen.cursor = Math.max(0, screen.cursor - 1);
@@ -212,7 +247,6 @@ export class TuiApp {
         }
         break;
       case "ctrl-c":
-      case "q":
         this.requestQuit(this.screen);
         break;
       default:
@@ -255,8 +289,12 @@ export class TuiApp {
 
   private handleProvider(
     screen: Extract<Screen, { kind: "provider" }>,
-    action: string,
+    action: TuiAction,
   ): void {
+    if (isCommand(action, "q")) {
+      this.screen = { kind: "menu", cursor: 0 };
+      return;
+    }
     switch (action) {
       case "up":
         screen.cursor = Math.max(0, screen.cursor - 1);
@@ -277,7 +315,6 @@ export class TuiApp {
         break;
       }
       case "esc":
-      case "q":
         this.screen = { kind: "menu", cursor: 0 };
         break;
       case "ctrl-c":
@@ -290,7 +327,7 @@ export class TuiApp {
 
   private handleProviderEdit(
     screen: Extract<Screen, { kind: "provider-edit" }>,
-    action: string,
+    action: TuiAction,
   ): void {
     if (action === "esc") {
       this.screen = { kind: "provider", cursor: CONFIG_FIELDS.indexOf(screen.field) };
@@ -391,7 +428,7 @@ export class TuiApp {
 
   private handleTemplates(
     screen: Extract<Screen, { kind: "templates" }>,
-    action: string,
+    action: TuiAction,
   ): void {
     if (screen.filtering) {
       if (action === "esc" || action === "enter") {
@@ -409,15 +446,44 @@ export class TuiApp {
     const matches = this.matchingTemplates(screen.query);
     screen.cursor = Math.min(screen.cursor, Math.max(0, matches.length - 1));
 
+    if (isCommand(action, "/")) {
+      screen.filtering = true;
+      return;
+    }
+    if (isCommand(action, "n")) {
+      this.screen = this.newEditor();
+      return;
+    }
+    if (isCommand(action, "e")) {
+      const template = matches[screen.cursor];
+      if (template !== undefined) {
+        this.screen = this.editEditor(template);
+      }
+      return;
+    }
+    if (isCommand(action, "d")) {
+      const template = matches[screen.cursor];
+      if (template !== undefined) {
+        this.screen = {
+          kind: "confirm",
+          action: "delete-template",
+          name: template.name,
+          returnTo: this.screen,
+        };
+      }
+      return;
+    }
+    if (isCommand(action, "q")) {
+      this.screen = { kind: "menu", cursor: 1 };
+      return;
+    }
+
     switch (action) {
       case "up":
         screen.cursor = Math.max(0, screen.cursor - 1);
         break;
       case "down":
         screen.cursor = Math.min(Math.max(0, matches.length - 1), screen.cursor + 1);
-        break;
-      case "/":
-        screen.filtering = true;
         break;
       case "enter": {
         const template = matches[screen.cursor];
@@ -426,30 +492,7 @@ export class TuiApp {
         }
         break;
       }
-      case "n":
-        this.screen = this.newEditor();
-        break;
-      case "e": {
-        const template = matches[screen.cursor];
-        if (template !== undefined) {
-          this.screen = this.editEditor(template);
-        }
-        break;
-      }
-      case "d": {
-        const template = matches[screen.cursor];
-        if (template !== undefined) {
-          this.screen = {
-            kind: "confirm",
-            action: "delete-template",
-            name: template.name,
-            returnTo: this.screen,
-          };
-        }
-        break;
-      }
       case "esc":
-      case "q":
         this.screen = { kind: "menu", cursor: 1 };
         break;
       case "ctrl-c":
@@ -486,28 +529,32 @@ export class TuiApp {
 
   private handleTemplateDetail(
     screen: Extract<Screen, { kind: "template-detail" }>,
-    action: string,
+    action: TuiAction,
   ): void {
+    if (isCommand(action, "b") || isCommand(action, "q")) {
+      this.openTemplates();
+      return;
+    }
+    if (isCommand(action, "e")) {
+      const template = this.backend.getTemplate(screen.name);
+      if (template !== undefined) {
+        this.screen = this.editEditor(template);
+      }
+      return;
+    }
+    if (isCommand(action, "d")) {
+      this.screen = {
+        kind: "confirm",
+        action: "delete-template",
+        name: screen.name,
+        returnTo: this.screen,
+      };
+      return;
+    }
+
     switch (action) {
       case "esc":
-      case "b":
-      case "q":
         this.openTemplates();
-        break;
-      case "e": {
-        const template = this.backend.getTemplate(screen.name);
-        if (template !== undefined) {
-          this.screen = this.editEditor(template);
-        }
-        break;
-      }
-      case "d":
-        this.screen = {
-          kind: "confirm",
-          action: "delete-template",
-          name: screen.name,
-          returnTo: this.screen,
-        };
         break;
       case "ctrl-c":
         this.requestQuit(this.screen);
@@ -580,7 +627,7 @@ export class TuiApp {
     );
   }
 
-  private handleTemplateEditor(screen: TemplateEditor, action: string): void {
+  private handleTemplateEditor(screen: TemplateEditor, action: TuiAction): void {
     if (action === "ctrl-c") {
       this.requestQuit(this.screen);
       return;
@@ -702,14 +749,12 @@ export class TuiApp {
 
   // ── confirmaciones ─────────────────────────────────────────────────
 
-  private handleConfirm(screen: Confirm, action: string): void {
+  private handleConfirm(screen: Confirm, action: TuiAction): void {
     const yes =
-      action === "enter" ||
-      ["char:s", "char:S", "char:y", "char:Y", "char:sí", "char:si"].includes(action);
+      action === "enter" || isCommand(action, "s") || isCommand(action, "y");
     const no =
       action === "esc" ||
-      action === "char:n" ||
-      action === "char:N" ||
+      isCommand(action, "n") ||
       (action === "ctrl-c" && screen.action !== "quit");
 
     if (yes || (action === "ctrl-c" && screen.action === "quit")) {
@@ -786,7 +831,7 @@ function renderInput(value: string, cursor: number, masked: boolean): string {
 function editValue(
   value: string,
   cursor: number,
-  action: string,
+  action: TuiAction,
 ): { value: string; cursor: number } {
   if (action === "left") {
     return { value, cursor: Math.max(0, cursor - 1) };
@@ -850,7 +895,7 @@ function messageOf(error: unknown): string {
 
 // ── driver de terminal ───────────────────────────────────────────────
 
-interface KeypressKey {
+export interface KeypressKey {
   name?: string;
   sequence?: string;
   ctrl?: boolean;
@@ -858,12 +903,17 @@ interface KeypressKey {
 }
 
 /** Traduce un evento de teclado de readline a una acción lógica. */
-export function keyToAction(key: KeypressKey): string | null {
+export function keyToAction(key: KeypressKey): TuiAction | null {
   const name = key.name;
   if (key.ctrl === true) {
     if (name === "c") return "ctrl-c";
     if (name === "a") return "ctrl-a";
     if (name === "e") return "ctrl-e";
+  }
+  // ESC solo llega con `meta: true`, así que se comprueba antes de descartar
+  // las secuencias con meta (Alt+tecla).
+  if (name === "escape") {
+    return "esc";
   }
   if (key.meta === true) {
     return null;
@@ -873,9 +923,6 @@ export function keyToAction(key: KeypressKey): string | null {
   }
   if (name === "return" || name === "enter") {
     return "enter";
-  }
-  if (name === "escape") {
-    return "esc";
   }
   if (name === "backspace") {
     return "backspace";
@@ -903,8 +950,8 @@ export async function runTui(backend: TuiBackend): Promise<number> {
   stdin.setEncoding("utf8");
   stdin.resume();
 
-  const queue: string[] = [];
-  let resolveNext: ((action: string) => void) | null = null;
+  const queue: TuiAction[] = [];
+  let resolveNext: ((action: TuiAction) => void) | null = null;
 
   const onKeypress = (_str: string, key: Key) => {
     const action = keyToAction(key);
@@ -922,7 +969,7 @@ export async function runTui(backend: TuiBackend): Promise<number> {
 
   stdin.on("keypress", onKeypress);
 
-  const nextAction = (): Promise<string> =>
+  const nextAction = (): Promise<TuiAction> =>
     new Promise((resolve) => {
       const queued = queue.shift();
       if (queued !== undefined) {
