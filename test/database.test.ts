@@ -284,3 +284,37 @@ test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
   );
   db.close();
 });
+
+test("actualiza de v5 a v6 añadiendo source a requests", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-db-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "jev.db");
+
+  const legacy = new Database(path);
+  legacy.exec(`
+    CREATE TABLE requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      ok INTEGER NOT NULL
+    )
+  `);
+  legacy.pragma("user_version = 5");
+  legacy.close();
+
+  const db = openDatabase(path);
+  assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
+  const columns = db
+    .prepare<[], { name: string }>("PRAGMA table_info(requests)")
+    .all()
+    .map((column) => column.name);
+  assert.ok(columns.includes("source"));
+  // El default es 'cli' y reaplicar no duplica la columna.
+  migrateDatabase(db);
+  const source = db
+    .prepare<[], { dflt_value: string | null }>(
+      "SELECT dflt_value FROM pragma_table_info('requests') WHERE name = 'source'",
+    )
+    .get();
+  assert.equal(source?.dflt_value, "'cli'");
+  db.close();
+});

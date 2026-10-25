@@ -8,7 +8,9 @@
     "node": ">=20.9"
   },
   "bin": {
-    "jev": "./dist/src/bin.js"
+    "jev": "./dist/src/bin.js",
+    "jev-mcp": "./dist/src/mcp-bin.js",
+    "jev-client": "./dist/src/bin.js"
   },
   "exports": {
     ".": {
@@ -33,9 +35,11 @@
     "test:package": "node scripts/package-smoke.mjs",
     "start": "node dist/src/bin.js",
     "dev": "npm run build && node dist/src/bin.js",
+    "mcp": "node dist/src/mcp-bin.js",
+    "prepare": "npm run build:web",
     "prepack": "npm run build:web",
     "prepublishOnly": "npm test",
-    "postbuild": "node -e \"require('node:fs').chmodSync('dist/src/bin.js', 0o755)\""
+    "postbuild": "node -e \"require('node:fs').chmodSync('dist/src/bin.js', 0o755); require('node:fs').chmodSync('dist/src/mcp-bin.js', 0o755)\""
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.0",
@@ -48,10 +52,12 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "better-sqlite3": "^12.11.1",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "zod": "^3.25.76"
   }
 }

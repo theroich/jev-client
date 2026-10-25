@@ -3,7 +3,7 @@ import { chmodSync, closeSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export type SqliteDatabase = Database.Database;
 
@@ -95,6 +95,31 @@ const MIGRATIONS: readonly Migration[] = [
         .all();
       if (!columns.some((column) => column.name === "schema_json")) {
         db.exec("ALTER TABLE template_macros ADD COLUMN schema_json TEXT");
+      }
+    },
+  },
+  {
+    version: 6,
+    up(db) {
+      // La tabla requests la crea la migración v3; en bases de prueba creadas a
+      // mano puede no existir, así que se comprueba antes de alterar.
+      const table = db
+        .prepare<[], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'requests'",
+        )
+        .get();
+      if (table === undefined) {
+        return;
+      }
+      // `ALTER TABLE ... ADD COLUMN` no admite IF NOT EXISTS: se consulta el
+      // catálogo para que reaplicar la migración siga siendo inocuo.
+      const columns = db
+        .prepare<[], { name: string }>("PRAGMA table_info(requests)")
+        .all();
+      if (!columns.some((column) => column.name === "source")) {
+        db.exec(
+          "ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'cli'",
+        );
       }
     },
   },
