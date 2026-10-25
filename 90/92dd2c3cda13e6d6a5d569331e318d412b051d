@@ -1,0 +1,32 @@
+README.md
+  h_34a594f8693459 483-487
+src/index.ts
+  h_34a594f8693459 50-57
+src/template-starters.ts
+  h_34a594f8693459 1-117
+test/template-starters.test.ts
+  h_34a594f8693459 1-103
+web/components/template-starter-modal.tsx
+  h_34a594f8693459 1-104
+web/components/templates-screen.tsx
+  h_34a594f8693459 7-12,17,37-56,82-83,85,96-97,150-159,166,177-181,184-187,257-264,269,334
+web/e2e/console.spec.ts
+  h_34a594f8693459 51-67,73,75,89-130,133
+web/e2e/responsive.spec.ts
+  h_34a594f8693459 43-61
+web/styles/tokens.css
+  h_34a594f8693459 255-268,371-372
+web/test/routes.test.ts
+  h_34a594f8693459 11-12,209-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9092dd2c3cda13e6d6a5d569331e318d412b051d",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
