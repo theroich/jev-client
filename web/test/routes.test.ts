@@ -24,7 +24,12 @@ import { GET as overview } from "../app/api/overview/route";
 import { POST as providerCheck } from "../app/api/provider/check/route";
 import { GET as sessionGet, POST as sessionPost } from "../app/api/session/route";
 import { GET as templatesGet, POST as templatesPost } from "../app/api/templates/route";
-import { PATCH as templatePatch } from "../app/api/templates/[name]/route";
+import {
+  DELETE as templateDelete,
+  GET as templateGet,
+  PATCH as templatePatch,
+  PUT as templatePut,
+} from "../app/api/templates/[name]/route";
 import { POST as templateRender } from "../app/api/templates/render/route";
 import {
   closeConsoleRuntime,
@@ -204,6 +209,93 @@ test("plantillas validan macros, renderizan y renombran sin duplicar", async () 
   assert.equal(runtime.templates.get("ticket"), undefined);
   assert.ok(runtime.templates.get("ticket-web"));
   assert.equal((await templatesGet(request("/api/templates"))).status, 200);
+});
+
+test("macros con descripción se guardan, fusionan, renombran y borran en cascada", async () => {
+  const bodyJson = JSON.stringify({
+    model: "jev-1.13",
+    state: { ticket: "{{ticket}}", client: "{{client.name}}" },
+    questions: { q: { type: "noul" } },
+  });
+  const created = await templatesPost(request("/api/templates", "POST", {
+    body: {
+      name: "ticket",
+      description: "Ticket",
+      bodyJson,
+      macros: [
+        { name: "ticket", description: "  Identificador del pedido (TCK-1042)  " },
+        { name: "client.name", description: "Nombre del cliente" },
+      ],
+    },
+  }));
+  assert.equal(created.status, 201);
+  assert.deepEqual((await created.json() as { macros: unknown }).macros, [
+    { name: "client.name", description: "Nombre del cliente" },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+  ]);
+
+  const listed = await templatesGet(request("/api/templates"));
+  const items = (await listed.json() as { items: Array<{ macros: unknown }> }).items;
+  assert.deepEqual(items[0]?.macros, [
+    { name: "client.name", description: "Nombre del cliente" },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+  ]);
+
+  const invalid = await templatesPost(request("/api/templates", "POST", {
+    body: { name: "invalida", bodyJson, macros: [{ name: "inexistente", description: "x" }] },
+  }));
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_macro");
+  assert.equal(runtime.templates.get("invalida"), undefined);
+
+  const tooLong = await templatesPost(request("/api/templates", "POST", {
+    body: { name: "larga", bodyJson, macros: [{ name: "ticket", description: "x".repeat(501) }] },
+  }));
+  assert.equal(tooLong.status, 400);
+  assert.equal((await tooLong.json() as { error: { code: string } }).error.code, "invalid_macro_description");
+
+  const withoutClient = JSON.stringify({
+    model: "jev-1.13",
+    state: { ticket: "{{ticket}}" },
+    questions: { q: { type: "noul" } },
+  });
+  const updated = await templatePut(
+    request("/api/templates/ticket", "PUT", {
+      body: { name: "ticket", description: "Ticket", bodyJson: withoutClient, macros: [{ name: "ticket", description: "Nueva descripción" }] },
+    }),
+    { params: Promise.resolve({ name: "ticket" }) },
+  );
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json() as { macros: unknown }).macros, [
+    { name: "ticket", description: "Nueva descripción" },
+  ]);
+  assert.deepEqual(
+    runtime.service.db.prepare("SELECT macro FROM template_macros ORDER BY macro").all(),
+    [{ macro: "ticket" }],
+  );
+
+  const renamed = await templatePatch(
+    request("/api/templates/ticket", "PATCH", { body: { name: "ticket-2" } }),
+    { params: Promise.resolve({ name: "ticket" }) },
+  );
+  assert.equal(renamed.status, 200);
+  const detail = await templateGet(
+    request("/api/templates/ticket-2"),
+    { params: Promise.resolve({ name: "ticket-2" }) },
+  );
+  assert.deepEqual((await detail.json() as { macros: unknown }).macros, [
+    { name: "ticket", description: "Nueva descripción" },
+  ]);
+
+  const deleted = await templateDelete(
+    request("/api/templates/ticket-2", "DELETE"),
+    { params: Promise.resolve({ name: "ticket-2" }) },
+  );
+  assert.equal(deleted.status, 200);
+  assert.deepEqual(
+    runtime.service.db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(),
+    { total: 0 },
+  );
 });
 
 test("los starters de plantilla se guardan por la API y coinciden con show y render de la CLI", async () => {

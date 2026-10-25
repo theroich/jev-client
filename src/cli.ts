@@ -33,8 +33,9 @@ import {
   type HistoryFilters,
 } from "./request-repository.js";
 import { JevService, MAX_CONCURRENCY } from "./service.js";
-import { TemplateRepository } from "./template-repository.js";
+import { TemplateRepository, type TemplateMacro } from "./template-repository.js";
 import {
+  detectMacros,
   resolveTemplateBody,
   validateQuestions,
   validateTemplateBody,
@@ -178,11 +179,11 @@ Flags comunes:
 `;
 
 const TEMPLATE_USAGE = `Uso:
-  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)
-  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>)
+  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]...
+  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>) [--macro-desc <clave>=<texto>]...
   jev-client template list [--json] [--db <ruta>]
   jev-client template show <name> [--json] [--db <ruta>]
-  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--db <ruta>]
+  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--db <ruta>]
   jev-client template delete <name> [--yes] [--db <ruta>]
   jev-client template remove <name> [--db <ruta>]
   jev-client template validate <name> [--db <ruta>]
@@ -192,6 +193,11 @@ const TEMPLATE_USAGE = `Uso:
 El body de una plantilla es un request de Jev con macros {{clave}}, que
 admiten rutas anidadas ({{cliente.nombre}}). 'render' resuelve las macros con
 un contexto JSON y previsualiza el request sin enviarlo.
+
+Las descripciones de macros son metadatos opcionales para humanos y agentes:
+'--macro-desc ticket=Identificador del pedido' es repetible y
+'--clear-macro-desc ticket' vacía la descripción. Sin flags, 'edit' conserva
+las descripciones existentes.
 `;
 
 const BATCH_USAGE = `Uso: jev-client batch <plantilla> --contexts <fichero.json> [flags]
@@ -279,6 +285,8 @@ const TEMPLATE_OPTIONS = {
   "body-file": { type: "string" },
   context: { type: "string" },
   "context-file": { type: "string" },
+  "macro-desc": { type: "string", multiple: true },
+  "clear-macro-desc": { type: "string", multiple: true },
 } satisfies ParseArgsOptions;
 
 const ASK_OPTIONS = {
@@ -311,7 +319,7 @@ interface CommonOptions {
   json: boolean;
 }
 
-type Values = Record<string, string | boolean | undefined>;
+type Values = Record<string, string | string[] | boolean | undefined>;
 
 class UsageError extends Error {}
 
@@ -926,6 +934,67 @@ function templateName(positionals: string[]): string {
   return name;
 }
 
+/** Lee los `--macro-desc <clave>=<texto>` repetibles. */
+function macroDescriptionsFlag(values: Values): TemplateMacro[] {
+  return asStrings(values["macro-desc"]).map((raw) => {
+    const separator = raw.indexOf("=");
+    if (separator <= 0) {
+      throw new UsageError(
+        `--macro-desc espera <clave>=<texto>: ${JSON.stringify(raw)}`,
+      );
+    }
+    return {
+      name: raw.slice(0, separator).trim(),
+      description: raw.slice(separator + 1),
+    };
+  });
+}
+
+function clearedMacrosFlag(values: Values): string[] {
+  return asStrings(values["clear-macro-desc"])
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+}
+
+/**
+ * Combina las descripciones existentes con los flags de macros. Devuelve
+ * `undefined` si no hay flags para que el repositorio conserve las actuales.
+ */
+function mergeMacroFlags(
+  values: Values,
+  bodyJson: string,
+  existing: TemplateMacro[] = [],
+): TemplateMacro[] | undefined {
+  const described = macroDescriptionsFlag(values);
+  const cleared = clearedMacrosFlag(values);
+  if (described.length === 0 && cleared.length === 0) {
+    return undefined;
+  }
+
+  const detected = new Set(detectMacros(bodyJson));
+  for (const name of [...described.map((entry) => entry.name), ...cleared]) {
+    if (!detected.has(name)) {
+      throw new UsageError(
+        `la macro ${JSON.stringify(name)} no está en el body de la plantilla`,
+      );
+    }
+  }
+
+  const descriptions = new Map(
+    existing.map((macro) => [macro.name, macro.description] as const),
+  );
+  for (const entry of described) {
+    descriptions.set(entry.name, entry.description);
+  }
+  for (const name of cleared) {
+    descriptions.set(name, "");
+  }
+  return detectMacros(bodyJson).map((name) => ({
+    name,
+    description: descriptions.get(name) ?? "",
+  }));
+}
+
 async function templateAdd(
   values: Values,
   positionals: string[],
@@ -934,14 +1003,15 @@ async function templateAdd(
   expectTemplateArity(
     positionals,
     2,
-    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>)",
+    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]...",
   );
   const name = templateName(positionals);
   const raw = await readTemplateBodyInput(values, io);
   validateTemplateBody(raw);
   const description = asString(values.description) ?? "";
+  const macros = mergeMacroFlags(values, raw);
   return withTemplates(values, io, (repository) => {
-    repository.save(name, description, raw);
+    repository.save(name, description, raw, macros);
     io.stdout(`plantilla guardada: ${name}\n`);
     return 0;
   });
@@ -958,11 +1028,12 @@ function templateList(
     if (values.json === true) {
       io.stdout(
         `${JSON.stringify(
-          templates.map(({ name, description, created_at, updated_at }) => ({
+          templates.map(({ name, description, created_at, updated_at, macros }) => ({
             name,
             description,
             created_at,
             updated_at,
+            macros,
           })),
           null,
           2,
@@ -1000,6 +1071,7 @@ function templateShow(
             name: template.name,
             description: template.description,
             body,
+            macros: template.macros,
             created_at: template.created_at,
             updated_at: template.updated_at,
           },
@@ -1009,6 +1081,13 @@ function templateShow(
       );
     } else {
       io.stdout(`${prettyJson(template.body_json)}\n`);
+      if (template.macros.length > 0) {
+        io.stdout("\nMacros:\n");
+        for (const macro of template.macros) {
+          io.stdout(`  {{${macro.name}}}\n`);
+          io.stdout(`    ${macro.description || "(sin descripción)"}\n`);
+        }
+      }
     }
     return 0;
   });
@@ -1058,7 +1137,7 @@ async function templateEdit(
   expectTemplateArity(
     positionals,
     2,
-    "jev template edit <name> (--file <ruta> | usa $EDITOR)",
+    "jev template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]...",
   );
   const name = templateName(positionals);
   const file = asString(values.file);
@@ -1095,8 +1174,9 @@ async function templateEdit(
 
   validateTemplateBody(raw);
   const finalDescription = description ?? existing.description;
+  const macros = mergeMacroFlags(values, raw, existing.macros);
   withTemplates(values, io, (repository) => {
-    repository.save(name, finalDescription, raw);
+    repository.save(name, finalDescription, raw, macros);
   });
   io.stdout(`plantilla guardada: ${name}\n`);
   return 0;
@@ -1496,8 +1576,13 @@ function envOf(io: CliIO): NodeJS.ProcessEnv {
   return io.env ?? process.env;
 }
 
-function asString(value: string | boolean | undefined): string | undefined {
+function asString(value: string | string[] | boolean | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function asStrings(value: string | string[] | boolean | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  return typeof value === "string" ? [value] : [];
 }
 
 function messageOf(error: unknown): string {

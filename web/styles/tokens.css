@@ -113,6 +113,7 @@
   .btn-sm{height:28px;padding:0 9px;font-size:12px;border-radius:var(--radius-sm)}
   .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--radius-sm);border:1px solid transparent;background:transparent;color:var(--muted)}
   .icon-btn:hover{background:var(--fg-soft);color:var(--fg)}
+  .icon-btn:disabled{opacity:.4;cursor:not-allowed;background:transparent}
   .icon-btn svg{width:15px;height:15px}
 
   /* ── panels ───────────────────────────────────────────────────────── */
@@ -168,6 +169,10 @@
   .chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:11px;color:var(--fg);background:var(--surface)}
   .chip-soft{background:color-mix(in oklch,var(--bg) 70%,var(--surface));color:var(--muted)}
   .chip-row{display:flex;flex-wrap:wrap;gap:6px}
+  .macro-rows{display:flex;flex-direction:column;gap:8px}
+  .macro-row{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
+  .macro-row .macro-key{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .macro-row .field{min-width:0}
 
   /* ── forms ────────────────────────────────────────────────────────── */
   .field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -370,4 +375,8 @@
     .summary-grid > div:nth-child(2){border-right:0}
     .starter-grid{grid-template-columns:minmax(0,1fr)}
     .starter-desc{min-height:0}
+    .macro-row{grid-template-columns:minmax(0,1fr) auto;gap:6px 8px}
+    .macro-row .macro-key{grid-column:1 / -1;white-space:normal;overflow-wrap:anywhere}
+    .macro-row .field{grid-column:1}
+    .macro-row .icon-btn{grid-column:2}
   }

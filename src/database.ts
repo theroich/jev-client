@@ -3,7 +3,7 @@ import { chmodSync, closeSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type SqliteDatabase = Database.Database;
 
@@ -65,6 +65,23 @@ const MIGRATIONS: readonly Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests (created_at);
         CREATE INDEX IF NOT EXISTS idx_requests_model ON requests (model);
         CREATE INDEX IF NOT EXISTS idx_requests_template_name ON requests (template_name);
+      `);
+    },
+  },
+  {
+    version: 4,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS template_macros (
+          template_name TEXT NOT NULL,
+          macro TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (template_name, macro),
+          FOREIGN KEY (template_name) REFERENCES templates (name)
+            ON DELETE CASCADE ON UPDATE CASCADE
+        )
       `);
     },
   },

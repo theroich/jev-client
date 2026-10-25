@@ -571,18 +571,25 @@ export class TuiApp {
     if (template === undefined) {
       return [` Plantilla: ${screen.name}`, " ─────────────────", " (no encontrada)"];
     }
-    const macros = detectMacros(template.body_json);
+    const macros = template.macros;
     const lines = [
       ` Plantilla: ${template.name}`,
       " ─────────────────",
       ` Descripción: ${template.description || "-"}`,
-      ` Macros: ${macros.length > 0 ? macros.join(", ") : "(ninguna)"}`,
+      ` Macros: ${macros.length > 0 ? macros.map((macro) => macro.name).join(", ") : "(ninguna)"}`,
       "",
       " Cuerpo:",
       prettyJson(template.body_json),
-      "",
-      " (e) editar · (d) borrar · b volver",
     ];
+    if (macros.some((macro) => macro.description !== "")) {
+      lines.push("", " Descripciones:");
+      for (const macro of macros) {
+        if (macro.description !== "") {
+          lines.push(`  {{${macro.name}}}: ${macro.description}`);
+        }
+      }
+    }
+    lines.push("", " (e) editar · (d) borrar · b volver");
     return lines;
   }
 
