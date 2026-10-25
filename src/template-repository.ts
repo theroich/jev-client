@@ -51,6 +51,30 @@ export class TemplateRepository {
     );
   }
 
+  /** Renombra sin sobrescribir; cualquier fallo conserva la plantilla original. */
+  rename(name: string, newName: string): void {
+    if (newName.trim() === "") {
+      throw new Error("el nombre de la plantilla no puede estar vacío");
+    }
+
+    this.db.transaction(() => {
+      const source = this.get(name);
+      if (source === undefined) {
+        throw new Error(`plantilla no encontrada: ${name}`);
+      }
+      if (name === newName) {
+        return;
+      }
+      if (this.get(newName) !== undefined) {
+        throw new Error(`ya existe la plantilla: ${newName}`);
+      }
+
+      this.db
+        .prepare("UPDATE templates SET name = ?, updated_at = ? WHERE name = ?")
+        .run(newName, new Date().toISOString(), name);
+    })();
+  }
+
   list(): Template[] {
     return this.db
       .prepare<[], TemplateRow>(

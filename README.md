@@ -13,7 +13,7 @@ Authorization: Bearer <API_KEY>
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js 20.9+ (o Node.js 22+)
 - Una API key de [OpenCode Console](https://opencode.ai/console)
 
 ## Instalación
@@ -256,6 +256,7 @@ Filtros de `list` y `export`:
 | `--status <código>` | código HTTP (p. ej. `200`, `429`) |
 | `--model <modelo>` | modelo exacto |
 | `--template <nombre>` | nombre de plantilla |
+| `--batch <id>` | peticiones de un `batch_id` concreto |
 | `--limit <n>` | número máximo de resultados |
 
 Todos los subcomandos aceptan `--db`. Si no quieres registrar una ejecución
@@ -440,6 +441,114 @@ revisarlo a mano antes de publicar:
       código `1`; la terminal queda usable.
 - [ ] Redimensionar la ventana no corrompe la pantalla (cada tecla redibuja).
 
+## Consola web local (`jev web-console`)
+
+La consola web es una tercera interfaz sobre el mismo dominio, además de la CLI y
+la TUI. Usa **Next.js 16.4.3 + React 19.3.1**, App Router y route handlers como
+BFF local; no sustituye `jev tui` ni requiere una cuenta ni telemetría.
+
+```sh
+jev web-console
+jev --web-console                 # alias con los mismos flags
+jev web-console --port 0 --no-open
+```
+
+Al arrancar migra la misma SQLite, espera `GET /api/health`, imprime URL, base,
+versión, esquema, PID y modo, y queda en primer plano. `Ctrl-C`/`SIGTERM` cierra
+el hijo y libera el puerto con salida `0`. Un puerto ocupado o un build ausente
+produce un error explícito; nunca elige otro puerto fijo en silencio.
+
+| Flag | Default | Descripción |
+| --- | --- | --- |
+| `--port <n>` | `7411` | Puerto de escucha; `0` elige uno libre. |
+| `--host <addr>` | `127.0.0.1` | Loopback salvo decisión explícita. |
+| `--allow-remote` | off | Necesario para LAN/`0.0.0.0`; mantiene token y aviso de seguridad. |
+| `--open` / `--no-open` | abrir con TTY | No abre con CI/SSH; `--no-open` es apto para headless. |
+| `--dev` | off | Usa `next dev` desde el checkout, no desde un paquete instalado. |
+| `--db <ruta>` | `JEV_DB` / ruta habitual | Base compartida con el resto de comandos. |
+| `--key`, `--url`, `--model` | — | Flags de sesión; tienen prioridad máxima y no se persisten. |
+| `--timeout`, `--retries` | — | Segundos y reintentos de esta sesión. |
+| `-h`, `--help` | — | Ayuda específica de la consola. |
+
+### Pantallas y paridad
+
+- **Resumen**: métricas reales de `requests`, últimas peticiones, precedencia del
+  provider y prueba de conexión real mínima (`state: "ping"`, `--no-save`).
+- **Evaluar**: `noul`, `choice` y `score`, state texto/JSON estricto, demo real,
+  `--no-save`, cancelación, informe de probabilidades y JSON crudo seguro. Las
+  respuestas siguen el orden de las preguntas del request. El selector admite el
+  modelo efectivo, los dos modelos conocidos y un valor libre.
+- **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
+  macros anidadas y escapadas, cambios sin guardar y renombrado transaccional.
+  Renderizar nunca llama a Jev.
+- **Lotes**: pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`,
+  `--no-save` y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta
+  las peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
+  como omitido.
+- **Historial**: filtros `since/status/model/template/batch/limit`, detalle por
+  pestañas y export `application/x-ndjson` con exactamente
+  `historyRecordToJson`. Los filtros viven en la URL. Se usa límite 1–200, sin
+  cursor adicional en esta versión.
+- **Configuración**: guarda solo claves modificadas, enmascara/revela la key bajo
+  acción explícita y muestra `flag > entorno > SQLite > defecto`. Los campos
+  fijados por flag son de solo lectura. **Restablecer hace `unset`**, no escribe
+  defaults. Una cadena vacía también equivale a `unset`.
+
+Cada pantalla genera su tira **CLI equivalente** con comillas POSIX. La paleta
+`⌘K`/`Ctrl+K`, referencia CLI, toasts, modales con foco atrapado, estados
+loading/empty/error/success y los breakpoints del prototipo están incluidos. No
+se guardan secretos ni borradores en `localStorage`; solo se usan URLs para
+filtros/acciones. Las rutas permanecen en español por paridad con la UI.
+
+### Seguridad local
+
+La URL impresa contiene un bootstrap aleatorio en el **fragmento**, que no viaja
+en peticiones HTTP. El navegador lo intercambia una sola vez por una cookie
+`HttpOnly; SameSite=Strict` y un token CSRF en memoria. Las mutaciones exigen
+cookie, `X-Jev-Console-Token` y validación de `Origin`/`Host`; la API vuelve a
+exigir sesión en cada handler. `/api/health` es la única lectura pública y no
+incluye secretos.
+
+La key nunca aparece en HTML inicial, listados, logs, URLs ni `localStorage`.
+Solo `POST /api/config/api_key/reveal`, con CSRF y `Cache-Control: no-store`, la
+devuelve. Se aplican CSP con nonce/`strict-dynamic`, `frame-ancestors 'none'`,
+`nosniff`, `Referrer-Policy: no-referrer`, límites de body/contextos y consultas
+SQLite parametrizadas. Fuentes, iconos, CSS y ejemplos se sirven localmente, sin
+CDN ni llamadas externas salvo Jev.
+
+`--allow-remote` no añade cuentas ni autorización multiusuario: expone una consola
+de administración local a clientes que tengan la URL inicial. Úsalo solo en redes
+de confianza.
+
+### Arquitectura y empaquetado
+
+`src/service.ts` concentra `ask`, `demo` y `batch`; CLI y web comparten cliente,
+configuración, validadores, migraciones y repositorios. Next mantiene una única
+conexión SQLite perezosa por proceso y sus Server Components cargan DTOs sin
+secretos; los Client Components no importan `node:*` ni `better-sqlite3`.
+
+El paquete npm incluye el **standalone compilado** en `dist/web-console` (sin
+checkout), sus assets y el servidor CommonJS. Las dependencias trazadas se
+resuelven desde las dependencias npm normales (`next`, `react`, `react-dom` y
+`better-sqlite3`), evitando incluir `node_modules` dentro del tarball. Se eligió
+esta opción en lugar de un paquete opcional para conservar la UX de un único
+comando. El umbral acordado es **25 MiB comprimidos**; `npm run test:package`
+comprueba tamaño, instalación con `npm pack`, arranque, health, HTML, assets y
+cierre limpio.
+
+Para desarrollo:
+
+```sh
+npm install
+npm run build:web                 # tsc + next build + standalone
+node dist/src/bin.js web-console --dev --no-open
+# JEV_CONSOLE_DIR puede sustituir la ubicación del build/directorio web
+```
+
+El contrato visual original está versionado en `design/` (`jev-web-console.html`,
+handoff y manifest). Los tokens se extrajeron en `web/styles/tokens.css`; no se
+usa un tema de framework ni recursos remotos.
+
 ## Tipos de pregunta
 
 | `type` | Campos | Devuelve |
@@ -530,22 +639,32 @@ const request = resolveTemplateBody(
 ## Tests
 
 ```sh
-npm test        # compila y ejecuta node:test
-npm run typecheck
+npm test                 # unidad/contrato de CLI, dominio y route handlers
+npm run typecheck        # TypeScript estricto de src, test y web
+npm run build:web        # build de producción Next + standalone
+npm run test:e2e         # Playwright: flujos, axe y matriz responsive
+npm run test:package     # npm pack + instalación + smoke del paquete
 ```
 
-Los tests no hacen red contra la API: usan un `fetch` inyectado y un servidor
-HTTP local para comprobar cabeceras, cuerpo, reintentos, 401 sin reintento, 429
-de cuota, parseo de errores, formato y CLI. Las bases SQLite se crean en
-directorios temporales para probar migraciones, repositorios, precedencia,
-permisos y el historial de peticiones (`requests`).
+Los tests no hacen red contra la API: usan un `fetch` inyectado y servidores HTTP
+locales para comprobar cabeceras, cuerpo, reintentos, errores, formato, CLI, API
+web y streaming de lotes. Las bases SQLite se crean en directorios temporales.
+Playwright recorre las seis rutas, inferencia con provider mockeado, CRUD,
+render, lote, historial/export, configuración, paleta, modales y axe; la matriz
+360–1920 px verifica overflow, tokens, breakpoints, activos locales y una
+regresión de geometría/tipografía calculada directamente contra el HTML exportado.
+Para instalar Chromium en el checkout sin tocar la caché global:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
+```
 
 ### CI
 
 Hay un workflow de GitHub Actions (`.github/workflows/ci.yml`) que, en cada push
-a `main` y en cada pull request, ejecuta `npm ci`, `npm run typecheck` y
-`npm test` sobre Node 20 y 22. Como la suite no necesita red ni una API key
-real, el CI funciona sin secretos.
+a `main` y en cada pull request, ejecuta sobre Node 20 y 22 el typecheck, tests
+unitarios/de rutas, build de Next, E2E con axe y smoke del paquete instalado. La
+suite no necesita una API key real ni secretos de CI.
 
 ## Notas
 

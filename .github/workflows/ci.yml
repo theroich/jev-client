@@ -7,8 +7,10 @@ on:
 
 jobs:
   test:
-    name: typecheck + test (Node ${{ matrix.node-version }})
+    name: typecheck + test + web (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: 0
     strategy:
       fail-fast: false
       matrix:
@@ -26,3 +28,9 @@ jobs:
       - run: npm run typecheck
 
       - run: npm test
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - run: npm run test:package

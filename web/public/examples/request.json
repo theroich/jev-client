@@ -1,0 +1,21 @@
+{
+  "model": "jev-1.13",
+  "state": {
+    "ticket": "Me han cobrado dos veces este mes. Quiero el reembolso.",
+    "plan": "pro"
+  },
+  "questions": {
+    "refund": {
+      "type": "noul",
+      "instructions": "¿El cliente pide un reembolso?"
+    },
+    "tone": {
+      "type": "choice",
+      "instructions": "¿Cuál es el tono del mensaje?",
+      "criteria": {
+        "calm": "Neutral o educado",
+        "angry": "Molesto o hostil"
+      }
+    }
+  }
+}

@@ -31,7 +31,15 @@ export interface HistoryFilters {
   status?: number;
   model?: string;
   template?: string;
+  batch?: string;
   limit?: number;
+}
+
+export interface HistoryFacets {
+  models: string[];
+  templates: string[];
+  statuses: number[];
+  batches: string[];
 }
 
 interface RequestRow {
@@ -114,6 +122,45 @@ export class RequestRepository {
       .all(...params, ...(filters.limit === undefined ? [] : [filters.limit]));
     return rows.map(toRecord);
   }
+
+  count(filters: HistoryFilters = {}): number {
+    const { where, params } = buildWhere(filters);
+    const row = this.db
+      .prepare<unknown[], { count: number }>(
+        `SELECT COUNT(*) AS count FROM requests${where}`,
+      )
+      .get(...params);
+    return row?.count ?? 0;
+  }
+
+  /** Valores disponibles para construir los filtros del historial. */
+  facets(): HistoryFacets {
+    const models = this.db
+      .prepare<[], { value: string }>(
+        "SELECT DISTINCT model AS value FROM requests WHERE model IS NOT NULL ORDER BY model",
+      )
+      .all()
+      .map((row) => row.value);
+    const templates = this.db
+      .prepare<[], { value: string }>(
+        "SELECT DISTINCT template_name AS value FROM requests WHERE template_name IS NOT NULL ORDER BY template_name",
+      )
+      .all()
+      .map((row) => row.value);
+    const statuses = this.db
+      .prepare<[], { value: number }>(
+        "SELECT DISTINCT status_code AS value FROM requests WHERE status_code IS NOT NULL ORDER BY status_code",
+      )
+      .all()
+      .map((row) => row.value);
+    const batches = this.db
+      .prepare<[], { value: string }>(
+        "SELECT DISTINCT batch_id AS value FROM requests WHERE batch_id IS NOT NULL ORDER BY batch_id",
+      )
+      .all()
+      .map((row) => row.value);
+    return { models, templates, statuses, batches };
+  }
 }
 
 function buildWhere(
@@ -137,6 +184,10 @@ function buildWhere(
   if (filters.template !== undefined) {
     clauses.push("template_name = ?");
     params.push(filters.template);
+  }
+  if (filters.batch !== undefined) {
+    clauses.push("batch_id = ?");
+    params.push(filters.batch);
   }
 
   return {

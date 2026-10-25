@@ -1,0 +1,2349 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>jev · Consola web</title>
+<style>
+  /* ── tokens (dirección: tech / utility) ───────────────────────────── */
+  :root{
+    --bg: oklch(98% 0.005 250);
+    --surface: oklch(100% 0 0);
+    --fg: oklch(22% 0.02 240);
+    /* 46% en lugar del 50% de la dirección: asegura 4.5:1 sobre --bg y --surface */
+    --muted: oklch(46% 0.018 240);
+    --border: oklch(90% 0.008 240);
+    --accent: oklch(58% 0.16 145);
+
+    --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+    /* derivados del acento y de los estados */
+    --accent-fill: color-mix(in oklch, var(--accent) 76%, black);
+    --accent-fill-hover: color-mix(in oklch, var(--accent) 64%, black);
+    --accent-text: color-mix(in oklch, var(--accent) 60%, black);
+    --accent-soft: color-mix(in oklch, var(--accent) 12%, var(--surface));
+    --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
+    --fg-line: color-mix(in oklch, var(--fg) 14%, transparent);
+    --ok: oklch(56% 0.12 152);
+    --ok-text: color-mix(in oklch, var(--ok) 62%, black);
+    --ok-soft: color-mix(in oklch, var(--ok) 12%, var(--surface));
+    --warn: oklch(68% 0.14 72);
+    --warn-text: color-mix(in oklch, var(--warn) 46%, black);
+    --warn-soft: color-mix(in oklch, var(--warn) 16%, var(--surface));
+    --danger: oklch(54% 0.19 25);
+    --danger-text: color-mix(in oklch, var(--danger) 72%, black);
+    --danger-soft: color-mix(in oklch, var(--danger) 10%, var(--surface));
+    --info: oklch(56% 0.12 250);
+    --info-text: color-mix(in oklch, var(--info) 66%, black);
+    --info-soft: color-mix(in oklch, var(--info) 10%, var(--surface));
+
+    --on-accent: oklch(100% 0 0);
+    --on-inverse: oklch(99% 0 0);
+    --radius: 8px;
+    --radius-sm: 6px;
+    --sidebar: 236px;
+    --shadow: 0 1px 2px color-mix(in oklch, var(--fg) 8%, transparent);
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  h1,h2,h3,h4,p{margin:0}
+  h1,h2,h3,h4{font-family:var(--font-display);text-wrap:balance;letter-spacing:-0.015em}
+  p{text-wrap:pretty}
+  button{font:inherit;color:inherit;cursor:pointer}
+  a{color:inherit;text-decoration:none}
+  code,pre,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  svg{display:block}
+  :focus-visible{outline:2px solid var(--accent-text);outline-offset:2px;border-radius:4px}
+  ::selection{background:var(--accent-soft)}
+
+  /* ── shell ────────────────────────────────────────────────────────── */
+  .shell{display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);min-height:100vh}
+  .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:18px;padding:14px 12px 12px;background:var(--bg);border-right:1px solid var(--border);z-index:30}
+  .brand{display:flex;align-items:baseline;gap:8px;padding:6px 10px 10px}
+  .brand-mark{font-family:var(--font-mono);font-size:16px;font-weight:600;letter-spacing:-0.02em}
+  .brand-mark::before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:2px;background:var(--accent);vertical-align:2px}
+  .brand-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono);letter-spacing:0.02em}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px}
+  .nav-item{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--muted);font-size:13.5px;text-align:left;transition:background .12s,color .12s,border-color .12s;width:100%}
+  .nav-item svg{width:16px;height:16px;flex:none;opacity:.85}
+  .nav-item:hover{background:var(--fg-soft);color:var(--fg)}
+  .nav-item[aria-current="page"]{background:var(--surface);border-color:var(--border);color:var(--fg);font-weight:600;box-shadow:var(--shadow)}
+  .nav-item[aria-current="page"] svg{opacity:1}
+  .nav-item .count{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:10px}
+  .db-chip{display:flex;flex-direction:column;gap:3px;text-align:left;background:transparent;border:1px solid var(--border);border-radius:var(--radius);padding:8px 9px;font-family:var(--font-mono);font-size:11px;color:var(--fg);overflow:hidden}
+  .db-chip:hover{background:var(--surface);border-color:var(--fg-line)}
+  .db-chip span:first-child{color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  .db-chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sidebar-meta{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{position:sticky;top:0;z-index:25;display:flex;align-items:center;justify-content:space-between;gap:16px;height:52px;padding-inline:24px;border-bottom:1px solid var(--border);background:color-mix(in oklch, var(--bg) 86%, transparent);backdrop-filter:blur(10px)}
+  .crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb strong{color:var(--fg);font-weight:600}
+  .crumb .sep{color:var(--border)}
+  .topbar-right{display:flex;align-items:center;gap:8px}
+  .provider{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong,var(--fg))}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .dot.off{background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+  .kbd{font-family:var(--font-mono);font-size:11px;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 5px;background:var(--surface);color:var(--muted)}
+
+  .content{flex:1;padding:26px 24px 64px;width:100%;max-width:1320px}
+  .screen[hidden]{display:none}
+
+  .screen-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+  .eyebrow{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  h1{font-size:26px;line-height:1.15;font-weight:620}
+  .sub{font-size:13.5px;color:var(--muted);margin-top:6px;max-width:72ch}
+  .sub code{font-size:12.5px;color:var(--fg);background:var(--fg-soft);border-radius:4px;padding:1px 5px}
+  .head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  /* ── buttons ──────────────────────────────────────────────────────── */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:34px;padding:0 13px;border-radius:var(--radius);border:1px solid transparent;background:transparent;font-size:13px;font-weight:550;letter-spacing:-0.005em;white-space:nowrap;transition:background .12s,border-color .12s,color .12s}
+  .btn svg{width:15px;height:15px}
+  .btn-primary{background:var(--accent-fill);border-color:var(--accent-fill);color:var(--on-accent)}
+  .btn-primary:hover{background:var(--accent-fill-hover);border-color:var(--accent-fill-hover)}
+  .btn-outline{background:var(--surface);border-color:var(--border);color:var(--fg)}
+  .btn-outline:hover{background:var(--fg-soft);border-color:var(--fg-line)}
+  .btn-ghost{color:var(--muted)}
+  .btn-ghost:hover{background:var(--fg-soft);color:var(--fg)}
+  .btn-danger{background:var(--danger-soft);border-color:color-mix(in oklch,var(--danger) 34%,transparent);color:var(--danger-text)}
+  .btn-danger:hover{background:color-mix(in oklch,var(--danger) 18%,var(--surface))}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn:active{transform:translateY(.5px)}
+  .btn-sm{height:28px;padding:0 9px;font-size:12px;border-radius:var(--radius-sm)}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--radius-sm);border:1px solid transparent;background:transparent;color:var(--muted)}
+  .icon-btn:hover{background:var(--fg-soft);color:var(--fg)}
+  .icon-btn svg{width:15px;height:15px}
+
+  /* ── panels ───────────────────────────────────────────────────────── */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);min-height:44px}
+  .panel-title{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .panel-body{padding:14px}
+  .panel-body.tight{padding:0}
+  .panel-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted)}
+  .stack{display:flex;flex-direction:column;gap:16px}
+  .row{display:flex;align-items:center;gap:10px}
+  .row-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .push{margin-left:auto}
+  .grid{display:grid;gap:16px}
+  .grid-resumen{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);align-items:start}
+  .grid-ask{grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);align-items:start}
+  .grid-tpl{grid-template-columns:274px minmax(0,1fr);align-items:start}
+  .grid-batch{grid-template-columns:minmax(0,.95fr) minmax(0,1.15fr);align-items:start}
+  .grid-hist{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);align-items:start}
+  .grid-config{grid-template-columns:minmax(0,1.25fr) minmax(0,.9fr);align-items:start}
+
+  /* ── stat strip ───────────────────────────────────────────────────── */
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;min-width:0}
+  .stat-label{font-family:var(--font-mono);font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stat-value{font-family:var(--font-mono);font-size:21px;font-weight:600;letter-spacing:-0.02em;line-height:1.1;display:flex;align-items:baseline;gap:5px;min-width:0}
+  .stat-value small{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0}
+  .stat-note{font-size:11.5px;color:var(--muted);margin-top:5px}
+
+  /* ── tables ───────────────────────────────────────────────────────── */
+  .table-wrap{width:100%;overflow-x:auto}
+  .dt{width:100%;border-collapse:collapse;font-size:12.5px}
+  .dt th{font-family:var(--font-mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:color-mix(in oklch,var(--bg) 55%,var(--surface))}
+  .dt td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
+  .dt tbody tr:last-child td{border-bottom:0}
+  .dt tbody tr.clickable{cursor:pointer}
+  .dt tbody tr.clickable:hover td{background:var(--fg-soft)}
+  .dt tr[aria-selected="true"] td{background:color-mix(in oklch,var(--fg) 6%,transparent)}
+  .dt tr[aria-selected="true"] td:first-child{box-shadow:inset 2px 0 0 var(--fg)}
+  .dt .num{text-align:right;font-family:var(--font-mono);font-size:12px}
+  .dt .trunc{max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  .cell-strong{font-weight:600}
+  .cell-muted{color:var(--muted)}
+
+  /* ── pills / chips ────────────────────────────────────────────────── */
+  .pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:999px;font-family:var(--font-mono);font-size:10.5px;font-weight:500;letter-spacing:.03em;white-space:nowrap}
+  .pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+  .pill-ok{background:var(--ok-soft);color:var(--ok-text);box-shadow:inset 0 0 0 1px color-mix(in oklch,var(--ok) 24%,transparent)}
+  .pill-warn{background:var(--warn-soft);color:var(--warn-text);box-shadow:inset 0 0 0 1px color-mix(in oklch,var(--warn) 40%,transparent)}
+  .pill-err{background:var(--danger-soft);color:var(--danger-text);box-shadow:inset 0 0 0 1px color-mix(in oklch,var(--danger) 26%,transparent)}
+  .pill-info{background:var(--info-soft);color:var(--info-text);box-shadow:inset 0 0 0 1px color-mix(in oklch,var(--info) 24%,transparent)}
+  .pill-neutral{background:var(--fg-soft);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+  .chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:11px;color:var(--fg);background:var(--surface)}
+  .chip-soft{background:color-mix(in oklch,var(--bg) 70%,var(--surface));color:var(--muted)}
+  .chip-row{display:flex;flex-wrap:wrap;gap:6px}
+
+  /* ── forms ────────────────────────────────────────────────────────── */
+  .field{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .field > label,.label{font-size:11.5px;color:var(--muted);font-family:var(--font-mono);letter-spacing:.03em}
+  .input,.select,.textarea{width:100%;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--fg);font-family:var(--font-body);font-size:13px;padding:7px 9px;height:32px;transition:border-color .12s,box-shadow .12s}
+  .textarea{height:auto;min-height:84px;resize:vertical;line-height:1.55;font-family:var(--font-mono);font-size:12.5px}
+  .input.mono,.select.mono{font-family:var(--font-mono);font-size:12.5px}
+  .select{padding-right:26px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 13px) 13px,calc(100% - 9px) 13px;background-size:4px 4px,4px 4px;background-repeat:no-repeat}
+  .input:hover,.select:hover,.textarea:hover{border-color:var(--fg-line)}
+  .input:focus,.select:focus,.textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .input::placeholder,.textarea::placeholder{color:color-mix(in oklch,var(--muted) 72%,transparent)}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.4}
+  .hint code{font-size:11px;background:var(--fg-soft);border-radius:3px;padding:1px 4px}
+  .inline-fields{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+  .inline-fields > .field{flex:1 1 110px}
+  .check{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--fg);cursor:pointer;user-select:none}
+  .switch{position:relative;width:30px;height:17px;border-radius:999px;background:color-mix(in oklch,var(--fg) 18%,var(--surface));border:1px solid var(--border);transition:background .15s;flex:none}
+  .switch::after{content:"";position:absolute;top:1.5px;left:1.5px;width:12px;height:12px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);transition:transform .15s}
+  .check input{position:absolute;opacity:0;width:0;height:0}
+  .check input:checked + .switch{background:var(--accent-fill);border-color:var(--accent-fill)}
+  .check input:checked + .switch::after{transform:translateX(13px)}
+  .check input:focus-visible + .switch{outline:2px solid var(--accent-text);outline-offset:2px}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);height:32px;overflow:hidden}
+  .stepper button{width:28px;height:100%;border:0;background:transparent;color:var(--muted);font-family:var(--font-mono);font-size:14px}
+  .stepper button:hover{background:var(--fg-soft);color:var(--fg)}
+  .stepper output{font-family:var(--font-mono);font-size:12.5px;min-width:26px;text-align:center}
+
+  /* ── tabs ─────────────────────────────────────────────────────────── */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 10px;background:var(--surface)}
+  .tab{height:38px;padding:0 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:12.5px;font-weight:500;margin-bottom:-1px}
+  .tab:hover{color:var(--fg)}
+  .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg);font-weight:600}
+
+  /* ── code / json ──────────────────────────────────────────────────── */
+  pre.json{margin:0;padding:12px 14px;background:color-mix(in oklch,var(--bg) 62%,var(--surface));border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11.5px;line-height:1.6;color:var(--fg);overflow:auto;max-height:340px;tab-size:2}
+  pre.json::-webkit-scrollbar{width:9px;height:9px}
+  pre.json::-webkit-scrollbar-thumb{background:var(--fg-line);border-radius:5px}
+  .json-key{color:var(--info-text)}
+  .json-str{color:var(--ok-text)}
+  .json-num{color:var(--warn-text)}
+
+  /* ── cli strip ────────────────────────────────────────────────────── */
+  .cli-bar{margin-top:18px;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);min-width:0}
+  .cli-bar .cli-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);flex:none}
+  .cli-bar code{flex:1;min-width:0;font-size:11.5px;color:var(--fg);overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  .cli-bar code::-webkit-scrollbar{display:none}
+  .cli-bar code .prompt{color:var(--muted);margin-right:7px;user-select:none}
+
+  /* ── ask screen ───────────────────────────────────────────────────── */
+  .qcard{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:12px;display:flex;flex-direction:column;gap:10px}
+  .qcard-head{display:flex;gap:8px;align-items:center}
+  .qcard-head .input{width:120px;flex:none;font-family:var(--font-mono);font-size:12px;font-weight:600}
+  .qcard-head .select{width:104px;flex:none;font-family:var(--font-mono);font-size:11.5px}
+  .qcard-head .icon-btn{margin-left:auto}
+  .qcard .textarea{min-height:56px;font-family:var(--font-body);font-size:13px}
+  .crit-row{display:flex;gap:6px;align-items:center}
+  .crit-row .input.k{flex:0 0 132px;font-family:var(--font-mono);font-size:12px}
+  .crit-row .input.v{flex:1;font-size:12.5px}
+  .crit-list{display:flex;flex-direction:column;gap:6px}
+  .crit-index{font-family:var(--font-mono);font-size:11px;color:var(--muted);width:18px;flex:none;text-align:center}
+  .add-dashed{display:flex;align-items:center;justify-content:center;gap:7px;height:34px;width:100%;border:1px dashed var(--border);border-radius:var(--radius);background:transparent;color:var(--muted);font-size:12.5px}
+  .add-dashed:hover{border-color:var(--fg-line);color:var(--fg);background:var(--fg-soft)}
+  .run-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);flex-wrap:wrap}
+
+  /* ── answers ──────────────────────────────────────────────────────── */
+  .answer{border:1px solid var(--border);border-radius:var(--radius);padding:12px 13px;display:flex;flex-direction:column;gap:9px;background:var(--surface)}
+  .answer-head{display:flex;align-items:baseline;gap:8px}
+  .answer-name{font-family:var(--font-mono);font-size:12.5px;font-weight:600}
+  .answer-type{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 4px}
+  .answer-big{margin-left:auto;font-family:var(--font-mono);font-size:19px;font-weight:600;letter-spacing:-.02em}
+  .answer-q{font-size:12px;color:var(--muted);line-height:1.45}
+  .bar{height:6px;border-radius:3px;background:color-mix(in oklch,var(--fg) 8%,var(--surface));overflow:hidden;display:flex}
+  .bar > span{display:block;height:100%;background:color-mix(in oklch,var(--fg) 62%,var(--surface));transition:width .5s ease}
+  .bar.lg{height:9px}
+  .prob-row{display:grid;grid-template-columns:minmax(88px,auto) minmax(60px,1fr) 46px;gap:9px;align-items:center;font-size:12px}
+  .prob-row .p-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+  .prob-row .p-val{font-family:var(--font-mono);font-size:11.5px;text-align:right;color:var(--muted)}
+  .prob-row.is-lead .p-label{font-weight:650}
+  .prob-row.is-lead .p-val{color:var(--fg);font-weight:600}
+  .legend-line{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .legend-line strong{color:var(--fg);font-family:var(--font-mono);font-weight:600}
+  .result-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .result-meta b{color:var(--fg);font-weight:600}
+
+  /* ── template list ────────────────────────────────────────────────── */
+  .tpl-item{display:flex;flex-direction:column;gap:3px;width:100%;text-align:left;padding:9px 11px;border:1px solid transparent;border-bottom:1px solid var(--border);background:transparent}
+  .tpl-item:hover{background:var(--fg-soft)}
+  .tpl-item[aria-selected="true"]{background:color-mix(in oklch,var(--fg) 5%,transparent);box-shadow:inset 2px 0 0 var(--fg)}
+  .tpl-item .t-name{font-family:var(--font-mono);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .tpl-item .t-desc{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tpl-item .t-meta{font-family:var(--font-mono);font-size:10px;color:var(--muted);display:flex;gap:8px;margin-top:2px}
+  .search-wrap{position:relative;padding:8px;border-bottom:1px solid var(--border)}
+  .search-wrap .input{height:30px;padding-left:28px;font-size:12.5px}
+  .search-wrap svg{position:absolute;left:17px;top:15px;width:14px;height:14px;color:var(--muted)}
+  .tpl-list{max-height:520px;overflow:auto}
+
+  /* ── batch ────────────────────────────────────────────────────────── */
+  .batch-item{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:9px 12px;border-bottom:1px solid var(--border);font-size:12.5px}
+  .batch-item:last-child{border-bottom:0}
+  .b-idx{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding-top:2px}
+  .b-body{min-width:0;display:flex;flex-direction:column;gap:3px}
+  .b-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .b-sub{font-family:var(--font-mono);font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .b-error{font-size:11.5px;color:var(--danger-text);font-family:var(--font-mono);overflow-wrap:anywhere;white-space:normal}
+  .summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid var(--border)}
+  .summary-grid > div{padding:10px 14px;border-right:1px solid var(--border)}
+  .summary-grid > div:last-child{border-right:0}
+  .summary-grid .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .summary-grid .v{font-family:var(--font-mono);font-size:15px;font-weight:600}
+
+  /* ── config ───────────────────────────────────────────────────────── */
+  .prec-row{display:grid;grid-template-columns:96px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px}
+  .prec-row:last-child{border-bottom:0}
+  .prec-row .k{font-family:var(--font-mono);font-size:11.5px;color:var(--fg)}
+  .prec-row .v{font-family:var(--font-mono);font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kv{display:grid;grid-template-columns:112px 1fr;gap:5px 12px;font-size:12.5px;margin:0}
+  .kv dt{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding-top:1px}
+  .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+  .callout{display:flex;gap:9px;font-size:12px;line-height:1.45;border-radius:var(--radius-sm);padding:9px 11px;background:var(--warn-soft);color:var(--warn-text);border:1px solid color-mix(in oklch,var(--warn) 32%,transparent)}
+  .callout svg{width:15px;height:15px;flex:none;margin-top:1px}
+  .callout.info{background:var(--info-soft);color:var(--info-text);border-color:color-mix(in oklch,var(--info) 22%,transparent)}
+  .callout.danger{background:var(--danger-soft);color:var(--danger-text);border-color:color-mix(in oklch,var(--danger) 26%,transparent)}
+
+  /* ── empty state ──────────────────────────────────────────────────── */
+  .empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:34px 20px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius);color:var(--muted);font-size:12.5px}
+  .empty svg{width:22px;height:22px;opacity:.6}
+  .empty strong{color:var(--fg);font-weight:600;font-size:13px}
+
+  /* ── toasts / overlay ─────────────────────────────────────────────── */
+  .toasts{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .toast{display:flex;align-items:center;gap:8px;background:var(--fg);color:var(--on-inverse);border-radius:var(--radius);padding:9px 13px;font-size:12.5px;box-shadow:0 8px 24px color-mix(in oklch,var(--fg) 24%,transparent);animation:toastin .16s ease}
+  .toast svg{width:14px;height:14px;flex:none}
+  @keyframes toastin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .overlay{position:fixed;inset:0;z-index:70;background:color-mix(in oklch,var(--fg) 32%,transparent);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:80px 16px 24px;overflow:auto}
+  .overlay[hidden]{display:none}
+  .modal{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 24px 60px color-mix(in oklch,var(--fg) 26%,transparent);width:100%;max-width:620px;overflow:hidden}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .modal-head h2{font-size:14px;font-weight:600}
+  .modal-body{padding:14px;display:flex;flex-direction:column;gap:12px;max-height:min(64vh,560px);overflow:auto}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--border)}
+  .palette{max-width:560px;padding:0}
+  .palette .p-input{width:100%;padding-right:48px;border:0;border-bottom:1px solid var(--border);border-radius:0;height:46px;padding:0 16px;font-size:14px;background:transparent}
+  .palette .p-input:focus{outline:none;box-shadow:none;border-color:var(--border)}
+  .p-list{max-height:340px;overflow:auto;padding:6px}
+  .p-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:var(--radius-sm);background:transparent;font-size:13px}
+  .p-item .p-hint{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-left:auto;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .p-item[aria-selected="true"],.p-item:hover{background:var(--fg-soft)}
+  .p-item kbd{font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);border-radius:4px;padding:0 4px;color:var(--muted);background:var(--bg)}
+  .p-group{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:10px 10px 4px}
+  .cli-table{width:100%;border-collapse:collapse;font-size:12px}
+  .cli-table th{text-align:left;font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--border)}
+  .cli-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  .cli-table td:first-child{font-family:var(--font-mono);font-size:11.5px;white-space:nowrap}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* ── responsive ───────────────────────────────────────────────────── */
+  @media (max-width:1180px){
+    .grid-resumen,.grid-ask,.grid-batch,.grid-hist,.grid-config{grid-template-columns:minmax(0,1fr)}
+    .grid-tpl{grid-template-columns:minmax(0,1fr)}
+    .tpl-list{max-height:none}
+  }
+  @media (max-width:980px){
+    .shell{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}
+    .brand{padding:0 6px 0 2px;flex:none}
+    .brand-sub{display:none}
+    .nav{flex-direction:row;gap:2px;flex:none}
+    .nav-label{display:none}
+    .nav-item{width:auto;padding:0 9px;flex:none}
+    .nav-item .count{display:none}
+    .nav-item[aria-current="page"]::after{display:none}
+    .nav-item span.nav-text{display:none}
+    .sidebar-foot{margin:0 0 0 auto;flex-direction:row;align-items:center;padding:0}
+    .db-chip{display:none}
+    .sidebar-meta{display:none}
+    .content{padding:20px 16px 48px}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .topbar{padding-inline:16px;height:48px}
+    .crumb{display:none}
+  }
+  @media (max-width:560px){
+    .stats{grid-template-columns:minmax(0,1fr)}
+    h1{font-size:22px}
+    .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .summary-grid > div:nth-child(2){border-right:0}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" data-od-id="sidebar">
+    <div class="brand"><span class="brand-mark">jev</span><span class="brand-sub">consola web</span></div>
+    <nav class="nav" aria-label="Secciones">
+      <p class="nav-label">Trabajo</p>
+      <button class="nav-item" data-nav="resumen" aria-label="Resumen" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+        <span class="nav-text">Resumen</span>
+      </button>
+      <button class="nav-item" data-nav="evaluar" aria-label="Evaluar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg>
+        <span class="nav-text">Evaluar</span>
+      </button>
+      <button class="nav-item" data-nav="lotes" aria-label="Lotes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3.5l8 4.2-8 4.2-8-4.2 8-4.2z"/><path d="M4 12.5l8 4.2 8-4.2"/><path d="M4 16.8l8 4.2 8-4.2"/></svg>
+        <span class="nav-text">Lotes</span>
+      </button>
+      <p class="nav-label">Biblioteca</p>
+      <button class="nav-item" data-nav="plantillas" aria-label="Plantillas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3.5H7.5A2.5 2.5 0 0 0 5 6v3.2A1.8 1.8 0 0 1 3.2 11 1.8 1.8 0 0 1 5 12.8V18a2.5 2.5 0 0 0 2.5 2.5H9"/><path d="M15 3.5h1.5A2.5 2.5 0 0 1 19 6v3.2A1.8 1.8 0 0 0 20.8 11 1.8 1.8 0 0 0 19 12.8V18a2.5 2.5 0 0 1-2.5 2.5H15"/></svg>
+        <span class="nav-text">Plantillas</span>
+        <span class="count" id="navTplCount">4</span>
+      </button>
+      <button class="nav-item" data-nav="historial" aria-label="Historial">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>
+        <span class="nav-text">Historial</span>
+        <span class="count" id="navHistCount">14</span>
+      </button>
+      <p class="nav-label">Sistema</p>
+      <button class="nav-item" data-nav="configuracion" aria-label="Configuración">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h9M18.5 8H20M4 16h3M12 16h8"/><circle cx="15.2" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/></svg>
+        <span class="nav-text">Configuración</span>
+      </button>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="db-chip" id="dbChip" title="Copiar la ruta de la base SQLite">
+        <span>Base SQLite</span>
+        <span id="dbPath">~/.jev-client/db/jev.db</span>
+      </button>
+      <div class="sidebar-meta"><span>v1.0.0</span><span>esquema 3</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar" data-od-id="topbar">
+      <div class="crumb"><span>jev</span><span class="sep">/</span><strong id="crumbCurrent">Resumen</strong><span class="sep">·</span><span class="mono" style="font-size:11px">127.0.0.1:7411</span></div>
+      <div class="topbar-right">
+        <span class="provider"><span class="dot" id="providerDot"></span><span id="providerModel">jev-1.13</span></span>
+        <button class="btn btn-ghost btn-sm" id="openCliRef" title="Referencia de comandos CLI">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9.5 8.5L6 12l3.5 3.5M14.5 8.5L18 12l-3.5 3.5"/></svg>
+          Referencia CLI
+        </button>
+        <button class="btn btn-outline btn-sm" id="openPalette" aria-keyshortcuts="Meta+K Control+K">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></svg>
+          Buscar
+          <span class="kbd">⌘K</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ═══ RESUMEN ═══════════════════════════════════════════════════ -->
+      <section class="screen" id="screen-resumen" data-screen="resumen" data-od-id="resumen">
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Sesión local · iniciada con jev --web-console</p>
+            <h1>Resumen</h1>
+            <p class="sub">Estado del provider, actividad reciente y accesos directos. Todo lo que ves aquí se guarda en la misma base SQLite que usa la CLI.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-primary" data-nav="evaluar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              Nueva evaluación
+            </button>
+          </div>
+        </div>
+
+        <div class="stats" id="statStrip" data-od-id="stat-strip"></div>
+
+        <div class="grid grid-resumen">
+          <div class="stack">
+            <div class="panel" data-od-id="recent-requests">
+              <div class="panel-head">
+                <span class="panel-title">Últimas peticiones</span>
+                <button class="btn btn-ghost btn-sm" data-nav="historial">Ver historial completo →</button>
+              </div>
+              <div class="table-wrap">
+                <table class="dt" aria-label="Últimas peticiones">
+                  <thead><tr><th>Hora</th><th>Estado</th><th>Modelo</th><th>Plantilla</th><th class="num">Tokens</th><th class="num">Coste</th><th class="num">Duración</th></tr></thead>
+                  <tbody id="recentRows"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Atajos equivalentes</span><span class="mono" style="font-size:10.5px;color:var(--muted)">CLI</span></div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:8px" id="shortcutList"></div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel" data-od-id="provider-status">
+              <div class="panel-head">
+                <span class="panel-title">Provider</span>
+                <span class="pill pill-ok" id="providerState">conectado</span>
+              </div>
+              <div class="panel-body">
+                <dl class="kv">
+                  <dt>endpoint</dt><dd class="mono" style="font-size:11.5px">opencode.ai/inference/systemone/v1</dd>
+                  <dt>modelo</dt><dd class="mono" id="cfgModelView" style="font-size:11.5px">jev-1.13</dd>
+                  <dt>api_key</dt><dd class="mono" id="cfgKeyView" style="font-size:11.5px">sk-a…d36 · entorno</dd>
+                  <dt>timeout</dt><dd class="mono" id="cfgTimeoutView" style="font-size:11.5px">30 s</dd>
+                  <dt>reintentos</dt><dd class="mono" id="cfgRetriesView" style="font-size:11.5px">2</dd>
+                </dl>
+                <hr class="rule" style="border:0;border-top:1px solid var(--border);margin:12px 0" />
+                <div class="row-between">
+                  <button class="btn btn-outline btn-sm" id="checkProvider">Probar conexión</button>
+                  <span class="mono" style="font-size:11px;color:var(--muted)" id="checkResult">sin comprobar</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Esta sesión</span></div>
+              <div class="panel-body">
+                <dl class="kv">
+                  <dt>lanzada por</dt><dd class="mono" style="font-size:11.5px">jev --web-console</dd>
+                  <dt>escucha en</dt><dd class="mono" style="font-size:11.5px">127.0.0.1:7411</dd>
+                  <dt>base</dt><dd class="mono" style="font-size:11.5px;overflow-wrap:anywhere">~/.jev-client/db/jev.db</dd>
+                  <dt>historial</dt><dd style="font-size:12.5px">se guarda salvo con <code>--no-save</code></dd>
+                </dl>
+              </div>
+            </div>
+
+            <button class="btn btn-outline" id="openCliRef2" style="width:100%">Ver todos los comandos y flags</button>
+          </div>
+        </div>
+
+        <div class="cli-bar"><span class="cli-label">CLI</span><code><span class="prompt">$</span>jev history list --limit 5</code><button class="icon-btn" data-copy="jev history list --limit 5" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+      <!-- ═══ EVALUAR ═══════════════════════════════════════════════════ -->
+      <section class="screen" id="screen-evaluar" data-screen="evaluar" data-od-id="evaluar" hidden>
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Inferencia · jev ask</p>
+            <h1>Evaluar</h1>
+            <p class="sub">Un <code>state</code> y una o más preguntas tipadas. Jev devuelve una respuesta por pregunta con sus probabilidades.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-ghost btn-sm" id="loadExample">Cargar ejemplo del ticket</button>
+          </div>
+        </div>
+
+        <div class="grid grid-ask">
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title">State</span>
+                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="stateKind">texto</span>
+              </div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:7px">
+                <textarea class="textarea" id="stateInput" rows="4" spellcheck="false" aria-label="Contenido a evaluar"></textarea>
+                <p class="hint" id="stateHint">Si empieza por <code>{</code> o <code>[</code> se envía como JSON; si no, como string.</p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Preguntas</span>
+                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="qCount">3 preguntas</span>
+              </div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
+                <div id="questionList" style="display:flex;flex-direction:column;gap:10px"></div>
+                <button class="add-dashed" id="addQuestion">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+                  Añadir pregunta
+                </button>
+              </div>
+            </div>
+
+            <div class="run-bar">
+              <div class="field" style="flex:0 0 150px">
+                <label for="askModel">Modelo</label>
+                <select class="select mono" id="askModel">
+                  <option value="jev-1.13">jev-1.13</option>
+                  <option value="jev-1.13-free">jev-1.13-free</option>
+                </select>
+              </div>
+              <label class="check" style="margin-bottom:1px">
+                <input type="checkbox" id="saveRun" checked /><span class="switch"></span> Guardar en historial
+              </label>
+              <div class="row push" style="gap:8px">
+                <button class="btn btn-outline" id="runDemo">Ejecutar demo</button>
+                <button class="btn btn-primary" id="runAsk">Evaluar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" data-od-id="ask-result" style="min-height:420px">
+            <div class="panel-head">
+              <span class="panel-title">Resultado</span>
+              <div class="row" id="resultTabs" hidden>
+                <button class="btn btn-sm btn-ghost" data-res-tab="report" aria-pressed="true">Informe</button>
+                <button class="btn btn-sm btn-ghost" data-res-tab="json" aria-pressed="false">JSON crudo</button>
+              </div>
+            </div>
+            <div id="resultBody" style="padding:14px"></div>
+          </div>
+        </div>
+
+        <div class="cli-bar" id="askCliBar"><span class="cli-label">CLI</span><code id="askCli"><span class="prompt">$</span>jev ask --state "…" --questions '{…}'</code><button class="icon-btn" data-copy-target="askCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+      <!-- ═══ PLANTILLAS ════════════════════════════════════════════════ -->
+      <section class="screen" id="screen-plantillas" data-screen="plantillas" data-od-id="plantillas" hidden>
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Biblioteca · jev template</p>
+            <h1>Plantillas</h1>
+            <p class="sub">Requests de Jev con huecos <code>{{clave}}</code>. Las mismas que resuelve <code>jev batch</code>, guardadas en la tabla <code>templates</code>.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-outline" id="newTemplate">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+              Nueva plantilla
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-tpl">
+          <div class="panel" data-od-id="template-list">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></svg>
+              <input class="input" id="tplSearch" placeholder="Buscar plantilla…" aria-label="Buscar plantilla" />
+            </div>
+            <div class="tpl-list" id="tplList" role="listbox" aria-label="Plantillas"></div>
+            <div class="panel-foot"><span id="tplCount">4 plantillas</span><span class="mono" style="font-size:10.5px">templates</span></div>
+          </div>
+
+          <div class="panel" id="tplDetail" data-od-id="template-detail"></div>
+        </div>
+
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="tplCli"><span class="prompt">$</span>jev template show pedido</code><button class="icon-btn" data-copy-target="tplCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+      <!-- ═══ LOTES ═════════════════════════════════════════════════════ -->
+      <section class="screen" id="screen-lotes" data-screen="lotes" data-od-id="lotes" hidden>
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Biblioteca · jev batch</p>
+            <h1>Lotes</h1>
+            <p class="sub">Una plantilla, un array de contextos: una petición por mapa, todas con el mismo <code>batch_id</code> en el historial.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-batch">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Configuración del lote</span></div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
+              <div class="field">
+                <label for="batchTemplate">Plantilla</label>
+                <select class="select mono" id="batchTemplate"></select>
+              </div>
+              <div class="field">
+                <label for="batchContexts">Contextos (array JSON)</label>
+                <textarea class="textarea" id="batchContexts" rows="11" spellcheck="false" aria-label="Contextos del lote"></textarea>
+                <p class="hint" id="contextsHint"></p>
+              </div>
+              <div class="inline-fields">
+                <div class="field">
+                  <label id="concurrencyLabel">Concurrencia</label>
+                  <div class="stepper" aria-labelledby="concurrencyLabel">
+                    <button type="button" id="concDown" aria-label="Reducir concurrencia">−</button>
+                    <output id="concValue">1</output>
+                    <button type="button" id="concUp" aria-label="Aumentar concurrencia">+</button>
+                  </div>
+                </div>
+                <div class="field" style="flex:1 1 190px">
+                  <label>Ante el primer error</label>
+                  <label class="check" style="height:32px">
+                    <input type="checkbox" id="failFast" /><span class="switch"></span> Detenerse (fail-fast)
+                  </label>
+                </div>
+              </div>
+              <div class="row">
+                <span class="hint">Por defecto <code>--continue-on-error</code>: sigue con el resto y sale con código 1.</span>
+              </div>
+              <button class="btn btn-primary" id="runBatch" style="width:100%">Ejecutar lote</button>
+            </div>
+          </div>
+
+          <div class="panel" data-od-id="batch-result" style="min-height:420px">
+            <div class="panel-head">
+              <span class="panel-title">Ejecución</span>
+              <span class="mono" style="font-size:10.5px;color:var(--muted)" id="batchIdView">sin batch</span>
+            </div>
+            <div id="batchBody" style="padding:14px"></div>
+          </div>
+        </div>
+
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="batchCli"><span class="prompt">$</span>jev batch pedido --contexts examples/contexts.json --concurrency 1</code><button class="icon-btn" data-copy-target="batchCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+      <!-- ═══ HISTORIAL ═════════════════════════════════════════════════ -->
+      <section class="screen" id="screen-historial" data-screen="historial" data-od-id="historial" hidden>
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Biblioteca · jev history</p>
+            <h1>Historial</h1>
+            <p class="sub">Una fila por ejecución de <code>ask</code>, <code>demo</code> o por cada petición de un <code>batch</code>. No se guardan cabeceras ni la API key.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-outline" id="exportHistory">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 4v10M8 10.5l4 4 4-4"/><path d="M5 18.5h14"/></svg>
+              Exportar JSONL
+            </button>
+          </div>
+        </div>
+
+        <div class="panel" data-od-id="history-filters" style="margin-bottom:14px">
+          <div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="flex:1 1 150px"><label for="fSince">Desde</label><input class="input mono" type="date" id="fSince" /></div>
+            <div class="field" style="flex:1 1 120px"><label for="fStatus">Estado</label><select class="select mono" id="fStatus"><option value="">todos</option><option>200</option><option>401</option><option>422</option><option>429</option></select></div>
+            <div class="field" style="flex:1 1 140px"><label for="fModel">Modelo</label><select class="select mono" id="fModel"><option value="">todos</option><option>jev-1.13</option><option>jev-1.13-free</option></select></div>
+            <div class="field" style="flex:1 1 140px"><label for="fTemplate">Plantilla</label><select class="select mono" id="fTemplate"><option value="">todas</option></select></div>
+            <div class="field" style="flex:0 0 92px"><label for="fLimit">Límite</label><input class="input mono" type="number" id="fLimit" min="1" max="200" value="50" /></div>
+            <button class="btn btn-ghost btn-sm" id="clearFilters" style="margin-bottom:2px">Limpiar</button>
+          </div>
+        </div>
+
+        <div class="grid grid-hist">
+          <div class="panel" data-od-id="history-table">
+            <div class="table-wrap">
+              <table class="dt" aria-label="Historial de peticiones">
+                <thead><tr><th>Fecha</th><th>Estado</th><th>Modelo</th><th>Plantilla</th><th>Origen</th><th class="num">Tokens</th><th class="num">Coste</th><th class="num">ms</th></tr></thead>
+                <tbody id="historyRows"></tbody>
+              </table>
+            </div>
+            <div class="panel-foot"><span id="historyCount">—</span><span class="mono" style="font-size:10.5px">requests</span></div>
+          </div>
+
+          <div id="historyDetail" data-od-id="history-detail"></div>
+        </div>
+
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="histCli"><span class="prompt">$</span>jev history list --limit 50</code><button class="icon-btn" data-copy-target="histCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+      <!-- ═══ CONFIGURACIÓN ═════════════════════════════════════════════ -->
+      <section class="screen" id="screen-configuracion" data-screen="configuracion" data-od-id="configuracion" hidden>
+        <div class="screen-head">
+          <div>
+            <p class="eyebrow">Sistema · jev config</p>
+            <h1>Configuración</h1>
+            <p class="sub">Precedencia de resolución: <strong>flag &gt; variable de entorno &gt; base SQLite &gt; valor por defecto</strong>. Las cadenas vacías cuentan como no definidas.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-primary" id="saveConfig">Guardar cambios</button>
+          </div>
+        </div>
+
+        <div class="grid grid-config">
+          <div class="stack">
+            <div class="panel" data-od-id="config-provider">
+              <div class="panel-head"><span class="panel-title">Provider</span><span class="mono" style="font-size:10.5px;color:var(--muted)">tabla config</span></div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
+                <div class="field">
+                  <label for="cfgUrl">api_url · endpoint completo</label>
+                  <input class="input mono" id="cfgUrl" spellcheck="false" />
+                </div>
+                <div class="field">
+                  <label for="cfgApiKey">api_key</label>
+                  <div class="row" style="gap:8px">
+                    <input class="input mono" id="cfgApiKey" spellcheck="false" autocomplete="off" />
+                    <button class="btn btn-outline btn-sm" id="revealKey">Revelar</button>
+                  </div>
+                  <div class="callout" style="margin-top:4px">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4.5l8 14H4l8-14z"/><path d="M12 10v3.5M12 16.2v.1"/></svg>
+                    <span>La key se guarda <strong>en claro</strong> en SQLite. Para no persistirla, pásala con <code>--key</code> o <code>OPENCODE_API_KEY</code>.</span>
+                  </div>
+                </div>
+                <div class="inline-fields">
+                  <div class="field" style="flex:1 1 160px">
+                    <label for="cfgModel">model</label>
+                    <select class="select mono" id="cfgModel">
+                      <option value="jev-1.13">jev-1.13</option>
+                      <option value="jev-1.13-free">jev-1.13-free</option>
+                    </select>
+                  </div>
+                  <div class="field" style="flex:0 0 118px">
+                    <label for="cfgTimeout">timeout (s)</label>
+                    <input class="input mono" type="number" id="cfgTimeout" min="1" step="1" />
+                  </div>
+                  <div class="field" style="flex:0 0 118px">
+                    <label for="cfgRetries">reintentos</label>
+                    <input class="input mono" type="number" id="cfgRetries" min="0" step="1" />
+                  </div>
+                </div>
+                <div class="row-between">
+                  <span class="hint" id="configValidation">Valores válidos.</span>
+                  <button class="btn btn-ghost btn-sm" id="resetConfig">Restablecer por defecto</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Petición HTTP</span></div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
+                <dl class="kv">
+                  <dt>reintenta en</dt><dd style="font-size:12.5px">429, 5xx y errores de red</dd>
+                  <dt>backoffMs</dt><dd class="mono" style="font-size:11.5px">500 ms</dd>
+                  <dt>tope Retry-After</dt><dd class="mono" style="font-size:11.5px">10 s</dd>
+                  <dt>401</dt><dd style="font-size:12.5px">no se reintenta</dd>
+                </dl>
+                <div class="callout info">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg>
+                  <span>El <code>Retry-After</code> se capa a 10 s para no bloquear el proceso. Los reintentos se cuentan por intento HTTP, no por pregunta.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel" data-od-id="config-precedence">
+              <div class="panel-head"><span class="panel-title">Precedencia resuelta</span></div>
+              <div id="precedenceList" style="padding:0"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Base de datos</span>
+                <span class="pill pill-info">esquema 3</span>
+              </div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
+                <div class="row" style="gap:6px">
+                  <code class="mono" style="font-size:11.5px;overflow-wrap:anywhere;flex:1">~/.jev-client/db/jev.db</code>
+                  <button class="icon-btn" id="copyDbPath" aria-label="Copiar ruta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button>
+                </div>
+                <dl class="kv">
+                  <dt>permisos</dt><dd class="mono" style="font-size:11.5px">0700 / 0600</dd>
+                  <dt>migraciones</dt><dd class="mono" style="font-size:11.5px">PRAGMA user_version</dd>
+                  <dt>tablas</dt><dd class="mono" style="font-size:11.5px">config · templates · requests</dd>
+                </dl>
+                <p class="hint">Se crea y migra sola en el primer uso de <code>ask</code>, <code>demo</code> o <code>config</code>.</p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Códigos de salida</span></div>
+              <div class="panel-body" style="display:flex;flex-direction:column;gap:7px;font-size:12.5px">
+                <div class="row-between"><span class="mono" style="font-size:11.5px">0</span><span style="color:var(--muted)">correcto</span></div>
+                <div class="row-between"><span class="mono" style="font-size:11.5px">1</span><span style="color:var(--muted)">error de API, red o configuración</span></div>
+                <div class="row-between"><span class="mono" style="font-size:11.5px">2</span><span style="color:var(--muted)">uso incorrecto</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="cfgCli"><span class="prompt">$</span>jev config list --json</code><button class="icon-btn" data-copy-target="cfgCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── utilidades ──────────────────────────────────────────────────── */
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var esc = function (v) {
+    return String(v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var nowMs = Date.now();
+  var iso = function (ms) { return new Date(ms).toISOString(); };
+  function relTime(ms) {
+    var diff = Math.max(0, nowMs - ms);
+    var m = Math.round(diff / 60000);
+    if (m < 1) return "ahora";
+    if (m < 60) return "hace " + m + " min";
+    var h = Math.round(m / 60);
+    if (h < 24) return "hace " + h + " h";
+    return "hace " + Math.round(h / 24) + " d";
+  }
+  function shortDate(ms) {
+    var d = new Date(ms);
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function fmtCost(v) {
+    if (v === null || v === undefined) return "—";
+    if (v < 1e-4) return v.toExponential(2).replace("e", "e");
+    return v.toFixed(5);
+  }
+  function fmtInt(v) { return v === null || v === undefined ? "—" : String(v); }
+  function tokenize(s) { return Math.max(1, Math.round(String(s).length / 3.8)); }
+  function hash(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0) / 4294967295;
+  }
+  function jsonPretty(v) { return JSON.stringify(v, null, 2); }
+  function highlightJson(text) {
+    return esc(text)
+      .replace(/(&quot;[^&]*?&quot;)(\s*:)/g, '<span class="json-key">$1</span>$2')
+      .replace(/:\s(&quot;.*?&quot;)/g, ': <span class="json-str">$1</span>')
+      .replace(/:\s(-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)/g, ': <span class="json-num">$1</span>');
+  }
+  function jsonBlock(v) { return '<pre class="json">' + highlightJson(jsonPretty(v)) + "</pre>"; }
+
+  function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { toast("Copiado al portapapeles"); }, fallback);
+      } else { fallback(); }
+    } catch (e) { fallback(); }
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); toast("Copiado al portapapeles"); } catch (e) { toast("No se pudo copiar"); }
+      document.body.removeChild(ta);
+    }
+  }
+  var toastTimer = [];
+  function toast(msg) {
+    var wrap = $("#toasts");
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>' + esc(msg) + "</span>";
+    wrap.appendChild(el);
+    var t = setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2600);
+    toastTimer.push(t);
+  }
+
+  /* ── estado ──────────────────────────────────────────────────────── */
+  var DEFAULT_CONFIG = {
+    api_url: "https://opencode.ai/inference/systemone/v1/systemone",
+    api_key: "sk-demo-0f8a2c47b1e95d36",
+    model: "jev-1.13",
+    timeout: 30,
+    retries: 2
+  };
+
+  var TEMPLATES = [
+    {
+      name: "pedido",
+      description: "Pedido con cliente",
+      created: nowMs - 86400000 * 6,
+      updated: nowMs - 3600000 * 5,
+      body: {
+        model: "jev-1.13",
+        state: { pedido: "{{estado_de_pedido}}", cliente: "{{cliente.nombre}}", plan: "{{cliente.plan}}" },
+        questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } }
+      }
+    },
+    {
+      name: "triaje",
+      description: "Triaje de incidencias por equipo y urgencia",
+      created: nowMs - 86400000 * 4,
+      updated: nowMs - 3600000 * 30,
+      body: {
+        model: "jev-1.13",
+        state: { ticket: "{{estado_de_pedido}}", plan: "{{cliente.plan}}" },
+        questions: {
+          billing: { type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?" },
+          team: {
+            type: "choice",
+            instructions: "¿Qué equipo debería gestionar la incidencia?",
+            criteria: {
+              billing: "Cobros, facturas o pagos",
+              infra: "Caídas, errores 500 o problemas de plataforma",
+              sales: "Precios o dudas comerciales"
+            }
+          },
+          urgency: {
+            type: "score",
+            instructions: "¿Cómo de urgente es la incidencia?",
+            criteria: ["Puede esperar", "Esta semana", "Hoy mismo"]
+          }
+        }
+      }
+    },
+    {
+      name: "reembolso",
+      description: "Solicitud de reembolso con política del plan",
+      created: nowMs - 86400000 * 3,
+      updated: nowMs - 3600000 * 9,
+      body: {
+        model: "jev-1.13",
+        state: {
+          ticket: "{{estado_de_pedido}}",
+          importe_eur: "{{importe_eur}}",
+          historial: "{{historial}}",
+          politica: "{{politica}}"
+        },
+        questions: {
+          refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
+          tone: {
+            type: "choice",
+            instructions: "¿Cuál es el tono del mensaje?",
+            criteria: { calm: "Neutral o educado", angry: "Molesto o hostil" }
+          },
+          urgency: {
+            type: "score",
+            instructions: "¿Cómo de urgente es?",
+            criteria: ["Puede esperar", "Esta semana", "Hoy mismo"]
+          }
+        }
+      }
+    },
+    {
+      name: "resumen-diario",
+      description: "Riesgo de incumplimiento en el resumen del día",
+      created: nowMs - 86400000 * 2,
+      updated: nowMs - 3600000 * 2,
+      body: {
+        model: "jev-1.13-free",
+        state: { resumen: "{{resumen_del_dia}}" },
+        questions: { riesgo: { type: "noul", instructions: "¿Hay riesgo de incumplimiento hoy?" } }
+      }
+    }
+  ];
+
+  var TICKET_STATE = "Me han cobrado dos veces este mes y quiero el reembolso.";
+  var REQUEST_EXAMPLE = {
+    state: { ticket: "Me han cobrado dos veces este mes. Quiero el reembolso.", plan: "pro" },
+    questions: {
+      refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
+      tone: { type: "choice", instructions: "¿Cuál es el tono del mensaje?", criteria: { calm: "Neutral o educado", angry: "Molesto o hostil" } }
+    }
+  };
+
+  function makeHistory() {
+    var t = nowMs;
+    var rows = [
+      { id: 14, at: t - 12 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 449, outTok: 73, cost: 1.886e-5, dur: 812, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.98 } }, usage: { input_tokens: 449, output_tokens: 73, cost: 1.886e-5 } } },
+      { id: 13, at: t - 14 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 452, outTok: 71, cost: 1.884e-5, dur: 744, request: { model: "jev-1.13", state: "No me llega la factura de este mes.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.41 } }, usage: { input_tokens: 452, output_tokens: 71, cost: 1.884e-5 } } },
+      { id: 12, at: t - 17 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 461, outTok: 74, cost: 1.926e-5, dur: 907, request: { model: "jev-1.13", state: "Me han cobrado dos veces y quiero el reembolso.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.87 } }, usage: { input_tokens: 461, output_tokens: 74, cost: 1.926e-5 } } },
+      { id: 11, at: t - 46 * 60000, status: 200, model: "jev-1.13", template: "triaje", batchId: null, inTok: 512, outTok: 118, cost: 2.268e-5, dur: 1180, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.12 }, team: { type: "choice", choice: "infra", confidence: 0.83, probabilities: { infra: 0.83, billing: 0.11, sales: 0.06 } }, urgency: { type: "score", score: 2, legend: { "0": "Puede esperar", "1": "Esta semana", "2": "Hoy mismo" } } }, usage: { input_tokens: 512, output_tokens: 118, cost: 2.268e-5 } } },
+      { id: 10, at: t - 2 * 3600000, status: 200, model: "jev-1.13", template: null, batchId: null, inTok: 198, outTok: 42, cost: 8.64e-6, dur: 640, request: { model: "jev-1.13", state: { ticket: REQUEST_EXAMPLE.state.ticket, plan: "pro" }, questions: REQUEST_EXAMPLE.questions }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.96 }, tone: { type: "choice", choice: "angry", confidence: 0.78 } }, usage: { input_tokens: 198, output_tokens: 42, cost: 8.64e-6 } } },
+      { id: 9, at: t - 3 * 3600000, status: 429, model: "jev-1.13-free", template: "resumen-diario", batchId: null, inTok: null, outTok: null, cost: null, dur: 210, errorCode: "FreeUsageLimitError", errorMessage: "Has agotado la cuota gratuita de jev-1.13-free.", request: { model: "jev-1.13-free", state: "Resumen del día: 42 tickets, 3 caídas.", questions: { riesgo: { type: "noul" } } }, response: { error: { type: "FreeUsageLimitError", message: "Has agotado la cuota gratuita de jev-1.13-free." } } },
+      { id: 8, at: t - 4 * 3600000, status: 401, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 132, errorCode: "api_key_expired", errorMessage: "La API key ha caducado. Genera una nueva en OpenCode Console.", request: { model: "jev-1.13", state: "hola", questions: { q: { type: "noul", instructions: "¿Saludo?" } } }, response: { error: { type: "api_key_expired", message: "La API key ha caducado." } } },
+      { id: 7, at: t - 5 * 3600000, status: 422, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 96, errorCode: "invalid_request", errorMessage: 'la pregunta "urgency" usa un tipo no soportado: "scoree" (usa noul, choice o score)', request: { model: "jev-1.13", state: "Ticket de prueba", questions: { urgency: { type: "scoree" } } }, response: { error: { type: "invalid_request", message: 'tipo de pregunta no soportado: "scoree"' } } },
+      { id: 6, at: t - 8 * 3600000, status: 200, model: "jev-1.13", template: "reembolso", batchId: null, inTok: 604, outTok: 96, cost: 2.52e-5, dur: 1042, request: { model: "jev-1.13", state: "Pedido duplicado, tercera vez este trimestre.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.94 }, tone: { type: "choice", choice: "angry", confidence: 0.71 }, urgency: { type: "score", score: 1.4 } }, usage: { input_tokens: 604, output_tokens: 96, cost: 2.52e-5 } } },
+      { id: 5, at: t - 26 * 3600000, status: 200, model: "jev-1.13", template: "triaje", batchId: null, inTok: 498, outTok: 104, cost: 2.16e-5, dur: 968, request: { model: "jev-1.13", state: "No me llega la factura de este mes.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.93 }, team: { type: "choice", choice: "billing", confidence: 0.88 }, urgency: { type: "score", score: 1 } }, usage: { input_tokens: 498, output_tokens: 104, cost: 2.16e-5 } } },
+      { id: 4, at: t - 28 * 3600000, status: 200, model: "jev-1.13", template: "pedido", batchId: "9b21c7de", inTok: 447, outTok: 68, cost: 1.854e-5, dur: 781, request: { model: "jev-1.13", state: "Me han cobrado dos veces y quiero el reembolso.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.9 } }, usage: { input_tokens: 447, output_tokens: 68, cost: 1.854e-5 } } },
+      { id: 3, at: t - 30 * 3600000, status: 200, model: "jev-1.13", template: "pedido", batchId: "9b21c7de", inTok: 450, outTok: 70, cost: 1.872e-5, dur: 833, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 450, output_tokens: 70, cost: 1.872e-5 } } },
+      { id: 2, at: t - 3 * 86400000, status: 200, model: "jev-1.13", template: null, batchId: null, inTok: 176, outTok: 38, cost: 7.7e-6, dur: 588, request: { model: "jev-1.13", state: "hola", questions: { q: { type: "noul", instructions: "¿Saludo?" } } }, response: { model: "jev-1.13", answers: { q: { type: "noul", noul: 0.99 } }, usage: { input_tokens: 176, output_tokens: 38, cost: 7.7e-6 } } },
+      { id: 1, at: t - 4 * 86400000, status: 200, model: "jev-1.13", template: "reembolso", batchId: null, inTok: 611, outTok: 91, cost: 2.53e-5, dur: 1120, request: { model: "jev-1.13", state: "Reembolso de la última factura.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.91 }, tone: { type: "choice", choice: "calm", confidence: 0.66 }, urgency: { type: "score", score: 1.2 } }, usage: { input_tokens: 611, output_tokens: 91, cost: 2.53e-5 } } }
+    ];
+    rows.forEach(function (r) { r.createdAt = iso(r.at); r.ok = r.status === 200; r.endpoint = DEFAULT_CONFIG.api_url; });
+    return rows;
+  }
+
+  var state = {
+    route: "resumen",
+    config: Object.assign({}, DEFAULT_CONFIG),
+    keyRevealed: false,
+    templates: TEMPLATES,
+    history: makeHistory(),
+    selectedTemplate: "pedido",
+    selectedHistory: 14,
+    tplTab: "editor",
+    tplDraft: null,
+    tplSearch: "",
+    filters: { since: "", status: "", model: "", template: "", limit: 50 },
+    ask: null,
+    batch: { concurrency: 1, failFast: false, template: null, items: null, running: false, batchId: null, summary: null },
+    resultTab: "report",
+    histTab: "report",
+    paletteIndex: 0
+  };
+
+  state.ask = {
+    text: TICKET_STATE,
+    model: "jev-1.13",
+    save: true,
+    result: null,
+    error: null,
+    demo: false,
+    questions: [
+      { name: "billing", type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?", noulCriteria: "", criteria: [], levels: [] },
+      {
+        name: "team", type: "choice", instructions: "¿Qué equipo debería gestionar la incidencia?", noulCriteria: "",
+        criteria: [
+          { k: "billing", v: "Cobros, facturas o pagos" },
+          { k: "infra", v: "Caídas, errores 500 o problemas de plataforma" },
+          { k: "sales", v: "Precios o dudas comerciales" }
+        ], levels: []
+      },
+      {
+        name: "urgency", type: "score", instructions: "¿Cómo de urgente es la incidencia?", noulCriteria: "", criteria: [],
+        levels: ["Puede esperar", "Esta semana", "Hoy mismo"]
+      }
+    ]
+  };
+
+  /* persistencia ligera */
+  var LS_KEY = "jev-web-console-v1";
+  function saveLocal() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        route: state.route,
+        selectedTemplate: state.selectedTemplate,
+        selectedHistory: state.selectedHistory,
+        config: state.config,
+        askText: state.ask.text,
+        askModel: state.ask.model
+      }));
+    } catch (e) { /* almacenamiento no disponible */ }
+  }
+  function loadLocal() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (d.config) state.config = Object.assign({}, DEFAULT_CONFIG, d.config);
+      if (d.selectedTemplate) state.selectedTemplate = d.selectedTemplate;
+      if (typeof d.selectedHistory === "number") state.selectedHistory = d.selectedHistory;
+      if (d.askText) state.ask.text = d.askText;
+      if (d.askModel) { state.ask.model = d.askModel; }
+      if (d.route) state.route = d.route;
+    } catch (e) { /* datos corruptos: se ignoran */ }
+  }
+
+  /* ── navegación ──────────────────────────────────────────────────── */
+  var LABELS = { resumen: "Resumen", evaluar: "Evaluar", plantillas: "Plantillas", lotes: "Lotes", historial: "Historial", configuracion: "Configuración" };
+
+  function go(route) {
+    if (!LABELS[route]) route = "resumen";
+    state.route = route;
+    $$(".screen").forEach(function (s) { s.hidden = s.dataset.screen !== route; });
+    $$(".nav-item").forEach(function (b) {
+      if (b.dataset.nav === route) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    $("#crumbCurrent").textContent = LABELS[route];
+    if (route === "plantillas") renderTemplates();
+    if (route === "historial") renderHistory();
+    if (route === "lotes") renderBatch();
+    if (route === "resumen") renderResumen();
+    if (route === "configuracion") renderConfig();
+    if (route === "evaluar") renderEvaluate();
+    saveLocal();
+    try { window.scrollTo({ top: 0, behavior: "instant" }); } catch (e) { window.scrollTo(0, 0); }
+  }
+
+  document.addEventListener("click", function (e) {
+    var nav = e.target.closest("[data-nav]");
+    if (nav) { go(nav.dataset.nav); return; }
+    var copy = e.target.closest("[data-copy]");
+    if (copy) { copyText(copy.dataset.copy); return; }
+    var copyTarget = e.target.closest("[data-copy-target]");
+    if (copyTarget) {
+      var el = $("#" + copyTarget.dataset.copyTarget);
+      if (el) copyText(el.textContent.replace(/^\$\s?/, ""));
+    }
+  });
+
+  /* ── resumen ─────────────────────────────────────────────────────── */
+  function statsFrom(rows) {
+    var ok = rows.filter(function (r) { return r.ok; }).length;
+    var inTok = 0, outTok = 0, cost = 0;
+    rows.forEach(function (r) {
+      inTok += r.inTok || 0;
+      outTok += r.outTok || 0;
+      if (r.cost) cost += r.cost;
+    });
+    return { total: rows.length, ok: ok, rate: rows.length ? (ok / rows.length) * 100 : 0, inTok: inTok, outTok: outTok, cost: cost };
+  }
+
+  function statusPill(r) {
+    if (r.ok) return '<span class="pill pill-ok">200</span>';
+    if (r.status === 429) return '<span class="pill pill-warn">429</span>';
+    return '<span class="pill pill-err">' + r.status + "</span>";
+  }
+
+  function renderResumen() {
+    var rows = state.history.slice(0, 30);
+    var s = statsFrom(rows);
+    $("#statStrip").innerHTML =
+      '<div class="stat" data-od-id="stat-requests"><div class="stat-label">Peticiones en requests</div><div class="stat-value">' + state.history.length + '</div><div class="stat-note">' + s.total + " en las últimas 30 evaluadas</div></div>" +
+      '<div class="stat" data-od-id="stat-success"><div class="stat-label">Tasa de éxito</div><div class="stat-value">' + s.rate.toFixed(1) + '%</div><div class="stat-note">' + s.ok + ' ok · ' + (s.total - s.ok) + ' con error</div></div>' +
+      '<div class="stat" data-od-id="stat-tokens"><div class="stat-label">Tokens</div><div class="stat-value">' + (s.inTok / 1000).toFixed(1) + 'k<small>in</small></div><div class="stat-note">' + (s.outTok / 1000).toFixed(1) + "k out · informados por la API</div></div>" +
+      '<div class="stat" data-od-id="stat-cost"><div class="stat-label">Coste acumulado</div><div class="stat-value">' + fmtCost(s.cost) + '</div><div class="stat-note">solo peticiones con coste informado</div></div>';
+
+    $("#recentRows").innerHTML = state.history.slice(0, 6).map(function (r) {
+      return '<tr class="clickable" data-open-history="' + r.id + '">' +
+        "<td class=\"cell-muted mono\" style=\"font-size:11.5px\">" + relTime(r.at) + "</td>" +
+        "<td>" + statusPill(r) + "</td>" +
+        '<td class="mono" style="font-size:11.5px">' + esc(r.model) + "</td>" +
+        "<td>" + (r.template ? '<span class="chip chip-soft" style="height:20px;font-size:10.5px">' + esc(r.template) + "</span>" : '<span class="cell-muted">—</span>') + "</td>" +
+        '<td class="num">' + (r.inTok === null ? "—" : r.inTok + " / " + r.outTok) + "</td>" +
+        '<td class="num">' + fmtCost(r.cost) + "</td>" +
+        '<td class="num">' + r.dur + "</td></tr>";
+    }).join("");
+
+    var shortcuts = [
+      { cmd: "jev demo", note: "ejemplo integrado" },
+      { cmd: "jev ask --state - --questions-file q.json", note: "state por stdin" },
+      { cmd: "jev batch pedido --contexts examples/contexts.json", note: "lote por contextos" }
+    ];
+    $("#shortcutList").innerHTML = shortcuts.map(function (s2) {
+      return '<div class="row" style="gap:8px;min-width:0"><code class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">' + esc(s2.cmd) + '</code><span class="hint" style="flex:none">' + esc(s2.note) + '</span><button class="icon-btn" data-copy="' + esc(s2.cmd) + '" aria-label="Copiar ' + esc(s2.cmd) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>';
+    }).join("");
+
+    $("#cfgModelView").textContent = state.config.model;
+    $("#cfgTimeoutView").textContent = state.config.timeout + " s";
+    $("#cfgRetriesView").textContent = state.config.retries;
+    $("#cfgKeyView").textContent = maskKey(state.config.api_key) + " · entorno";
+    $("#providerModel").textContent = state.config.model;
+  }
+
+  document.addEventListener("click", function (e) {
+    var row = e.target.closest("[data-open-history]");
+    if (row) {
+      state.selectedHistory = Number(row.dataset.openHistory);
+      state.histTab = "report";
+      go("historial");
+    }
+  });
+
+  function maskKey(k) {
+    if (!k) return "—";
+    if (k.length <= 8) return k;
+    return k.slice(0, 4) + "…" + k.slice(-3);
+  }
+
+  /* ── evaluar ─────────────────────────────────────────────────────── */
+  function buildQuestion(q) {
+    var o = { type: q.type };
+    if (q.instructions) o.instructions = q.instructions;
+    if (q.type === "noul" && q.noulCriteria) o.criteria = q.noulCriteria;
+    if (q.type === "choice") {
+      var c = {};
+      q.criteria.forEach(function (r) { if (r.k) c[r.k] = r.v; });
+      if (Object.keys(c).length) o.criteria = c;
+    }
+    if (q.type === "score") {
+      var lv = q.levels.filter(function (l) { return l.trim() !== ""; });
+      if (lv.length) o.criteria = lv;
+    }
+    return o;
+  }
+
+  function buildState() {
+    var t = state.ask.text.trim();
+    if (t.charAt(0) === "{" || t.charAt(0) === "[") {
+      try { return { value: JSON.parse(t), kind: "JSON", error: null }; } catch (err) { return { value: t, kind: "texto", error: "JSON inválido: se enviará como texto" }; }
+    }
+    return { value: t, kind: t === "" ? "vacío" : "texto", error: null };
+  }
+
+  function buildRequest() {
+    var questions = {};
+    state.ask.questions.forEach(function (q) {
+      if (q.name.trim()) questions[q.name.trim()] = buildQuestion(q);
+    });
+    return { model: state.ask.model, state: buildState().value, questions: questions };
+  }
+
+  function askCliLine() {
+    var st = state.ask.text.trim();
+    var stArg = st.charAt(0) === "{" || st.charAt(0) === "[" ? "--state '" + st + "'" : '--state "' + st + '"';
+    var qs = {};
+    state.ask.questions.forEach(function (q) { if (q.name.trim()) qs[q.name.trim()] = buildQuestion(q); });
+    var line = "jev ask " + stArg + " --questions '" + JSON.stringify(qs) + "'";
+    if (state.ask.model !== "jev-1.13") line += " --model " + state.ask.model;
+    if (!state.ask.save) line += " --no-save";
+    return line;
+  }
+
+  function renderQuestions() {
+    var wrap = $("#questionList");
+    wrap.innerHTML = state.ask.questions.map(function (q, i) {
+      var crit = "";
+      if (q.type === "choice") {
+        crit = '<div class="crit-list">' + q.criteria.map(function (r, j) {
+          return '<div class="crit-row"><input class="input k" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="k" value="' + esc(r.k) + '" placeholder="clave" aria-label="Clave del criterio ' + (j + 1) + '" /><input class="input v" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="v" value="' + esc(r.v) + '" placeholder="descripción" aria-label="Descripción del criterio ' + (j + 1) + '" /><button class="icon-btn" data-critdel="' + i + "." + j + '" aria-label="Quitar criterio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
+        }).join("") + "</div>" +
+          '<button class="btn btn-ghost btn-sm" data-critadd="' + i + '" style="align-self:flex-start">+ criterio</button>';
+      } else if (q.type === "score") {
+        crit = '<div class="crit-list">' + q.levels.map(function (l, j) {
+          return '<div class="crit-row"><span class="crit-index">' + j + '</span><input class="input v" data-qi="' + i + '" data-lvl="' + j + '" value="' + esc(l) + '" placeholder="nivel ' + j + '" aria-label="Nivel ' + j + '" /><button class="icon-btn" data-lvldel="' + i + "." + j + '" aria-label="Quitar nivel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
+        }).join("") + "</div>" +
+          '<button class="btn btn-ghost btn-sm" data-lvladd="' + i + '" style="align-self:flex-start">+ nivel</button>';
+      } else {
+        crit = '<input class="input" data-qi="' + i + '" data-noulcrit="1" value="' + esc(q.noulCriteria) + '" placeholder="Criterio de decisión (opcional)" aria-label="Criterio" />';
+      }
+      return '<div class="qcard">' +
+        '<div class="qcard-head">' +
+        '<input class="input" data-qi="' + i + '" data-qname="1" value="' + esc(q.name) + '" aria-label="Nombre de la pregunta ' + (i + 1) + '" />' +
+        '<select class="select" data-qi="' + i + '" data-qtype="1" aria-label="Tipo de la pregunta ' + (i + 1) + '">' +
+        ["noul", "choice", "score"].map(function (t) { return '<option value="' + t + '"' + (q.type === t ? " selected" : "") + ">" + t + "</option>"; }).join("") +
+        "</select>" +
+        '<button class="icon-btn" data-qdel="' + i + '" aria-label="Eliminar pregunta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+        "</div>" +
+        '<textarea class="textarea" rows="2" data-qi="' + i + '" data-qinstr="1" placeholder="Instrucciones para el modelo">' + esc(q.instructions) + "</textarea>" +
+        crit +
+        "</div>";
+    }).join("");
+    $("#qCount").textContent = state.ask.questions.length + (state.ask.questions.length === 1 ? " pregunta" : " preguntas");
+  }
+
+  function syncAskCli() {
+    var el = $("#askCli");
+    if (el) el.innerHTML = '<span class="prompt">$</span>' + esc(askCliLine());
+    var kind = buildState();
+    $("#stateKind").textContent = kind.error ? "JSON inválido" : kind.kind;
+    $("#stateHint").innerHTML = kind.error
+      ? '<span style="color:var(--danger-text)">' + esc(kind.error) + "</span>"
+      : "Si empieza por <code>{</code> o <code>[</code> se envía como JSON; si no, como string.";
+  }
+
+  function renderEvaluate() {
+    $("#stateInput").value = state.ask.text;
+    $("#askModel").value = state.ask.model;
+    $("#saveRun").checked = state.ask.save;
+    renderQuestions();
+    syncAskCli();
+    renderResult();
+  }
+
+  $("#questionList").addEventListener("input", function (e) {
+    var t = e.target;
+    var i = Number(t.dataset.qi);
+    if (isNaN(i) || !state.ask.questions[i]) return;
+    var q = state.ask.questions[i];
+    if (t.dataset.qname) q.name = t.value;
+    else if (t.dataset.qinstr) q.instructions = t.value;
+    else if (t.dataset.noulcrit) q.noulCriteria = t.value;
+    else if (t.dataset.qcrit !== undefined && t.dataset.cfield) q.criteria[Number(t.dataset.qcrit)][t.dataset.cfield] = t.value;
+    else if (t.dataset.lvl !== undefined) q.levels[Number(t.dataset.lvl)] = t.value;
+    syncAskCli();
+  });
+
+  $("#questionList").addEventListener("change", function (e) {
+    var t = e.target;
+    if (!t.dataset.qtype) return;
+    var i = Number(t.dataset.qi);
+    var q = state.ask.questions[i];
+    q.type = t.value;
+    if (q.type === "choice" && q.criteria.length === 0) q.criteria = [{ k: "opcion_a", v: "Primera opción" }, { k: "opcion_b", v: "Segunda opción" }];
+    if (q.type === "score" && q.levels.length === 0) q.levels = ["Bajo", "Medio", "Alto"];
+    renderQuestions();
+    syncAskCli();
+  });
+
+  $("#questionList").addEventListener("click", function (e) {
+    var del = e.target.closest("[data-qdel]");
+    if (del) {
+      if (state.ask.questions.length <= 1) { toast("Necesitas al menos una pregunta"); return; }
+      state.ask.questions.splice(Number(del.dataset.qdel), 1);
+      renderQuestions(); syncAskCli(); return;
+    }
+    var cadd = e.target.closest("[data-critadd]");
+    if (cadd) { state.ask.questions[Number(cadd.dataset.critadd)].criteria.push({ k: "", v: "" }); renderQuestions(); syncAskCli(); return; }
+    var cdel = e.target.closest("[data-critdel]");
+    if (cdel) {
+      var p = cdel.dataset.critdel.split(".");
+      state.ask.questions[Number(p[0])].criteria.splice(Number(p[1]), 1);
+      renderQuestions(); syncAskCli(); return;
+    }
+    var ladd = e.target.closest("[data-lvladd]");
+    if (ladd) { state.ask.questions[Number(ladd.dataset.lvladd)].levels.push(""); renderQuestions(); syncAskCli(); return; }
+    var ldel = e.target.closest("[data-lvldel]");
+    if (ldel) {
+      var p2 = ldel.dataset.lvldel.split(".");
+      state.ask.questions[Number(p2[0])].levels.splice(Number(p2[1]), 1);
+      renderQuestions(); syncAskCli(); return;
+    }
+  });
+
+  $("#addQuestion").addEventListener("click", function () {
+    var n = state.ask.questions.length + 1;
+    state.ask.questions.push({ name: "pregunta_" + n, type: "noul", instructions: "", noulCriteria: "", criteria: [], levels: [] });
+    renderQuestions();
+    syncAskCli();
+    var cards = $$("#questionList .qcard");
+    var last = cards[cards.length - 1];
+    if (last) { var inp = $("[data-qname]", last); if (inp) inp.focus(); }
+  });
+
+  $("#stateInput").addEventListener("input", function (e) { state.ask.text = e.target.value; syncAskCli(); saveLocal(); });
+  $("#askModel").addEventListener("change", function (e) { state.ask.model = e.target.value; syncAskCli(); saveLocal(); });
+  $("#saveRun").addEventListener("change", function (e) { state.ask.save = e.target.checked; syncAskCli(); });
+
+  $("#loadExample").addEventListener("click", function () {
+    state.ask.text = TICKET_STATE;
+    $("#stateInput").value = TICKET_STATE;
+    state.ask.questions = [
+      { name: "billing", type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?", noulCriteria: "", criteria: [], levels: [] },
+      { name: "team", type: "choice", instructions: "¿Qué equipo debería gestionar la incidencia?", noulCriteria: "", criteria: [{ k: "billing", v: "Cobros, facturas o pagos" }, { k: "infra", v: "Caídas, errores 500 o problemas de plataforma" }, { k: "sales", v: "Precios o dudas comerciales" }], levels: [] },
+      { name: "urgency", type: "score", instructions: "¿Cómo de urgente es la incidencia?", noulCriteria: "", criteria: [], levels: ["Puede esperar", "Esta semana", "Hoy mismo"] }
+    ];
+    state.ask.result = null;
+    renderQuestions(); syncAskCli(); renderResult();
+    toast("Ejemplo del ticket cargado");
+  });
+
+  function simulate(req, ms) {
+    var seed = JSON.stringify(req.state) + JSON.stringify(req.questions) + req.model;
+    var answers = {};
+    Object.keys(req.questions).forEach(function (name, qi) {
+      var q = req.questions[name];
+      var h = hash(seed + name + qi);
+      if (q.type === "noul") {
+        answers[name] = { type: "noul", noul: Math.min(0.99, Math.max(0.02, Number((0.1 + h * 0.88).toFixed(2)))) };
+      } else if (q.type === "choice") {
+        var keys = Object.keys(q.criteria || {});
+        if (!keys.length) keys = ["si", "no"];
+        var raw = keys.map(function (k, idx) { return 0.15 + hash(seed + name + k + idx) * 0.85; });
+        var sum = raw.reduce(function (a, b) { return a + b; }, 0);
+        var probs = {};
+        keys.forEach(function (k, idx) { probs[k] = Number((raw[idx] / sum).toFixed(2)); });
+        var best = keys[0];
+        keys.forEach(function (k) { if (probs[k] > probs[best]) best = k; });
+        answers[name] = { type: "choice", choice: best, confidence: probs[best], probabilities: probs };
+      } else {
+        var levels = q.criteria || ["Bajo", "Medio", "Alto"];
+        var lraw = levels.map(function (l, idx) { return 0.1 + hash(seed + name + l + idx) * 0.9; });
+        var lsum = lraw.reduce(function (a, b) { return a + b; }, 0);
+        var lp = {};
+        var mean = 0;
+        levels.forEach(function (l, idx) {
+          lp[l] = Number((lraw[idx] / lsum).toFixed(2));
+          mean += (lraw[idx] / lsum) * idx;
+        });
+        var legend = {};
+        levels.forEach(function (l, idx) { legend[String(idx)] = l; });
+        answers[name] = { type: "score", score: Number(mean.toFixed(2)), legend: legend, probabilities: lp };
+      }
+    });
+    var inTok = tokenize(JSON.stringify(req.state)) + tokenize(JSON.stringify(req.questions)) + 40;
+    var outTok = Math.max(18, Math.round(Object.keys(answers).length * 26));
+    return {
+      model: req.model,
+      answers: answers,
+      usage: { input_tokens: inTok, output_tokens: outTok, cost: Number(((inTok + outTok) * 3.6e-8).toFixed(9)) },
+      duration: ms
+    };
+  }
+
+  var DEMO_RESULT = {
+    model: "jev-1.13",
+    answers: {
+      frustration: { type: "score", score: 1.99, legend: { "0": "Tranquilo", "1": "Molesto", "2": "Muy enfadado" }, confidence: 0.98, probabilities: { "0": 0, "1": 0.01, "2": 0.99 } },
+      is_urgent: { type: "noul", noul: 0.99 },
+      team: { type: "choice", choice: "infra", confidence: 0.59, probabilities: { infra: 0.73, billing: 0.27, sales: 0 } }
+    },
+    usage: { input_tokens: 449, output_tokens: 73, cost: 1.886e-5 },
+    duration: 812
+  };
+
+  function answerCard(name, a, question) {
+    var head = '<div class="answer-head"><span class="answer-name">' + esc(name) + '</span><span class="answer-type">' + esc(a.type) + "</span>";
+    var instr = question && question.instructions ? '<p class="answer-q">' + esc(question.instructions) + "</p>" : "";
+    if (a.type === "noul") {
+      var p = a.noul === undefined ? 0 : a.noul;
+      return '<div class="answer">' + head + '<span class="answer-big">' + p.toFixed(2) + "</span></div>" + instr +
+        '<div class="bar lg" role="img" aria-label="Probabilidad de sí: ' + p.toFixed(2) + '"><span style="width:' + (p * 100).toFixed(1) + '%"></span></div>' +
+        '<div class="prob-row"><span class="p-label">sí</span><span></span><span class="p-val">' + p.toFixed(2) + "</span></div>" +
+        '<div class="prob-row"><span class="p-label cell-muted">no</span><span></span><span class="p-val">' + (1 - p).toFixed(2) + "</span></div>" +
+        "</div>";
+    }
+    if (a.type === "choice") {
+      var probs = a.probabilities || {};
+      var keys = Object.keys(probs).sort(function (x, y) { return probs[y] - probs[x]; });
+      var rows = keys.map(function (k) {
+        var label = question && question.criteria && question.criteria[k] ? question.criteria[k] : k;
+        return '<div class="prob-row' + (k === a.choice ? " is-lead" : "") + '"><span class="p-label" title="' + esc(label) + '">' + esc(label) + '</span><span class="bar"><span style="width:' + (probs[k] * 100).toFixed(1) + '%"></span></span><span class="p-val">' + probs[k].toFixed(2) + "</span></div>";
+      }).join("");
+      return '<div class="answer">' + head + '<span class="answer-big" style="font-size:13px;font-family:var(--font-mono)">' + esc(a.choice || "—") + "</span></div>" + instr +
+        '<div class="legend-line">confianza <strong>' + (a.confidence === undefined ? "—" : a.confidence.toFixed(2)) + "</strong></div>" + rows + "</div>";
+    }
+    var legend = a.legend || {};
+    var levels = Object.keys(legend).sort(function (x, y) { return Number(x) - Number(y); });
+    var nearest = levels.length ? legend[levels[Math.round(a.score || 0)]] : "";
+    var exact = a.score !== undefined && Number.isInteger(a.score);
+    var lrows = levels.map(function (k) {
+      var p = a.probabilities ? a.probabilities[k] : undefined;
+      return '<div class="prob-row"><span class="p-label" title="' + esc(legend[k]) + '">' + esc(legend[k]) + '</span><span class="bar"><span style="width:' + ((p || 0) * 100).toFixed(1) + '%"></span></span><span class="p-val">' + (p === undefined ? "—" : p.toFixed(2)) + "</span></div>";
+    }).join("");
+    return '<div class="answer">' + head + '<span class="answer-big">' + (a.score === undefined ? "?" : a.score.toFixed(2)) + "</span></div>" + instr +
+      '<div class="legend-line">nivel <strong>' + (exact ? "" : "≈ ") + esc(nearest) + "</strong>" + (a.confidence !== undefined ? " · confianza " + a.confidence.toFixed(2) : "") + "</div>" + lrows + "</div>";
+  }
+
+  function renderResult() {
+    var body = $("#resultBody");
+    var tabs = $("#resultTabs");
+    var r = state.ask.result;
+    if (!r) {
+      tabs.hidden = true;
+      body.innerHTML = '<div class="empty" style="border:0;padding-top:80px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg><strong>Sin resultados todavía</strong><span>Ejecuta una evaluación o el demo integrado para ver las probabilidades por pregunta.</span></div>';
+      return;
+    }
+    tabs.hidden = false;
+    $$("#resultTabs [data-res-tab]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.resTab === state.resultTab));
+      b.style.color = b.dataset.resTab === state.resultTab ? "var(--fg)" : "var(--muted)";
+      b.style.background = b.dataset.resTab === state.resultTab ? "var(--fg-soft)" : "transparent";
+    });
+    if (state.resultTab === "json") {
+      body.innerHTML = jsonBlock({ model: r.model, answers: r.answers, usage: r.usage });
+      return;
+    }
+    var meta = '<div class="result-meta" style="margin-bottom:10px">' +
+      '<span>modelo <b>' + esc(r.model) + "</b></span>" +
+      '<span>estado <b>200</b></span>' +
+      '<span><b>' + r.usage.input_tokens + "</b> in / <b>" + r.usage.output_tokens + "</b> out</span>" +
+      '<span>coste <b>' + fmtCost(r.usage.cost) + "</b></span>" +
+      '<span><b>' + r.duration + " ms</b></span>" +
+      (state.ask.demo ? '<span class="chip chip-soft" style="height:18px">demo</span>' : "") +
+      (!state.ask.save && !state.ask.demo ? '<span class="chip chip-soft" style="height:18px">--no-save</span>' : "") +
+      "</div>";
+    var cards = Object.keys(r.answers).sort().map(function (name) {
+      var q = null;
+      state.ask.questions.forEach(function (x) { if (x.name === name) q = buildQuestion(x); });
+      return answerCard(name, r.answers[name], q);
+    }).join("");
+    body.innerHTML = meta + '<div class="stack" style="gap:9px">' + cards + "</div>";
+  }
+
+  $$("#resultTabs [data-res-tab]").forEach(function (b) {
+    b.addEventListener("click", function () { state.resultTab = b.dataset.resTab; renderResult(); });
+  });
+
+  async function run(demo) {
+    var btn = demo ? $("#runDemo") : $("#runAsk");
+    if ($("#runAsk").disabled) return;
+    $("#runAsk").disabled = true;
+    btn.textContent = "Ejecutando…";
+    await sleep(520);
+    var req = buildRequest();
+    if (!demo && Object.keys(req.questions).length === 0) {
+      toast("Añade al menos una pregunta con nombre");
+      $("#runAsk").disabled = false; btn.textContent = demo ? "Ejecutar demo" : "Evaluar";
+      return;
+    }
+    var res = demo ? JSON.parse(JSON.stringify(DEMO_RESULT)) : simulate(req, 600 + Math.round(Math.random() * 700));
+    state.ask.result = res;
+    state.ask.demo = demo;
+    state.resultTab = "report";
+    if (state.ask.save) {
+      var id = Math.max.apply(null, state.history.map(function (h) { return h.id; })) + 1;
+      state.history.unshift({
+        id: id, at: Date.now(), createdAt: iso(Date.now()), ok: true, status: 200,
+        model: res.model, template: null, batchId: null,
+        inTok: res.usage.input_tokens, outTok: res.usage.output_tokens, cost: res.usage.cost,
+        dur: res.duration, request: demo ? { model: "jev-1.13", state: "(demo integrado)", questions: {} } : req,
+        response: { model: res.model, answers: res.answers, usage: res.usage },
+        endpoint: state.config.api_url
+      });
+      $("#navHistCount").textContent = state.history.length;
+    }
+    $("#runAsk").disabled = false;
+    btn.textContent = demo ? "Ejecutar demo" : "Evaluar";
+    renderResult();
+    toast(demo ? "Demo ejecutado" : "Evaluación completada");
+    if (!state.ask.save) toast("Esta ejecución no se ha guardado");
+  }
+
+  $("#runAsk").addEventListener("click", function () { run(false); });
+  $("#runDemo").addEventListener("click", function () { run(true); });
+
+  /* ── plantillas ──────────────────────────────────────────────────── */
+  function detectMacros(body) {
+    var keys = [];
+    (function walk(v) {
+      if (typeof v === "string") {
+        var re = /(^|[^\\])\{\{\s*([^}]+?)\s*\}\}/g, m;
+        while ((m = re.exec(v))) { if (keys.indexOf(m[2]) < 0) keys.push(m[2]); }
+      } else if (Array.isArray(v)) { v.forEach(walk); }
+      else if (v && typeof v === "object") { Object.keys(v).forEach(function (k) { walk(v[k]); }); }
+    })(body);
+    return keys.sort();
+  }
+
+  function tplBodyText(t) { return t.bodyText !== undefined ? t.bodyText : jsonPretty(t.body); }
+
+  function validateBody(text) {
+    try {
+      var parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "la plantilla debe ser un objeto JSON", parsed: null };
+      if (parsed.model === undefined || typeof parsed.model !== "string" || parsed.model === "") return { ok: false, error: "la plantilla no tiene model", parsed: parsed };
+      if (parsed.state === undefined) return { ok: false, error: "la plantilla no tiene state", parsed: parsed };
+      var qs = parsed.questions;
+      if (!qs || typeof qs !== "object" || Array.isArray(qs)) return { ok: false, error: "las preguntas deben ser un objeto JSON", parsed: parsed };
+      if (Object.keys(qs).length === 0) return { ok: false, error: "se necesita al menos una pregunta", parsed: parsed };
+      for (var i = 0; i < Object.keys(qs).length; i++) {
+        var k = Object.keys(qs)[i];
+        var q = qs[k];
+        if (!q || typeof q.type !== "string" || q.type === "") return { ok: false, error: 'la pregunta "' + k + '" no tiene type', parsed: parsed };
+        if (["noul", "choice", "score"].indexOf(q.type) < 0) return { ok: false, error: 'la pregunta "' + k + '" usa un tipo no soportado: "' + q.type + '" (usa noul, choice o score)', parsed: parsed };
+      }
+      return { ok: true, error: null, parsed: parsed };
+    } catch (e) {
+      return { ok: false, error: "JSON inválido en la plantilla: " + e.message, parsed: null };
+    }
+  }
+
+  function resolveMacros(value, ctx, missing) {
+    if (typeof value === "string") {
+      var whole = value.match(/^\{\{\s*([^}]+?)\s*\}\}$/);
+      if (whole) {
+        var found = lookup(ctx, whole[1]);
+        if (!found.found) { if (missing.indexOf(whole[1]) < 0) missing.push(whole[1]); return value; }
+        return found.value;
+      }
+      return value.replace(/(^|[^\\])\{\{\s*([^}]+?)\s*\}\}/g, function (m, pre, key) {
+        var f = lookup(ctx, key);
+        if (!f.found) { if (missing.indexOf(key) < 0) missing.push(key); return m; }
+        return pre + (typeof f.value === "object" ? JSON.stringify(f.value) : String(f.value));
+      });
+    }
+    if (Array.isArray(value)) return value.map(function (v) { return resolveMacros(v, ctx, missing); });
+    if (value && typeof value === "object") {
+      var out = {};
+      Object.keys(value).forEach(function (k) { out[k] = resolveMacros(value[k], ctx, missing); });
+      return out;
+    }
+    return value;
+  }
+
+  function lookup(ctx, path) {
+    if (ctx && Object.prototype.hasOwnProperty.call(ctx, path)) return { found: true, value: ctx[path] };
+    var cur = ctx;
+    var parts = path.split(".");
+    for (var i = 0; i < parts.length; i++) {
+      if (cur && typeof cur === "object" && Object.prototype.hasOwnProperty.call(cur, parts[i])) { cur = cur[parts[i]]; continue; }
+      return { found: false, value: undefined };
+    }
+    return { found: true, value: cur };
+  }
+
+  function currentTemplate() {
+    for (var i = 0; i < state.templates.length; i++) if (state.templates[i].name === state.selectedTemplate) return state.templates[i];
+    return state.templates[0] || null;
+  }
+
+  function renderTemplateList() {
+    var q = state.tplSearch.trim().toLowerCase();
+    var rows = state.templates.filter(function (t) {
+      return !q || t.name.toLowerCase().indexOf(q) >= 0 || (t.description || "").toLowerCase().indexOf(q) >= 0;
+    });
+    $("#tplList").innerHTML = rows.length ? rows.map(function (t) {
+      var macros = t.draft ? [] : detectMacros(JSON.parse(jsonPretty(t.body)));
+      return '<button class="tpl-item" role="option" data-tpl="' + esc(t.name) + '" aria-selected="' + (t.name === state.selectedTemplate) + '">' +
+        '<span class="t-name">' + esc(t.name) + (t.isNew ? '<span class="pill pill-warn" style="height:18px">sin guardar</span>' : "") + "</span>" +
+        '<span class="t-desc">' + esc(t.description || "Sin descripción") + "</span>" +
+        '<span class="t-meta"><span>' + relTime(t.updated) + "</span><span>·</span><span>" + macros.length + " macros</span></span>" +
+        "</button>";
+    }).join("") : '<div class="empty" style="border:0;margin:12px"><span>Ninguna plantilla coincide con «' + esc(state.tplSearch) + "».</span></div>";
+    $("#tplCount").textContent = state.templates.length + " plantillas";
+    $("#navTplCount").textContent = state.templates.length;
+  }
+
+  function renderTemplates() {
+    var t = currentTemplate();
+    renderTemplateList();
+    var detail = $("#tplDetail");
+    if (!t) {
+      detail.innerHTML = '<div class="empty">No hay plantillas. Crea la primera con <code>jev template create</code>.</div>';
+      return;
+    }
+    var bodyText = tplBodyText(t);
+    var v = validateBody(bodyText);
+    var macros = v.parsed ? detectMacros(v.parsed) : [];
+    var tab = state.tplTab;
+    var tabsHtml = '<div class="tabs" role="tablist">' +
+      [["editor", "Editor"], ["render", "Renderizar"], ["macros", "Macros"]].map(function (x) {
+        return '<button class="tab" role="tab" aria-selected="' + (tab === x[0]) + '" data-tpltab="' + x[0] + '">' + x[1] + "</button>";
+      }).join("") + "</div>";
+
+    var head = '<div class="panel-head" style="align-items:flex-start;padding:12px 14px">' +
+      '<div style="min-width:0;display:flex;flex-direction:column;gap:6px;flex:1">' +
+      '<input class="input mono" id="tplName" value="' + esc(t.name) + '" aria-label="Nombre de la plantilla" style="height:30px;font-weight:600;font-size:13px" />' +
+      '<input class="input" id="tplDesc" value="' + esc(t.description || "") + '" placeholder="Descripción" aria-label="Descripción de la plantilla" style="height:28px;font-size:12.5px" />' +
+      "</div>" +
+      '<div class="row" style="gap:6px;flex:none">' +
+      '<button class="btn btn-outline btn-sm" id="validateTpl">Validar</button>' +
+      '<button class="btn btn-ghost btn-sm" id="deleteTpl">Eliminar</button>' +
+      "</div></div>";
+
+    var meta = '<div class="panel-body" style="padding:9px 14px;border-bottom:1px solid var(--border)"><div class="result-meta">' +
+      "<span>creada <b>" + shortDate(t.created) + "</b></span>" +
+      "<span>actualizada <b>" + shortDate(t.updated) + "</b></span>" +
+      "<span><b>" + macros.length + "</b> macros</span>" +
+      "<span>tabla <b>templates</b></span>" +
+      "</div></div>";
+    var shownText = t.bodyText !== undefined ? t.bodyText : bodyText;
+
+    var content = "";
+    if (tab === "editor") {
+      content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:9px">' +
+        '<textarea class="textarea" id="tplBody" rows="15" spellcheck="false" aria-label="Body JSON de la plantilla">' + esc(shownText) + "</textarea>" +
+        '<div class="row-between"><span class="hint" id="tplValid">' + (v.ok ? '<span style="color:var(--ok-text)">JSON válido · ' + macros.length + " macros</span>" : '<span style="color:var(--danger-text)">' + esc(v.error) + "</span>") + "</span>" +
+        '<button class="btn btn-primary btn-sm" id="saveTpl">Guardar</button></div>' +
+        "</div>";
+    } else if (tab === "render") {
+      content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:10px">' +
+        '<div class="field"><label for="renderCtx">Contexto (JSON)</label>' +
+        '<textarea class="textarea" id="renderCtx" rows="7" spellcheck="false" aria-label="Contexto para resolver las macros">' + esc(jsonPretty(EXAMPLE_CONTEXT)) + "</textarea></div>" +
+        '<div class="row-between"><span class="hint">Resuelve las macros y valida el request sin enviarlo.</span><button class="btn btn-outline btn-sm" id="doRender">Renderizar</button></div>' +
+        '<div id="renderOut"></div></div>';
+    } else {
+      content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:12px">' +
+        '<p class="hint">Macros detectadas en el body. Cada una se resuelve con el mapa de contexto y admite rutas anidadas.</p>' +
+        '<div class="chip-row" id="macroChips">' + (macros.length ? macros.map(function (m) { return '<span class="chip mono">{{' + esc(m) + "}}</span>"; }).join("") : '<span class="hint">Sin macros.</span>') + "</div>" +
+        '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>Si falta una macro, el comando falla antes de llamar a la API y lista todas las claves ausentes.</span></div>' +
+        '<div class="field"><label>Fichero de referencia</label><code class="mono" style="font-size:11.5px">examples/context.json</code></div>' +
+        "</div>";
+    }
+
+    detail.innerHTML = head + meta + tabsHtml + content;
+
+    $("#tplName").addEventListener("input", syncTplCli);
+    var body = $("#tplBody");
+    if (body) {
+      body.addEventListener("input", function (e) {
+        t.bodyText = e.target.value;
+        var v2 = validateBody(e.target.value);
+        var out = $("#tplValid");
+        out.innerHTML = v2.ok
+          ? '<span style="color:var(--ok-text)">JSON válido · ' + (v2.parsed ? detectMacros(v2.parsed).length : 0) + " macros</span>"
+          : '<span style="color:var(--danger-text)">' + esc(v2.error) + "</span>";
+        syncTplCli();
+      });
+    }
+    var save = $("#saveTpl");
+    if (save) save.addEventListener("click", function () { saveTemplate(t); });
+    var val = $("#validateTpl");
+    if (val) val.addEventListener("click", function () {
+      commitTemplateIdentity(t);
+      var v3 = validateBody(tplBodyText(t));
+      toast(v3.ok ? "Plantilla válida" : "Error: " + v3.error);
+      renderTemplates();
+    });
+    var del = $("#deleteTpl");
+    if (del) del.addEventListener("click", function () { commitTemplateIdentity(t); confirmDeleteTemplate(t); });
+    var dr = $("#doRender");
+    if (dr) dr.addEventListener("click", function () { commitTemplateIdentity(t); doRenderTemplate(t); });
+    $$("[data-tpltab]").forEach(function (b) {
+      b.addEventListener("click", function () { commitTemplateIdentity(t); state.tplTab = b.dataset.tpltab; renderTemplates(); });
+    });
+    $$("[data-tpl]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        commitTemplateIdentity(t);
+        state.selectedTemplate = b.dataset.tpl;
+        state.tplTab = "editor";
+        renderTemplates();
+      });
+    });
+    syncTplCli();
+  }
+
+  var EXAMPLE_CONTEXT = { estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.", cliente: { nombre: "Ana", plan: "pro" } };
+
+  function commitTemplateIdentity(t) {
+    if (!t) return;
+    var nameInput = $("#tplName");
+    var descInput = $("#tplDesc");
+    var pending = nameInput ? nameInput.value.trim() : undefined;
+    var pendingDesc = descInput ? descInput.value : undefined;
+    if (pending && pending !== t.name) {
+      if (state.templates.some(function (x) { return x !== t && x.name === pending; })) {
+        toast("Ya existe una plantilla con ese nombre");
+        if (nameInput) { nameInput.focus(); nameInput.select(); }
+        return;
+      }
+      t.name = pending;
+      t.updated = Date.now();
+      state.selectedTemplate = pending;
+    }
+    if (pendingDesc !== undefined && pendingDesc !== t.description) { t.description = pendingDesc; t.updated = Date.now(); }
+  }
+
+  function saveTemplate(t) {
+    commitTemplateIdentity(t);
+    var v = validateBody(tplBodyText(t));
+    if (!v.ok) { toast("Error: " + v.error); return; }
+    t.body = v.parsed;
+    t.bodyText = tplBodyText(t);
+    t.updated = Date.now();
+    t.isNew = false;
+    renderTemplates();
+    toast("Plantilla «" + t.name + "» guardada");
+  }
+
+  function doRenderTemplate(t) {
+    var out = $("#renderOut");
+    var ctxText = $("#renderCtx").value;
+    var ctx;
+    try { ctx = JSON.parse(ctxText); } catch (e) { out.innerHTML = '<div class="callout danger"><span>Contexto inválido: ' + esc(e.message) + "</span></div>"; return; }
+    var v = validateBody(tplBodyText(t));
+    if (!v.ok) { out.innerHTML = '<div class="callout danger"><span>' + esc(v.error) + "</span></div>"; return; }
+    var missing = [];
+    var resolved = resolveMacros(v.parsed, ctx, missing);
+    if (missing.length) {
+      var cmd = "jev template render " + t.name + " --context-file examples/context.json";
+      out.innerHTML = '<div class="callout danger" style="flex-direction:column;gap:4px"><span><strong>Faltan macros en el contexto:</strong> ' + esc(missing.join(", ")) + "</span><span>Comando: <code>" + esc(cmd) + "</code></span></div>";
+      return;
+    }
+    out.innerHTML = '<div class="panel-title" style="margin-bottom:6px">Request resuelto</div>' + jsonBlock(resolved);
+  }
+
+  function confirmDeleteTemplate(t) {
+    openModal("Eliminar plantilla", '<p style="font-size:13px;color:var(--muted)">Se borrará <strong style="color:var(--fg)">' + esc(t.name) + "</strong> de la tabla <code>templates</code>. La CLI pediría confirmación; con <code>--yes</code> no lo haría.</p>",
+      [{ label: "Cancelar", cls: "btn-outline", act: closeModal }, {
+        label: "Eliminar", cls: "btn-danger", act: function () {
+          state.templates = state.templates.filter(function (x) { return x !== t; });
+          state.selectedTemplate = state.templates[0] ? state.templates[0].name : null;
+          closeModal(); renderTemplates();
+          toast("Plantilla eliminada");
+        }
+      }]);
+  }
+
+  function syncTplCli() {
+    var t = currentTemplate();
+    if (!t) return;
+    var el = $("#tplCli");
+    var cmd = state.tplTab === "render"
+      ? 'jev template render ' + t.name + " --context-file examples/context.json"
+      : state.tplTab === "macros"
+        ? "jev template show " + t.name + " --json"
+        : "jev template edit " + t.name + " --file " + t.name + ".json";
+    el.innerHTML = '<span class="prompt">$</span>' + esc(cmd);
+  }
+
+  $("#tplSearch").addEventListener("input", function (e) { state.tplSearch = e.target.value; renderTemplateList(); });
+
+  $("#newTemplate").addEventListener("click", function () {
+    var n = 1, name = "nueva-plantilla";
+    while (state.templates.some(function (t) { return t.name === name; })) { n++; name = "nueva-plantilla-" + n; }
+    state.templates.unshift({
+      name: name, description: "", created: Date.now(), updated: Date.now(), isNew: true,
+      body: { model: "jev-1.13", state: "{{estado}}", questions: { q: { type: "noul", instructions: "¿…?" } } },
+      bodyText: '{\n  "model": "jev-1.13",\n  "state": "{{estado}}",\n  "questions": {\n    "q": { "type": "noul", "instructions": "¿…?" }\n  }\n}'
+    });
+    state.selectedTemplate = name;
+    state.tplTab = "editor";
+    state.tplSearch = "";
+    $("#tplSearch").value = "";
+    renderTemplates();
+    var nameInput = $("#tplName");
+    if (nameInput) { nameInput.focus(); nameInput.select(); }
+    toast("Plantilla nueva sin guardar");
+  });
+
+  /* ── lotes ───────────────────────────────────────────────────────── */
+  var BATCH_CONTEXTS = [
+    { estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.", cliente: { nombre: "Ana", plan: "pro" } },
+    { estado_de_pedido: "El checkout se queda colgado al pagar.", cliente: { nombre: "Luis", plan: "free" } },
+    { estado_de_pedido: "No me llega la factura de este mes.", cliente: { nombre: "Marta", plan: "pro" } },
+    { estado_de_pedido: "Quiero cambiar el titular de la cuenta." }
+  ];
+
+  function renderBatch() {
+    var sel = $("#batchTemplate");
+    sel.innerHTML = state.templates.map(function (t) { return '<option value="' + esc(t.name) + '">' + esc(t.name) + "</option>"; }).join("");
+    sel.value = state.batch.template || state.selectedTemplate || (state.templates[0] && state.templates[0].name);
+    state.batch.template = sel.value;
+    if (!$("#batchContexts").value) $("#batchContexts").value = jsonPretty(BATCH_CONTEXTS);
+    $("#concValue").textContent = state.batch.concurrency;
+    $("#failFast").checked = state.batch.failFast;
+    validateContexts();
+    syncBatchCli();
+    renderBatchBody();
+  }
+
+  function validateContexts() {
+    var txt = $("#batchContexts").value;
+    var hint = $("#contextsHint");
+    try {
+      var arr = JSON.parse(txt);
+      if (!Array.isArray(arr)) { hint.innerHTML = '<span style="color:var(--danger-text)">Debe ser un array de mapas de contexto.</span>'; return null; }
+      var bad = arr.filter(function (x) { return !x || typeof x !== "object" || Array.isArray(x); }).length;
+      hint.innerHTML = bad
+        ? '<span style="color:var(--danger-text)">' + bad + " elementos no son objetos.</span>"
+        : arr.length + " contextos · <code>--contexts</code> espera un array de mapas";
+      return arr;
+    } catch (e) {
+      hint.innerHTML = '<span style="color:var(--danger-text)">JSON inválido: ' + esc(e.message) + "</span>";
+      return null;
+    }
+  }
+
+  function syncBatchCli() {
+    var t = $("#batchTemplate").value || "plantilla";
+    var cmd = "jev batch " + t + " --contexts examples/contexts.json --concurrency " + state.batch.concurrency + (state.batch.failFast ? " --fail-fast" : "");
+    $("#batchCli").innerHTML = '<span class="prompt">$</span>' + esc(cmd);
+  }
+
+  function renderBatchBody() {
+    var body = $("#batchBody");
+    if (!state.batch.items) {
+      body.innerHTML = '<div class="empty" style="border:0;padding-top:76px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3.5l8 4.2-8 4.2-8-4.2 8-4.2z"/><path d="M4 12.5l8 4.2 8-4.2"/></svg><strong>Sin ejecuciones</strong><span>Cada contexto del array produce una petición y una fila en el historial con el mismo <code>batch_id</code>.</span></div>';
+      $("#batchIdView").textContent = "sin batch";
+      return;
+    }
+    var items = state.batch.items;
+    var summary = state.batch.summary;
+    var rows = items.map(function (it) {
+      var pill = it.state === "pending" ? '<span class="pill pill-neutral">en cola</span>'
+        : it.state === "running" ? '<span class="pill pill-info">ejecutando</span>'
+          : it.state === "skipped" ? '<span class="pill pill-neutral">omitido</span>'
+            : it.ok ? '<span class="pill pill-ok">ok</span>' : '<span class="pill pill-err">error</span>';
+      var sub = it.state === "pending" || it.state === "running" ? "—"
+        : it.ok ? (it.inTok + " in / " + it.outTok + " out") + (it.cost ? " · " + fmtCost(it.cost) : "")
+          : "";
+      return '<div class="batch-item"><span class="b-idx">' + (it.index + 1) + "</span>" +
+        '<div class="b-body"><div class="b-title">' + pill + (it.model ? '<span class="mono" style="font-size:11px;color:var(--muted)">' + esc(it.model) + "</span>" : "") + "</div>" +
+        (it.error ? '<span class="b-error">' + esc(it.error) + "</span>" : '<span class="b-sub">' + esc(it.label) + "</span>") +
+        "</div>" +
+        '<span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">' + esc(sub) + "</span></div>";
+    }).join("");
+    var summaryHtml = summary ? '<div class="summary-grid">' +
+      '<div><div class="k">ok</div><div class="v">' + summary.ok + "</div></div>" +
+      '<div><div class="k">errores</div><div class="v">' + summary.errors + "</div></div>" +
+      '<div><div class="k">tokens</div><div class="v" style="font-size:13px">' + summary.inTok + " / " + summary.outTok + "</div></div>" +
+      '<div><div class="k">coste</div><div class="v" style="font-size:13px">' + fmtCost(summary.cost) + (summary.unknown ? ' <span style="color:var(--muted);font-size:10.5px">(' + summary.unknown + " s/informar)</span>" : "") + "</div></div>" +
+      "</div>" : "";
+    body.innerHTML = '<div class="panel-body tight" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' + rows + "</div>" + summaryHtml;
+    $("#batchIdView").textContent = state.batch.batchId ? "batch " + state.batch.batchId : "sin batch";
+  }
+
+  $("#concUp").addEventListener("click", function () {
+    state.batch.concurrency = Math.min(10, state.batch.concurrency + 1);
+    $("#concValue").textContent = state.batch.concurrency; syncBatchCli();
+  });
+  $("#concDown").addEventListener("click", function () {
+    state.batch.concurrency = Math.max(1, state.batch.concurrency - 1);
+    $("#concValue").textContent = state.batch.concurrency; syncBatchCli();
+  });
+  $("#failFast").addEventListener("change", function (e) { state.batch.failFast = e.target.checked; syncBatchCli(); });
+  $("#batchContexts").addEventListener("input", validateContexts);
+  $("#batchTemplate").addEventListener("change", function (e) { state.batch.template = e.target.value; syncBatchCli(); });
+
+  $("#runBatch").addEventListener("click", async function () {
+    if (state.batch.running) return;
+    var arr = validateContexts();
+    if (!arr) { toast("Corrige el JSON de contextos"); return; }
+    var tplName = $("#batchTemplate").value;
+    var tpl = state.templates.filter(function (t) { return t.name === tplName; })[0];
+    if (!tpl) { toast("Selecciona una plantilla"); return; }
+    var v = validateBody(tplBodyText(tpl));
+    if (!v.ok) { toast("La plantilla no es válida: " + v.error); return; }
+    var batchId = Math.random().toString(16).slice(2, 10);
+    state.batch.running = true;
+    state.batch.batchId = batchId;
+    state.batch.summary = null;
+    state.batch.items = arr.map(function (ctx, i) {
+      return { index: i, state: "pending", ok: false, error: null, model: null, inTok: 0, outTok: 0, cost: null, label: JSON.stringify(ctx).slice(0, 96) };
+    });
+    $("#runBatch").disabled = true;
+    $("#runBatch").textContent = "Ejecutando lote…";
+    renderBatchBody();
+    var halted = false;
+    var conc = state.batch.concurrency;
+    var okCount = 0, errCount = 0, inTok = 0, outTok = 0, cost = 0, unknown = 0;
+
+    for (var start = 0; start < state.batch.items.length; start += conc) {
+      if (halted) break;
+      var chunk = state.batch.items.slice(start, start + conc);
+      await Promise.all(chunk.map(async function (it) {
+        if (halted) { it.state = "skipped"; renderBatchBody(); return; }
+        it.state = "running"; renderBatchBody();
+        await sleep(240 + Math.random() * 260);
+        var missing = [];
+        var resolved = resolveMacros(v.parsed, arr[it.index], missing);
+        if (missing.length) {
+          it.state = "done"; it.ok = false; it.error = "faltan macros en el contexto: " + missing.join(", ");
+          errCount++;
+          if (state.batch.failFast) halted = true;
+        } else {
+          var qs = resolved.questions || {};
+          var res = simulate({ model: resolved.model || "jev-1.13", state: resolved.state, questions: qs }, 0);
+          it.state = "done"; it.ok = true; it.model = res.model;
+          it.inTok = res.usage.input_tokens; it.outTok = res.usage.output_tokens; it.cost = res.usage.cost;
+          okCount++; inTok += it.inTok; outTok += it.outTok; cost += it.cost || 0;
+          if (it.cost === null || it.cost === undefined) unknown++;
+        }
+        renderBatchBody();
+      }));
+      renderBatchBody();
+    }
+    state.batch.items.forEach(function (it) { if (it.state === "pending") { it.state = "skipped"; } });
+    state.batch.summary = { ok: okCount, errors: errCount, inTok: inTok, outTok: outTok, cost: cost, unknown: unknown };
+    state.batch.running = false;
+    $("#runBatch").disabled = false;
+    $("#runBatch").textContent = "Ejecutar lote";
+    renderBatchBody();
+    var idBase = Math.max.apply(null, state.history.map(function (h) { return h.id; }));
+    state.batch.items.forEach(function (it, i) {
+      if (!it.ok) return;
+      state.history.unshift({
+        id: idBase + 1 + i, at: Date.now() - i * 800, createdAt: iso(Date.now() - i * 800), ok: true, status: 200,
+        model: it.model, template: tplName, batchId: batchId, inTok: it.inTok, outTok: it.outTok, cost: it.cost,
+        dur: 700 + i * 40, request: { model: it.model, state: arr[it.index], questions: {} },
+        response: { model: it.model }, endpoint: state.config.api_url
+      });
+    });
+    state.history.sort(function (a, b) { return b.at - a.at; });
+    $("#navHistCount").textContent = state.history.length;
+    toast(errCount ? "Lote terminado con " + errCount + " error(es)" : "Lote completado: " + okCount + " ok");
+    if (errCount && state.batch.failFast) toast("Detenido por --fail-fast");
+  });
+
+  /* ── historial ───────────────────────────────────────────────────── */
+  function filteredHistory() {
+    var f = state.filters;
+    var rows = state.history.filter(function (r) {
+      if (f.status && String(r.status) !== f.status) return false;
+      if (f.model && r.model !== f.model) return false;
+      if (f.template && r.template !== f.template) return false;
+      if (f.since) {
+        var since = new Date(f.since + "T00:00:00").getTime();
+        if (r.at < since) return false;
+      }
+      return true;
+    });
+    return rows.slice(0, Math.max(1, Number(f.limit) || 50));
+  }
+
+  function renderHistory() {
+    var tplSel = $("#fTemplate");
+    var tpls = state.history.map(function (r) { return r.template; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+    tplSel.innerHTML = '<option value="">todas</option>' + tpls.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
+    $("#fSince").value = state.filters.since;
+    $("#fStatus").value = state.filters.status;
+    $("#fModel").value = state.filters.model;
+    $("#fTemplate").value = state.filters.template;
+    $("#fLimit").value = state.filters.limit;
+
+    var rows = filteredHistory();
+    $("#historyRows").innerHTML = rows.length ? rows.map(function (r) {
+      return '<tr class="clickable" data-open-history="' + r.id + '" aria-selected="' + (r.id === state.selectedHistory) + '">' +
+        '<td class="mono" style="font-size:11.5px">' + shortDate(r.at) + "</td>" +
+        "<td>" + statusPill(r) + "</td>" +
+        '<td class="mono" style="font-size:11px">' + esc(r.model) + "</td>" +
+        "<td>" + (r.template ? '<span class="chip chip-soft" style="height:19px;font-size:10.5px">' + esc(r.template) + "</span>" : '<span class="cell-muted">—</span>') + "</td>" +
+        '<td class="cell-muted mono" style="font-size:10.5px">' + (r.batchId ? esc(r.batchId) : "ask") + "</td>" +
+        '<td class="num">' + (r.inTok === null ? "—" : r.inTok + " / " + r.outTok) + "</td>" +
+        '<td class="num">' + fmtCost(r.cost) + "</td>" +
+        '<td class="num">' + r.dur + "</td></tr>";
+    }).join("") : '<tr><td colspan="8"><div class="empty" style="border:0">Ninguna petición cumple los filtros.</div></td></tr>';
+    $("#historyCount").textContent = rows.length + " de " + state.history.length + " peticiones";
+
+    var cli = "jev history list";
+    if (state.filters.status) cli += " --status " + state.filters.status;
+    if (state.filters.model) cli += " --model " + state.filters.model;
+    if (state.filters.template) cli += " --template " + state.filters.template;
+    if (state.filters.since) cli += " --since " + state.filters.since;
+    cli += " --limit " + state.filters.limit;
+    $("#histCli").innerHTML = '<span class="prompt">$</span>' + esc(cli);
+
+    renderHistoryDetail();
+  }
+
+  function renderHistoryDetail() {
+    var wrap = $("#historyDetail");
+    var r = state.history.filter(function (x) { return x.id === state.selectedHistory; })[0];
+    if (!r) { wrap.innerHTML = '<div class="panel"><div class="empty" style="border:0">Selecciona una petición de la tabla.</div></div>'; return; }
+    var tabs = '<div class="tabs" role="tablist">' +
+      [["report", "Petición"], ["response", "Respuesta"], ["error", "Error"]].map(function (x) {
+        return '<button class="tab" role="tab" aria-selected="' + (state.histTab === x[0]) + '" data-histtab="' + x[0] + '">' + x[1] + "</button>";
+      }).join("") + "</div>";
+    var body = "";
+    if (state.histTab === "response") body = '<div class="panel-body">' + jsonBlock(r.response) + "</div>";
+    else if (state.histTab === "error") body = '<div class="panel-body">' + (r.errorCode
+      ? '<div class="callout danger" style="flex-direction:column;gap:5px"><span><strong>' + esc(r.errorCode) + "</strong></span><span>" + esc(r.errorMessage) + "</span></div>" + '<div style="height:10px"></div>' + jsonBlock(r.response)
+      : '<div class="empty" style="border:0">Esta petición terminó con 200.</div>') + "</div>";
+    else body = '<div class="panel-body">' + jsonBlock(r.request) + "</div>";
+
+    var meta = '<div class="panel-body" style="border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px">' +
+      '<div class="row-between"><div class="row" style="gap:8px">' + statusPill(r) + '<span class="mono" style="font-size:12px;font-weight:600">#' + r.id + "</span></div>" +
+      '<button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copiar JSON</button></div>' +
+      '<dl class="kv">' +
+      "<dt>created_at</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.createdAt) + "</dd>" +
+      "<dt>model</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.model) + "</dd>" +
+      "<dt>template</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.template || "—") + "</dd>" +
+      "<dt>batch_id</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.batchId || "—") + "</dd>" +
+      "<dt>tokens</dt><dd class=\"mono\" style=\"font-size:11px\">" + (r.inTok === null ? "—" : r.inTok + " in / " + r.outTok + " out") + "</dd>" +
+      "<dt>cost</dt><dd class=\"mono\" style=\"font-size:11px\">" + fmtCost(r.cost) + "</dd>" +
+      "<dt>duration</dt><dd class=\"mono\" style=\"font-size:11px\">" + r.dur + " ms</dd>" +
+      "</dl></div>";
+
+    wrap.innerHTML = '<div class="panel">' + meta + tabs + body +
+      '<div class="panel-foot"><span class="mono" style="font-size:10.5px">requests.id ' + r.id + '</span><button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copiar JSONL</button></div></div>';
+    $$("[data-histtab]").forEach(function (b) {
+      b.addEventListener("click", function () { state.histTab = b.dataset.histtab; renderHistoryDetail(); });
+    });
+    $$("[data-copy-json]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var row = state.history.filter(function (x) { return x.id === Number(b.dataset.copyJson); })[0];
+        if (row) copyText(jsonPretty(row));
+      });
+    });
+  }
+
+  ["#fSince", "#fStatus", "#fModel", "#fTemplate", "#fLimit"].forEach(function (sel) {
+    var el = $(sel);
+    if (!el) return;
+    el.addEventListener("change", function () {
+      state.filters.since = $("#fSince").value;
+      state.filters.status = $("#fStatus").value;
+      state.filters.model = $("#fModel").value;
+      state.filters.template = $("#fTemplate").value;
+      state.filters.limit = $("#fLimit").value;
+      renderHistory();
+    });
+  });
+
+  $("#clearFilters").addEventListener("click", function () {
+    state.filters = { since: "", status: "", model: "", template: "", limit: 50 };
+    renderHistory();
+    toast("Filtros limpiados");
+  });
+
+  $("#exportHistory").addEventListener("click", function () {
+    var rows = filteredHistory().map(function (r) {
+      return {
+        id: r.id, created_at: r.createdAt, started_at: r.createdAt, finished_at: iso(r.at + r.dur),
+        duration_ms: r.dur, endpoint: r.endpoint, model: r.model, status_code: r.status, ok: r.ok,
+        request: r.request, response: r.response, input_tokens: r.inTok, output_tokens: r.outTok,
+        cost: r.cost, error_code: r.errorCode || null, error_message: r.errorMessage || null,
+        template_name: r.template, batch_id: r.batchId
+      };
+    });
+    var text = rows.map(function (r) { return JSON.stringify(r); }).join("\n") + "\n";
+    try {
+      var blob = new Blob([text], { type: "application/x-ndjson" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "jev-history.jsonl";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+      toast("Exportadas " + rows.length + " peticiones");
+    } catch (e) {
+      toast("No se pudo generar el fichero");
+    }
+  });
+
+  /* ── configuración ───────────────────────────────────────────────── */
+  function renderConfig() {
+    $("#cfgUrl").value = state.config.api_url;
+    $("#cfgApiKey").value = state.keyRevealed ? state.config.api_key : maskKey(state.config.api_key);
+    $("#cfgApiKey").readOnly = !state.keyRevealed;
+    $("#revealKey").textContent = state.keyRevealed ? "Ocultar" : "Revelar";
+    $("#cfgModel").value = state.config.model;
+    $("#cfgTimeout").value = state.config.timeout;
+    $("#cfgRetries").value = state.config.retries;
+    $("#precedenceList").innerHTML = [
+      ["api_url", "SQLite", state.config.api_url],
+      ["api_key", "entorno · OPENCODE_API_KEY", maskKey(state.config.api_key)],
+      ["model", "SQLite", state.config.model],
+      ["timeout", "por defecto", state.config.timeout + " s"],
+      ["retries", "por defecto", String(state.config.retries)]
+    ].map(function (p) {
+      var chip = p[1].indexOf("entorno") === 0 ? "pill-info" : p[1] === "SQLite" ? "pill-ok" : "pill-neutral";
+      return '<div class="prec-row"><span class="k">' + esc(p[0]) + '</span><span class="v" title="' + esc(p[2]) + '">' + esc(p[2]) + '</span><span class="pill ' + chip + '">' + esc(p[1]) + "</span></div>";
+    }).join("");
+    $("#cfgCli").innerHTML = '<span class="prompt">$</span>jev config set model ' + esc(state.config.model);
+  }
+
+  function validateConfig() {
+    var url = $("#cfgUrl").value.trim();
+    var timeout = Number($("#cfgTimeout").value);
+    var retries = Number($("#cfgRetries").value);
+    var err = null;
+    if (!url || url.indexOf("http") !== 0) err = "api_url debe ser un endpoint completo (http…).";
+    else if (!(timeout > 0)) err = "timeout debe ser un número positivo en segundos.";
+    else if (!(retries >= 0) || !Number.isInteger(retries)) err = "retries debe ser un entero ≥ 0.";
+    var el = $("#configValidation");
+    el.innerHTML = err ? '<span style="color:var(--danger-text)">' + esc(err) + "</span>" : "Valores válidos.";
+    return !err;
+  }
+
+  ["#cfgUrl", "#cfgTimeout", "#cfgRetries"].forEach(function (sel) {
+    $(sel).addEventListener("input", validateConfig);
+  });
+
+  $("#revealKey").addEventListener("click", function () {
+    state.keyRevealed = !state.keyRevealed;
+    var input = $("#cfgApiKey");
+    input.value = state.keyRevealed ? state.config.api_key : maskKey(state.config.api_key);
+    input.readOnly = !state.keyRevealed;
+    $("#revealKey").textContent = state.keyRevealed ? "Ocultar" : "Revelar";
+  });
+
+  $("#saveConfig").addEventListener("click", function () {
+    if (!validateConfig()) { toast("Revisa los valores marcados"); return; }
+    state.config.api_url = $("#cfgUrl").value.trim();
+    if (state.keyRevealed) state.config.api_key = $("#cfgApiKey").value.trim();
+    state.config.model = $("#cfgModel").value;
+    state.config.timeout = Number($("#cfgTimeout").value);
+    state.config.retries = Number($("#cfgRetries").value);
+    state.keyRevealed = false;
+    saveLocal();
+    renderConfig();
+    renderResumen();
+    toast("Configuración guardada en SQLite");
+  });
+
+  $("#resetConfig").addEventListener("click", function () {
+    state.config = Object.assign({}, DEFAULT_CONFIG);
+    state.keyRevealed = false;
+    saveLocal();
+    renderConfig();
+    renderResumen();
+    toast("Valores por defecto restablecidos");
+  });
+
+  $("#copyDbPath").addEventListener("click", function () { copyText("~/.jev-client/db/jev.db"); });
+  $("#dbChip").addEventListener("click", function () { copyText("~/.jev-client/db/jev.db"); });
+
+  $("#checkProvider").addEventListener("click", async function () {
+    var el = $("#checkResult");
+    el.textContent = "comprobando…";
+    $("#providerState").className = "pill pill-neutral";
+    $("#providerState").textContent = "comprobando";
+    await sleep(640);
+    var latency = 190 + Math.round(Math.random() * 220);
+    el.textContent = "200 · " + latency + " ms";
+    $("#providerState").className = "pill pill-ok";
+    $("#providerState").textContent = "conectado";
+    $("#providerDot").className = "dot";
+    toast("Provider accesible · 200 en " + latency + " ms");
+  });
+
+  /* ── modales y paleta ────────────────────────────────────────────── */
+  function openModal(title, html, actions, extraClass) {
+    var modal = $("#modal");
+    modal.className = "modal" + (extraClass ? " " + extraClass : "");
+    modal.innerHTML = '<div class="modal-head"><h2 id="modalTitle">' + esc(title) + "</h2>" +
+      '<button class="icon-btn" id="modalClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+      '<div class="modal-body">' + html + "</div>" +
+      (actions && actions.length ? '<div class="modal-foot">' + actions.map(function (a, i) { return '<button class="btn ' + a.cls + '" data-modal-act="' + i + '">' + esc(a.label) + "</button>"; }).join("") + "</div>" : "");
+    $("#overlay").hidden = false;
+    $("#modalClose").addEventListener("click", closeModal);
+    $$("[data-modal-act]").forEach(function (b) {
+      b.addEventListener("click", function () { actions[Number(b.dataset.modalAct)].act(); });
+    });
+    var first = $(".modal-foot .btn-primary, .modal-foot .btn-danger, .modal-body .p-input");
+    if (first) first.focus();
+  }
+  function closeModal() { $("#overlay").hidden = true; $("#modal").innerHTML = ""; }
+
+  var CLI_REF = [
+    ["ask", "Evalúa un state contra una o más preguntas", "--state, --state-file, --questions, --questions-file, --request, --request-file, --key, --url, --model, --db, --timeout, --retries, --no-save, --json"],
+    ["demo", "Ejecuta el ejemplo integrado (urgencia, equipo, frustración)", "mismos flags que ask"],
+    ["config list|get|set|unset|path", "Configuración persistente en SQLite", "--json, --reveal, --db"],
+    ["history list|show|export", "Historial de peticiones", "--since, --status, --model, --template, --limit, --db"],
+    ["template create|list|show|edit|validate|render|delete", "Plantillas JSON con macros", "--body, --file, --description, --context, --context-file, --json, --yes"],
+    ["batch", "Ejecuta una plantilla por cada contexto", "--contexts, --concurrency 1-10, --continue-on-error, --fail-fast"],
+    ["tui", "Modo interactivo en terminal (requiere TTY)", "--db"],
+    ["version | help", "Versión y ayuda", "-h"]
+  ];
+
+  function openCliRef() {
+    var rows = CLI_REF.map(function (r) {
+      return "<tr><td>" + esc(r[0]) + "</td><td>" + esc(r[1]) + '</td><td class="mono" style="font-size:10.5px;color:var(--muted)">' + esc(r[2]) + "</td></tr>";
+    }).join("");
+    openModal("Referencia de la CLI",
+      '<table class="cli-table"><thead><tr><th>Comando</th><th>Qué hace</th><th>Flags</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+      '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>Esta consola se abre con <code>jev --web-console</code> y envuelve los mismos comandos sobre la misma base SQLite.</span></div>',
+      [{ label: "Cerrar", cls: "btn-outline", act: closeModal }]);
+  }
+  $("#openCliRef").addEventListener("click", openCliRef);
+  $("#openCliRef2").addEventListener("click", openCliRef);
+
+  var PALETTE = [
+    { group: "Ir a", label: "Resumen", hint: "jev --web-console", act: function () { go("resumen"); } },
+    { group: "Ir a", label: "Evaluar", hint: "jev ask", act: function () { go("evaluar"); } },
+    { group: "Ir a", label: "Plantillas", hint: "jev template list", act: function () { go("plantillas"); } },
+    { group: "Ir a", label: "Lotes", hint: "jev batch", act: function () { go("lotes"); } },
+    { group: "Ir a", label: "Historial", hint: "jev history list", act: function () { go("historial"); } },
+    { group: "Ir a", label: "Configuración", hint: "jev config list", act: function () { go("configuracion"); } },
+    { group: "Acciones", label: "Ejecutar demo integrado", hint: "jev demo", act: function () { go("evaluar"); setTimeout(function () { run(true); }, 120); } },
+    { group: "Acciones", label: "Nueva plantilla", hint: "jev template create", act: function () { go("plantillas"); setTimeout(function () { $("#newTemplate").click(); }, 120); } },
+    { group: "Acciones", label: "Exportar historial JSONL", hint: "jev history export", act: function () { go("historial"); setTimeout(function () { $("#exportHistory").click(); }, 120); } },
+    { group: "Acciones", label: "Probar la conexión del provider", hint: "jev demo --json", act: function () { go("resumen"); setTimeout(function () { $("#checkProvider").click(); }, 120); } },
+    { group: "Acciones", label: "Referencia de la CLI", hint: "jev help", act: function () { openCliRef(); } }
+  ];
+
+  function openPalette() {
+    state.paletteIndex = 0;
+    openModal("Buscar", '<input class="p-input input" id="pInput" placeholder="Buscar secciones, acciones o comandos…" aria-label="Buscar" /><div class="p-list" id="pList"></div>', [], "palette");
+    $("#modalTitle").style.display = "none";
+    $(".modal-head").style.padding = "0";
+    $(".modal-head").style.borderBottom = "0";
+    $(".modal-head").style.position = "absolute";
+    $(".modal-head").style.right = "6px";
+    $(".modal-head").style.top = "6px";
+    $(".modal-body").style.padding = "0";
+    $("#pInput").addEventListener("input", function () { state.paletteIndex = 0; renderPalette($("#pInput").value); });
+    $("#pInput").addEventListener("keydown", function (e) {
+      var items = $$("#pList .p-item");
+      if (e.key === "ArrowDown") { e.preventDefault(); state.paletteIndex = Math.min(items.length - 1, state.paletteIndex + 1); paintPalette(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); state.paletteIndex = Math.max(0, state.paletteIndex - 1); paintPalette(); }
+      else if (e.key === "Enter") { e.preventDefault(); if (items[state.paletteIndex]) items[state.paletteIndex].click(); }
+    });
+    renderPalette("");
+    $("#pInput").focus();
+  }
+
+  function renderPalette(q) {
+    var list = $("#pList");
+    var out = "";
+    var lastGroup = "";
+    var filtered = PALETTE.filter(function (p) {
+      return !q || (p.label + " " + p.hint).toLowerCase().indexOf(q.toLowerCase()) >= 0;
+    });
+    if (!filtered.length) { list.innerHTML = '<div class="empty" style="border:0">Sin resultados para «' + esc(q) + "»</div>"; return; }
+    filtered.forEach(function (p, i) {
+      if (p.group !== lastGroup) { out += '<div class="p-group">' + esc(p.group) + "</div>"; lastGroup = p.group; }
+      out += '<button class="p-item" data-pal="' + PALETTE.indexOf(p) + '" aria-selected="' + (i === state.paletteIndex) + '"><span>' + esc(p.label) + '</span><span class="p-hint">' + esc(p.hint) + "</span></button>";
+    });
+    list.innerHTML = out;
+    $$("#pList .p-item").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var item = PALETTE[Number(b.dataset.pal)];
+        closeModal();
+        if (item) item.act();
+      });
+      b.addEventListener("mouseenter", function () {
+        state.paletteIndex = $$("#pList .p-item").indexOf(b);
+        paintPalette();
+      });
+    });
+  }
+  function paintPalette() {
+    $$("#pList .p-item").forEach(function (b, i) {
+      b.setAttribute("aria-selected", String(i === state.paletteIndex));
+    });
+    var el = $$("#pList .p-item")[state.paletteIndex];
+    var list = $("#pList");
+    if (el && list) {
+      var top = el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+      if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - 40) {
+        list.scrollTop = Math.max(0, top - list.clientHeight / 2);
+      }
+    }
+  }
+
+  $("#openPalette").addEventListener("click", openPalette);
+  document.addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
+    else if (e.key === "Escape" && !$("#overlay").hidden) { closeModal(); }
+  });
+  $("#overlay").addEventListener("click", function (e) { if (e.target === $("#overlay")) closeModal(); });
+
+  /* ── arranque ────────────────────────────────────────────────────── */
+  loadLocal();
+  $("#askModel").value = state.ask.model;
+  $("#navHistCount").textContent = state.history.length;
+  $("#navTplCount").textContent = state.templates.length;
+  go(state.route);
+})();
+</script>
+</body>
+</html>

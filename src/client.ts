@@ -22,6 +22,11 @@ export type FetchLike = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+export interface RunOptions {
+  /** Cancela la petición en curso y cualquier espera entre reintentos. */
+  signal?: AbortSignal;
+}
+
 export interface ClientOptions {
   apiKey: string;
   endpoint?: string;
@@ -75,13 +80,20 @@ export class JevClient {
   async systemOne(
     state: State,
     questions: Record<string, Question>,
-    options: { model?: string } = {},
+    options: { model?: string; signal?: AbortSignal } = {},
   ): Promise<JevResponse> {
-    return this.run({ model: options.model ?? "", state, questions });
+    return this.run(
+      { model: options.model ?? "", state, questions },
+      { signal: options.signal },
+    );
   }
 
   /** Envía un request ya construido. Si `model` va vacío, usa el del cliente. */
-  async run(request: JevRequest): Promise<JevResponse> {
+  async run(
+    request: JevRequest,
+    options: RunOptions = {},
+  ): Promise<JevResponse> {
+    throwIfAborted(options.signal);
     const questions = request.questions ?? {};
     if (Object.keys(questions).length === 0) {
       throw new Error("el request necesita al menos una pregunta");
@@ -106,6 +118,11 @@ export class JevClient {
       let lastError: unknown = new Error("no se intentó la petición");
 
       for (let attempt = 0; attempt < attempts; attempt += 1) {
+        throwIfAborted(options.signal);
+        const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
+        const signal = options.signal
+          ? AbortSignal.any([options.signal, timeoutSignal])
+          : timeoutSignal;
         let response: Response;
         try {
           response = await this.fetchImpl(this.endpoint, {
@@ -117,18 +134,23 @@ export class JevClient {
               "User-Agent": USER_AGENT,
             },
             body,
-            signal: AbortSignal.timeout(this.timeoutMs),
+            signal,
           });
         } catch (error) {
+          if (options.signal?.aborted) {
+            throwIfAborted(options.signal);
+          }
           lastError = this.networkError(error);
           if (attempt === attempts - 1) {
             throw lastError;
           }
-          await sleep(this.retryDelay(attempt));
+          await sleep(this.retryDelay(attempt), options.signal);
           continue;
         }
 
+        throwIfAborted(options.signal);
         const text = await response.text();
+        throwIfAborted(options.signal);
         statusCode = response.status;
         responseBody = text;
 
@@ -157,6 +179,7 @@ export class JevClient {
 
         await sleep(
           this.retryDelay(attempt, response.headers.get("retry-after") ?? undefined),
+          options.signal,
         );
       }
 
@@ -224,8 +247,32 @@ export class JevClient {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException("The operation was aborted", "AbortError");
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw abortReason(signal);
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      if (signal) {
+        reject(abortReason(signal));
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /** Extrae tokens/coste del cuerpo crudo sin forzar valores por defecto. */

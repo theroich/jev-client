@@ -9,6 +9,7 @@ import {
   resolveConfig,
   resolveModel,
 } from "../src/config.js";
+import { validateConfigValue } from "../src/config-repository.js";
 
 test("los flags ganan a las variables de entorno", () => {
   const config = resolveConfig(
@@ -135,4 +136,28 @@ test("flags y entorno ganan a la configuración guardada", () => {
 test("la configuración numérica guardada se valida", () => {
   assert.throws(() => resolveConfig({}, {}, { timeout: "0" }), /timeout/);
   assert.throws(() => resolveConfig({}, {}, { retries: "1.5" }), /retries/);
+});
+
+test("validateConfigValue exige una api_url http(s) completa", () => {
+  assert.doesNotThrow(() =>
+    validateConfigValue("api_url", "https://example.test/systemone"),
+  );
+  assert.doesNotThrow(() =>
+    validateConfigValue("api_url", "http://127.0.0.1:7411/systemone"),
+  );
+
+  for (const value of [
+    "example.test/systemone",
+    "/systemone",
+    "ftp://example.test/systemone",
+    "https://",
+  ]) {
+    assert.throws(() => validateConfigValue("api_url", value), /api_url/);
+  }
+});
+
+test("validateConfigValue rechaza un model vacío", () => {
+  assert.throws(() => validateConfigValue("model", ""), /model/);
+  assert.throws(() => validateConfigValue("model", "   "), /model/);
+  assert.doesNotThrow(() => validateConfigValue("model", "jev-1.13"));
 });

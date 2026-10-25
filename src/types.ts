@@ -3,12 +3,12 @@ export type State = string | Record<string, unknown> | unknown[];
 
 /**
  * Pregunta tipada. `criteria` es flexible a propósito: objeto para `choice`,
- * array ordenado para `score` y opcional para `noul`.
+ * array ordenado para `score` y string opcional para `noul`.
  */
 export interface Question {
   type: string;
   instructions?: unknown;
-  criteria?: Record<string, unknown> | unknown[];
+  criteria?: Record<string, unknown> | unknown[] | string;
 }
 
 export interface JevRequest {
