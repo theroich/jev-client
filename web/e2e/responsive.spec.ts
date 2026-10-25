@@ -40,6 +40,25 @@ test("matriz responsive sin overflow ni activos remotos", async ({ page }) => {
   expect(external).toEqual([]);
 });
 
+test("el modal Empezar plantilla cabe a 360 px sin scroll horizontal", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/plantillas");
+  await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+  await expect(dialog).toBeVisible();
+  const dimensions = await page.evaluate(() => ({
+    width: window.innerWidth,
+    scroll: document.documentElement.scrollWidth,
+    modal: document.querySelector<HTMLElement>(".modal")?.scrollWidth ?? 0,
+    cards: document.querySelectorAll(".starter-card").length,
+  }));
+  expect(dimensions.cards).toBe(3);
+  expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width + 1);
+  expect(dimensions.modal).toBeLessThanOrEqual(dimensions.width);
+  const columns = await page.locator(".starter-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns);
+  expect(columns.trim().split(/\s+/).length).toBe(1);
+});
+
 test("breakpoints conservan la geometría del handoff", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/evaluar");

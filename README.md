@@ -488,7 +488,11 @@ produce un error explícito; nunca elige otro puerto fijo en silencio.
   modelo efectivo, los dos modelos conocidos y un valor libre.
 - **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
   macros anidadas y escapadas, cambios sin guardar y renombrado transaccional.
-  Renderizar nunca llama a Jev.
+  **Nueva plantilla** abre el modal **Empezar plantilla** con ejemplos válidos de
+  `noul`, `choice` y `score` (`src/template-starters.ts`); `noul` llega
+  preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`
+  como array ordenado. El editor queda libre después. Renderizar nunca llama a
+  Jev.
 - **Lotes**: pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`,
   `--no-save` y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta
   las peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
