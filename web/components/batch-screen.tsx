@@ -10,8 +10,15 @@ import {
   type BatchSummary,
   type TemplateSummary,
 } from "@/lib/types";
-import { buildBatchCommand, formatCost, validateContexts } from "@/lib/utils";
+import {
+  buildBatchCommand,
+  buildContextsSkeleton,
+  countEmptyContextValues,
+  formatCost,
+  validateContexts,
+} from "@/lib/utils";
 import { describeApiError, useConsole } from "./console-context";
+import { ConfirmModal } from "./modal";
 import {
   Button,
   Callout,
@@ -31,7 +38,11 @@ function pendingItem(index: number): BatchItemView {
 
 export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "");
-  const [contextsText, setContextsText] = useState("[]");
+  const [contextsText, setContextsText] = useState(() => buildContextsSkeleton(templates[0]?.macros ?? []));
+  const [contextsEdited, setContextsEdited] = useState(false);
+  const [skeletonSkipped, setSkeletonSkipped] = useState(false);
+  const [confirmSkeleton, setConfirmSkeleton] = useState(false);
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [concurrency, setConcurrency] = useState(1);
   const [failFast, setFailFast] = useState(false);
   const [save, setSave] = useState(true);
@@ -41,9 +52,48 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [error, setError] = useState<{ code: string; message: string; hint?: string } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const contextsRef = useRef<HTMLTextAreaElement>(null);
   const { apiFetch, notify, ready } = useConsole();
   const validation = useMemo(() => validateContexts(contextsText), [contextsText]);
+  const activeTemplate = useMemo(
+    () => templates.find((item) => item.name === template) ?? null,
+    [templates, template],
+  );
+  const skeleton = useMemo(
+    () => buildContextsSkeleton(activeTemplate?.macros ?? []),
+    [activeTemplate],
+  );
+  const emptyValues = useMemo(
+    () => countEmptyContextValues(validation.contexts),
+    [validation.contexts],
+  );
   const command = buildBatchCommand(template, concurrency, failFast, save);
+
+  const applySkeleton = () => {
+    setContextsText(skeleton);
+    setContextsEdited(false);
+    setSkeletonSkipped(false);
+    setConfirmSkeleton(false);
+    contextsRef.current?.focus();
+  };
+
+  const requestSkeleton = () => {
+    if (contextsEdited && contextsText !== skeleton) setConfirmSkeleton(true);
+    else applySkeleton();
+  };
+
+  const changeTemplate = (name: string) => {
+    setTemplate(name);
+    const next = templates.find((item) => item.name === name);
+    const nextSkeleton = buildContextsSkeleton(next?.macros ?? []);
+    if (!contextsEdited || contextsText === nextSkeleton) {
+      setContextsText(nextSkeleton);
+      setContextsEdited(false);
+      setSkeletonSkipped(false);
+    } else {
+      setSkeletonSkipped(true);
+    }
+  };
 
   const processEvent = (event: BatchEvent) => {
     if (event.type === "batch.start") {
@@ -115,6 +165,14 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
     }
   };
 
+  const requestExecute = () => {
+    if (emptyValues > 0) {
+      setConfirmEmpty(true);
+      return;
+    }
+    void execute();
+  };
+
   return (
     <section>
       <ScreenHead eyebrow="Biblioteca · jev batch" title="Lotes" description={<>Una plantilla y un array de contextos: una petición real por mapa, con pool de concurrencia y el mismo <code>batch_id</code> generado en el servidor.</>} />
@@ -123,8 +181,35 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
         <Panel title="Configuración del lote">
           <div className="stack" style={{ gap: 12 }}>
             {templates.length === 0 ? <Callout>No hay plantillas. <Link className="link" href="/plantillas?new=1">Crear una plantilla</Link> antes de ejecutar un lote.</Callout> : null}
-            <div className="field"><label htmlFor="batch-template">Plantilla</label><select id="batch-template" className="select mono" value={template} onChange={(event) => setTemplate(event.target.value)} disabled={running || templates.length === 0}>{templates.map((item) => <option value={item.name} key={item.name}>{item.name}</option>)}</select></div>
-            <div className="field"><label htmlFor="batch-contexts">Contextos (array JSON)</label><textarea id="batch-contexts" className="textarea" rows={11} spellCheck={false} value={contextsText} onChange={(event) => setContextsText(event.target.value)} disabled={running} /><p className={`hint${validation.error ? " form-error" : ""}`}>{validation.error ?? `${validation.contexts.length} contextos válidos · máximo 1.000`}{validation.invalid.length ? ` Ítems inválidos: ${validation.invalid.map((index) => index + 1).join(", ")}.` : ""}</p></div>
+            <div className="field"><label htmlFor="batch-template">Plantilla</label><select id="batch-template" className="select mono" value={template} onChange={(event) => changeTemplate(event.target.value)} disabled={running || templates.length === 0}>{templates.map((item) => <option value={item.name} key={item.name}>{item.name}</option>)}</select></div>
+            <div className="field">
+              <div className="row-between">
+                <label htmlFor="batch-contexts">Contextos (array JSON)</label>
+                <Button size="sm" onClick={requestSkeleton} disabled={running || !template} aria-label={template ? `Rellenar con las macros de ${template}` : "Rellenar con macros"}><Icon name="refresh" />Rellenar con macros</Button>
+              </div>
+              <textarea
+                id="batch-contexts"
+                ref={contextsRef}
+                className="textarea"
+                rows={11}
+                spellCheck={false}
+                value={contextsText}
+                aria-describedby={`batch-contexts-hint${emptyValues > 0 && !validation.error ? " batch-contexts-empty" : ""}`}
+                onChange={(event) => {
+                  setContextsText(event.target.value);
+                  setContextsEdited(true);
+                  setSkeletonSkipped(false);
+                }}
+                disabled={running}
+              />
+              <p id="batch-contexts-hint" className={`hint${validation.error ? " form-error" : ""}`}>{validation.error ?? `${validation.contexts.length} contextos válidos · máximo 1.000`}{validation.invalid.length ? ` Ítems inválidos: ${validation.invalid.map((index) => index + 1).join(", ")}.` : ""}</p>
+              {emptyValues > 0 && !validation.error ? <p id="batch-contexts-empty" className="hint hint-warn">{emptyValues === 1 ? "Hay 1 valor sin rellenar" : `Hay ${emptyValues} valores sin rellenar`}; se pedirá confirmación antes de ejecutar.</p> : null}
+              {skeletonSkipped ? <Callout tone="info">Has editado los contextos, así que no se han sustituido por los de la nueva plantilla. <Button size="sm" onClick={requestSkeleton} disabled={running} aria-label={`Rellenar con las macros de ${template}`}><Icon name="refresh" />Rellenar con las macros de {template}</Button></Callout> : null}
+              <details className="macro-legend">
+                <summary>Macros de la plantilla{activeTemplate?.macros.length ? ` (${activeTemplate.macros.length})` : ""}</summary>
+                {activeTemplate && activeTemplate.macros.length > 0 ? <ul className="macro-legend-list">{activeTemplate.macros.map((macro) => <li key={macro.name}><code>{`{{${macro.name}}}`}</code><span>{macro.description.trim() || "(sin descripción)"}</span></li>)}</ul> : <p className="hint">{templates.length === 0 ? "Crea una plantilla para generar el esqueleto de contextos." : "Esta plantilla no tiene macros; escribe los contextos a mano."}</p>}
+              </details>
+            </div>
             <div className="inline-fields">
               <div className="field"><span className="label" id="concurrency-label">Concurrencia</span><div className="stepper" aria-labelledby="concurrency-label"><button type="button" aria-label="Reducir concurrencia" disabled={running || concurrency <= 1} onClick={() => setConcurrency((value) => Math.max(1, value - 1))}>−</button><output>{concurrency}</output><button type="button" aria-label="Aumentar concurrencia" disabled={running || concurrency >= 10} onClick={() => setConcurrency((value) => Math.min(10, value + 1))}>+</button></div></div>
               <div className="field" style={{ flex: "1 1 190px" }}><span className="label">Ante el primer error</span><div style={{ height: 32, display: "flex", alignItems: "center" }}><Switch checked={failFast} onChange={setFailFast} disabled={running} label="Detenerse (fail-fast)" /></div></div>
@@ -132,7 +217,7 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
             <Switch checked={save} onChange={setSave} disabled={running} label="Guardar en historial" />
             <p className="hint">Por defecto <code>--continue-on-error</code>. Al cancelar se abortan las peticiones en vuelo y no se programa ningún item nuevo.</p>
             <div className="action-row">
-              <Button variant="primary" className="w-full" onClick={() => void execute()} disabled={!ready || running || Boolean(validation.error) || validation.contexts.length === 0 || !template}><Icon name="play" />{running ? "Ejecutando lote…" : "Ejecutar lote"}</Button>
+              <Button variant="primary" className="w-full" onClick={requestExecute} disabled={!ready || running || Boolean(validation.error) || validation.contexts.length === 0 || !template}><Icon name="play" />{running ? "Ejecutando lote…" : "Ejecutar lote"}</Button>
               {running ? <Button variant="danger" className="w-full" onClick={() => abort.current?.abort()}><Icon name="stop" />Cancelar y conservar filas escritas</Button> : null}
             </div>
           </div>
@@ -157,6 +242,23 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
         </Panel>
       </div>
       <CliBar command={command} />
+      {confirmSkeleton ? <ConfirmModal
+        title="Rellenar contextos"
+        description={<>Se sustituirán los contextos actuales por el esqueleto de <strong>{template}</strong>. Se perderán los valores que hayas escrito.</>}
+        confirmLabel="Rellenar"
+        onConfirm={applySkeleton}
+        onClose={() => setConfirmSkeleton(false)}
+      /> : null}
+      {confirmEmpty ? <ConfirmModal
+        title="Quedan valores sin rellenar"
+        description={<>Hay {emptyValues === 1 ? "1 valor" : `${emptyValues} valores`} con el marcador vacío. Jev recibirá cadenas vacías en esos huecos. ¿Ejecutar el lote igualmente?</>}
+        confirmLabel="Ejecutar de todas formas"
+        onConfirm={() => {
+          setConfirmEmpty(false);
+          void execute();
+        }}
+        onClose={() => setConfirmEmpty(false)}
+      /> : null}
     </section>
   );
 }

@@ -182,6 +182,14 @@
   .macro-schema-preview{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
   .macro-schema-editor{padding:9px;border:1px solid var(--border);border-radius:var(--radius-sm);background:color-mix(in oklch,var(--bg) 60%,var(--surface))}
   .macro-schema-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .macro-legend{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:0 10px;min-width:0}
+  .macro-legend summary{cursor:pointer;font-family:var(--font-mono);font-size:11.5px;color:var(--muted);padding:7px 0;min-width:0;overflow-wrap:anywhere}
+  .macro-legend summary:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
+  .macro-legend-list{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:5px 12px;margin:0;padding:0 0 9px;list-style:none;min-width:0}
+  .macro-legend-list li{display:contents;font-size:11.5px;line-height:1.4}
+  .macro-legend-list code{font-family:var(--font-mono);font-size:11px;color:var(--fg);overflow-wrap:anywhere;min-width:0}
+  .macro-legend-list span{color:var(--muted);overflow-wrap:anywhere;min-width:0}
+  .macro-legend p{margin:0 0 9px}
 
   /* ── forms ────────────────────────────────────────────────────────── */
   .field{display:flex;flex-direction:column;gap:5px;min-width:0}
