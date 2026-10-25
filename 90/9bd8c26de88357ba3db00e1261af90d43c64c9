@@ -1,0 +1,26 @@
+README.md
+  h_34a594f8693459 530-539
+web/app/globals.css
+  h_34a594f8693459 21
+web/components/batch-screen.tsx
+  h_34a594f8693459 13-19,21,41-45,55,58-69,72-97,168-175,184-212,220,245-261
+web/e2e/console.spec.ts
+  h_34a594f8693459 129,185-190,192-207
+web/lib/utils.ts
+  h_34a594f8693459 1,173-205
+web/styles/tokens.css
+  h_34a594f8693459 176-183
+web/test/utils.test.ts
+  h_34a594f8693459 5,7,44-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "909bd8c26de88357ba3db00e1261af90d43c64c9",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
