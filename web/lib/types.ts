@@ -6,9 +6,23 @@ import type {
   RequestLog,
   State,
 } from "../../dist/src/types.js";
-import type { TemplateMacro } from "../../dist/src/template-repository.js";
+import type {
+  MacroSchema,
+  MacroSchemaType,
+  TemplateMacro,
+} from "../../dist/src/template-repository.js";
 
-export type { Answer, JevRequest, JevResponse, Question, RequestLog, State, TemplateMacro };
+export type {
+  Answer,
+  JevRequest,
+  JevResponse,
+  MacroSchema,
+  MacroSchemaType,
+  Question,
+  RequestLog,
+  State,
+  TemplateMacro,
+};
 
 export type ConfigKey = "api_url" | "api_key" | "model" | "timeout" | "retries";
 export type ConfigSource = "flag" | "env" | "sqlite" | "default";

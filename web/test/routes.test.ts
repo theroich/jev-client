@@ -224,21 +224,21 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
       bodyJson,
       macros: [
         { name: "ticket", description: "  Identificador del pedido (TCK-1042)  " },
-        { name: "client.name", description: "Nombre del cliente" },
+        { name: "client.name", description: "Nombre del cliente", schema: null },
       ],
     },
   }));
   assert.equal(created.status, 201);
   assert.deepEqual((await created.json() as { macros: unknown }).macros, [
-    { name: "client.name", description: "Nombre del cliente" },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+    { name: "client.name", description: "Nombre del cliente", schema: null },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
   ]);
 
   const listed = await templatesGet(request("/api/templates"));
   const items = (await listed.json() as { items: Array<{ macros: unknown }> }).items;
   assert.deepEqual(items[0]?.macros, [
-    { name: "client.name", description: "Nombre del cliente" },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+    { name: "client.name", description: "Nombre del cliente", schema: null },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
   ]);
 
   const invalid = await templatesPost(request("/api/templates", "POST", {
@@ -267,7 +267,7 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
   );
   assert.equal(updated.status, 200);
   assert.deepEqual((await updated.json() as { macros: unknown }).macros, [
-    { name: "ticket", description: "Nueva descripción" },
+    { name: "ticket", description: "Nueva descripción", schema: null },
   ]);
   assert.deepEqual(
     runtime.service.db.prepare("SELECT macro FROM template_macros ORDER BY macro").all(),
@@ -284,7 +284,7 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
     { params: Promise.resolve({ name: "ticket-2" }) },
   );
   assert.deepEqual((await detail.json() as { macros: unknown }).macros, [
-    { name: "ticket", description: "Nueva descripción" },
+    { name: "ticket", description: "Nueva descripción", schema: null },
   ]);
 
   const deleted = await templateDelete(
@@ -292,6 +292,119 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
     { params: Promise.resolve({ name: "ticket-2" }) },
   );
   assert.equal(deleted.status, 200);
+  assert.deepEqual(
+    runtime.service.db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(),
+    { total: 0 },
+  );
+});
+
+test("los esquemas de macros se guardan, validan, conservan y limpian por la API", async () => {
+  const bodyJson = JSON.stringify({
+    model: "jev-1.13",
+    state: { ticket: "{{ticket}}", client: "{{client.plan}}" },
+    questions: { q: { type: "noul" } },
+  });
+  const created = await templatesPost(request("/api/templates", "POST", {
+    body: {
+      name: "schemas",
+      description: "Esquemas",
+      bodyJson,
+      macros: [
+        { name: "ticket", description: "Ticket", schema: { type: "string", format: "uuid" } },
+        { name: "client.plan", description: "Plan", schema: false },
+      ],
+    },
+  }));
+  assert.equal(created.status, 201);
+  const expected = [
+    { name: "client.plan", description: "Plan", schema: false },
+    { name: "ticket", description: "Ticket", schema: { type: "string", format: "uuid" } },
+  ];
+  assert.deepEqual((await created.json() as { macros: unknown }).macros, expected);
+
+  const listed = await templatesGet(request("/api/templates"));
+  assert.deepEqual(
+    (await listed.json() as { items: Array<{ macros: unknown }> }).items[0]?.macros,
+    expected,
+  );
+
+  const detail = await templateGet(
+    request("/api/templates/schemas"),
+    { params: Promise.resolve({ name: "schemas" }) },
+  );
+  assert.deepEqual((await detail.json() as { macros: unknown }).macros, expected);
+
+  const byCode = async (name: string, macros: unknown) => {
+    const response = await templatesPost(request("/api/templates", "POST", {
+      body: { name, bodyJson, macros },
+    }));
+    assert.equal(response.status, 400);
+    return (await response.json() as { error: { code: string } }).error.code;
+  };
+  assert.equal(
+    await byCode("schema-array", [{ name: "ticket", schema: ["string"] }]),
+    "invalid_macro_schema",
+  );
+  assert.equal(
+    await byCode("schema-string", [{ name: "ticket", schema: "string" }]),
+    "invalid_macro_schema",
+  );
+  assert.equal(
+    await byCode("schema-type", [{ name: "ticket", schema: { type: "text" } }]),
+    "invalid_macro_schema_type",
+  );
+  assert.equal(
+    await byCode("schema-pattern", [{ name: "ticket", schema: { pattern: "(" } }]),
+    "invalid_macro_schema",
+  );
+  assert.equal(
+    await byCode("schema-ref", [{ name: "ticket", schema: { $ref: "https://example.com/s.json" } }]),
+    "invalid_macro_schema",
+  );
+  assert.equal(
+    await byCode("schema-big", [{ name: "ticket", schema: { description: "x".repeat(9000) } }]),
+    "invalid_macro_schema",
+  );
+  for (const name of ["schema-array", "schema-type", "schema-pattern", "schema-ref", "schema-big"]) {
+    assert.equal(runtime.templates.get(name), undefined);
+  }
+
+  // `schema: null` limpia el esquema y conserva la descripción.
+  const updated = await templatePut(
+    request("/api/templates/schemas", "PUT", {
+      body: {
+        name: "schemas",
+        description: "Esquemas",
+        bodyJson,
+        macros: [
+          { name: "ticket", description: "Ticket", schema: null },
+          { name: "client.plan", description: "Plan", schema: { type: "string", enum: ["free", "pro"] } },
+        ],
+      },
+    }),
+    { params: Promise.resolve({ name: "schemas" }) },
+  );
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json() as { macros: unknown }).macros, [
+    { name: "client.plan", description: "Plan", schema: { type: "string", enum: ["free", "pro"] } },
+    { name: "ticket", description: "Ticket", schema: null },
+  ]);
+
+  // Renombrar conserva los esquemas y borrar los elimina en cascada.
+  const renamed = await templatePatch(
+    request("/api/templates/schemas", "PATCH", { body: { name: "schemas-2" } }),
+    { params: Promise.resolve({ name: "schemas" }) },
+  );
+  assert.equal(renamed.status, 200);
+  assert.deepEqual((await renamed.json() as { macros: unknown }).macros, [
+    { name: "client.plan", description: "Plan", schema: { type: "string", enum: ["free", "pro"] } },
+    { name: "ticket", description: "Ticket", schema: null },
+  ]);
+  const removed = await templateDelete(
+    request("/api/templates/schemas-2", "DELETE"),
+    { params: Promise.resolve({ name: "schemas-2" }) },
+  );
+  assert.equal(removed.status, 200);
   assert.deepEqual(
     runtime.service.db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(),
     { total: 0 },

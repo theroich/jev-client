@@ -68,7 +68,7 @@ test.describe.serial("consola real con provider mockeado", () => {
     await page.getByLabel("Descripción", { exact: true }).fill("Plantilla temporal E2E");
     await page.getByRole("button", { name: "Crear plantilla", exact: true }).click();
     await expect(page).toHaveURL(/\/plantillas\/e2e-temp$/);
-    await expect(page.getByText("guardada en SQLite")).toBeVisible();
+    await expect(page.getByText("guardada en SQLite", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Macros" }).click();
     await expect(page.getByText("{{estado_de_pedido}}", { exact: true })).toBeVisible();
     await expect(page.getByText("0 de 3 descritas", { exact: true })).toBeVisible();
@@ -126,11 +126,71 @@ test.describe.serial("consola real con provider mockeado", () => {
     await expect(page.getByText("0 de 2 descritas", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
-    await expect(page.getByText("guardada en SQLite")).toBeVisible();
+    await expect(page.getByText("guardada en SQLite", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Macros" }).click();
     await expect(page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" })).toHaveCount(0);
     await expect(page.getByText("0 de 2 descritas", { exact: true })).toBeVisible();
     await expect(page.getByText(/se eliminará la descripción/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Eliminar", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Eliminar", exact: true }).click();
+    await expect(page).toHaveURL(/\/plantillas$/);
+  });
+
+  test("asocia un JSON Schema a una macro, lo valida y lo limpia", async ({ page }) => {
+    await goto(page, "/plantillas");
+    await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
+    const starterDialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+    await expect(starterDialog).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(starterDialog).toHaveCount(0);
+    await page.getByLabel("Nombre", { exact: true }).fill("e2e-schema");
+    await page.getByRole("button", { name: "Crear plantilla", exact: true }).click();
+    await expect(page).toHaveURL(/\/plantillas\/e2e-schema$/);
+
+    await page.getByRole("tab", { name: "Macros" }).click();
+    const typeSelect = page.getByLabel("Tipo de {{estado_de_pedido}}");
+    await typeSelect.selectOption("string");
+    await expect(page.locator(".macro-type-chip").filter({ hasText: "string" })).toBeVisible();
+    await expect(page.getByText("1 con tipo", { exact: true })).toBeVisible();
+    await expect(page.locator(".cli-bar").last()).toContainText("--macro-schema");
+    await expect(page.locator(".cli-bar").last()).toContainText('estado_de_pedido={"type":"string"}');
+
+    await page.getByRole("button", { name: "Mostrar esquema JSON de {{estado_de_pedido}}" }).click();
+    const schemaEditor = page.getByRole("textbox", { name: "Esquema JSON de {{estado_de_pedido}}" });
+    await expect(schemaEditor).toHaveValue('{"type":"string"}');
+    await schemaEditor.fill("{bad");
+    await expect(page.locator('.macro-schema-editor [role="alert"]')).toContainText(/JSON|property name|Unexpected/i);
+    await expect(page.getByRole("button", { name: "Guardar cambios", exact: true })).toBeDisabled();
+    await expect(page.getByText("0 con tipo", { exact: true })).toBeVisible();
+
+    await schemaEditor.fill('{"type":"string","enum":["pendiente","ok"]}');
+    await expect(page.getByRole("button", { name: "Formatear" })).toBeEnabled();
+    await page.getByRole("button", { name: "Formatear" }).click();
+    await expect(schemaEditor).toHaveValue(/\"enum\"/);
+    await expect(page.getByText("1 con tipo", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+    await expect(page.getByText("guardada en SQLite", { exact: true })).toBeVisible();
+    await expect(page.locator(".cli-bar").last()).toContainText('--macro-schema');
+
+    await page.reload();
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await page.getByRole("button", { name: "Mostrar esquema JSON de {{estado_de_pedido}}" }).click();
+    await expect(page.getByRole("textbox", { name: "Esquema JSON de {{estado_de_pedido}}" })).toHaveValue(/"enum":/);
+    await expect(page.getByText("1 con tipo", { exact: true })).toBeVisible();
+
+    // `(sin tipo)` limpia el esquema y conserva la descripción.
+    await page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" }).fill("Contenido del ticket");
+    await page.getByLabel("Tipo de {{estado_de_pedido}}").selectOption("(sin tipo)");
+    await expect(page.getByText("0 con tipo", { exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" })).toHaveValue("Contenido del ticket");
+    await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+    await expect(page.getByText("guardada en SQLite", { exact: true })).toBeVisible();
+    await page.reload();
+    await page.getByRole("tab", { name: "Macros" }).click();
+    await expect(page.getByText("0 con tipo", { exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Descripción de {{estado_de_pedido}}" })).toHaveValue("Contenido del ticket");
 
     await page.getByRole("button", { name: "Eliminar", exact: true }).click();
     const dialog = page.getByRole("dialog");

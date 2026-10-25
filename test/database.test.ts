@@ -164,7 +164,123 @@ test("actualiza de v3 a v4 creando template_macros sin backfill", async (t) => {
   );
   // Una base v3 sin backfill funciona: el repositorio fusiona las macros del body.
   assert.deepEqual(new TemplateRepository(db).get("legacy")?.macros, [
-    { name: "estado", description: "" },
+    { name: "estado", description: "", schema: null },
   ]);
+  db.close();
+});
+
+test("actualiza de v4 a v5 añadiendo schema_json sin backfill", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-db-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "jev.db");
+
+  const legacy = new Database(path);
+  legacy.exec(`
+    CREATE TABLE templates (
+      name TEXT PRIMARY KEY,
+      description TEXT NOT NULL DEFAULT '',
+      body_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE template_macros (
+      template_name TEXT NOT NULL,
+      macro TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (template_name, macro),
+      FOREIGN KEY (template_name) REFERENCES templates (name)
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+  legacy
+    .prepare(
+      "INSERT INTO templates (name, description, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    .run("legacy", "", '{"model":"m","state":"{{estado}}"}', "2024-01-01", "2024-01-01");
+  legacy
+    .prepare(
+      "INSERT INTO template_macros (template_name, macro, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    .run("legacy", "estado", "Estado previo", "2024-01-01", "2024-01-01");
+  legacy.pragma("user_version = 4");
+  legacy.close();
+
+  const db = openDatabase(path);
+  assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
+  const columns = db
+    .prepare<[], { name: string }>("PRAGMA table_info(template_macros)")
+    .all()
+    .map((column) => column.name);
+  assert.ok(columns.includes("schema_json"));
+  assert.deepEqual(new TemplateRepository(db).get("legacy")?.macros, [
+    { name: "estado", description: "Estado previo", schema: null },
+  ]);
+  // Reaplicar la migración no duplica la columna ni pierde filas.
+  migrateDatabase(db);
+  assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
+  assert.deepEqual(
+    db.prepare("SELECT macro, description, schema_json FROM template_macros").all(),
+    [{ macro: "estado", description: "Estado previo", schema_json: null }],
+  );
+  db.close();
+});
+
+test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  const body = JSON.stringify({
+    model: "m",
+    state: { plan: "{{plan}}", ticket: "{{ticket}}" },
+    questions: { q: { type: "noul" } },
+  });
+
+  repository.save("pedido", "", body, [
+    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+    { name: "ticket", description: "Ticket", schema: true },
+  ]);
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+    { name: "ticket", description: "Ticket", schema: true },
+  ]);
+  assert.deepEqual(
+    db
+      .prepare("SELECT macro, description, schema_json FROM template_macros ORDER BY macro")
+      .all(),
+    [
+      { macro: "plan", description: "Plan contratado", schema_json: '{"type":"string","enum":["free","pro"]}' },
+      { macro: "ticket", description: "Ticket", schema_json: "true" },
+    ],
+  );
+
+  // Sin metadatos explícitos se conservan descripción y esquema.
+  repository.save("pedido", "", body);
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+    { name: "ticket", description: "Ticket", schema: true },
+  ]);
+
+  // `schema: null` limpia el esquema y conserva la descripción.
+  repository.save("pedido", "", body, [
+    { name: "plan", description: "Plan contratado", schema: null },
+    { name: "ticket", description: "Ticket", schema: false },
+  ]);
+  assert.deepEqual(repository.get("pedido")?.macros, [
+    { name: "plan", description: "Plan contratado", schema: null },
+    { name: "ticket", description: "Ticket", schema: false },
+  ]);
+
+  repository.rename("pedido", "pedido-2");
+  assert.deepEqual(repository.get("pedido-2")?.macros, [
+    { name: "plan", description: "Plan contratado", schema: null },
+    { name: "ticket", description: "Ticket", schema: false },
+  ]);
+
+  assert.equal(repository.remove("pedido-2"), true);
+  assert.deepEqual(
+    db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(),
+    { total: 0 },
+  );
   db.close();
 });

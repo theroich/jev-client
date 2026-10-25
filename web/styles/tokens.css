@@ -169,10 +169,19 @@
   .chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:11px;color:var(--fg);background:var(--surface)}
   .chip-soft{background:color-mix(in oklch,var(--bg) 70%,var(--surface));color:var(--muted)}
   .chip-row{display:flex;flex-wrap:wrap;gap:6px}
-  .macro-rows{display:flex;flex-direction:column;gap:8px}
-  .macro-row{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
+  .macro-rows{display:flex;flex-direction:column;gap:12px}
+  .macro-entry{display:flex;flex-direction:column;gap:7px;min-width:0;padding-bottom:10px;border-bottom:1px solid var(--border)}
+  .macro-entry:last-child{padding-bottom:0;border-bottom:0}
+  .macro-summary{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .macro-row{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(112px,132px) auto;align-items:center;gap:8px;min-width:0}
+  .macro-head{display:flex;align-items:center;gap:6px;min-width:0}
   .macro-row .macro-key{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .macro-row .field{min-width:0}
+  .macro-type-chip{height:20px;font-size:10.5px;padding:0 6px;flex:none}
+  .macro-schema-bar{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+  .macro-schema-preview{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+  .macro-schema-editor{padding:9px;border:1px solid var(--border);border-radius:var(--radius-sm);background:color-mix(in oklch,var(--bg) 60%,var(--surface))}
+  .macro-schema-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 
   /* ── forms ────────────────────────────────────────────────────────── */
   .field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -376,7 +385,12 @@
     .starter-grid{grid-template-columns:minmax(0,1fr)}
     .starter-desc{min-height:0}
     .macro-row{grid-template-columns:minmax(0,1fr) auto;gap:6px 8px}
-    .macro-row .macro-key{grid-column:1 / -1;white-space:normal;overflow-wrap:anywhere}
-    .macro-row .field{grid-column:1}
+    .macro-row .macro-head{grid-column:1 / -1}
+    .macro-row .macro-key{white-space:normal;overflow-wrap:anywhere}
+    .macro-row .field{grid-column:1 / -1}
+    .macro-row .macro-type-field{grid-column:1}
     .macro-row .icon-btn{grid-column:2}
+    .macro-schema-bar{align-items:flex-start}
+    .macro-schema-preview{flex-basis:100%;order:2}
+    .macro-schema-actions{justify-content:flex-start}
   }

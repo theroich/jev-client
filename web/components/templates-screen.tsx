@@ -3,6 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  MACRO_SCHEMA_TYPES,
+  validateMacroSchema,
+  type MacroSchema,
+} from "../../dist/src/template-repository.js";
 import { detectMacros, validateTemplateBody } from "../../dist/src/template.js";
 import {
   createTemplateStarterBody,
@@ -34,10 +39,78 @@ interface Draft {
   description: string;
   bodyJson: string;
   macroDescriptions: Record<string, string>;
+  /** Esquema compacto (o formateado) por macro; `""` = sin esquema. */
+  macroSchemas: Record<string, string>;
 }
 
 function descriptionsFromMacros(macros: TemplateMacro[]): Record<string, string> {
   return Object.fromEntries(macros.map((macro) => [macro.name, macro.description]));
+}
+
+function schemaText(schema: MacroSchema | null | undefined): string {
+  return schema === undefined || schema === null ? "" : JSON.stringify(schema);
+}
+
+function schemasFromMacros(macros: TemplateMacro[]): Record<string, string> {
+  return Object.fromEntries(macros.map((macro) => [macro.name, schemaText(macro.schema)]));
+}
+
+/** Parsea y valida el texto de una fila; `null` si está vacío. */
+function parseMacroSchemaField(text: string): MacroSchema | null {
+  if (text.trim() === "") return null;
+  return validateMacroSchema(JSON.parse(text));
+}
+
+function macroSchemaError(text: string): string | null {
+  if (text.trim() === "") return null;
+  try {
+    parseMacroSchemaField(text);
+    return null;
+  } catch (caught) {
+    return caught instanceof Error ? caught.message : String(caught);
+  }
+}
+
+function macroSchemaTypeLabel(text: string): string | null {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const type = (parsed as Record<string, unknown>).type;
+    if (typeof type === "string") return type;
+    if (Array.isArray(type) && type.length > 0 && type.every((item) => typeof item === "string")) {
+      return type.join(" | ");
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Valor comparable para `dirty`: objeto válido o texto tal cual si es inválido. */
+function macroSchemaForComparison(text: string): unknown {
+  try {
+    return parseMacroSchemaField(text);
+  } catch {
+    return text.trim();
+  }
+}
+
+/** Esquema compacto para guardar o copiar a la CLI; `null` si está vacío. */
+function macroSchemaValue(text: string): MacroSchema | null {
+  try {
+    return parseMacroSchemaField(text);
+  } catch {
+    return null;
+  }
+}
+
+function macroSchemaCompact(text: string): string {
+  const value = macroSchemaValue(text);
+  return value === null ? "" : JSON.stringify(value);
+}
+
+function macroSchemaHintId(macro: string): string {
+  return `macro-schema-hint-${macro.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
 function uniqueDraftName(templates: TemplateSummary[]): string {
@@ -60,6 +133,7 @@ function starterDraft(id: TemplateStarterId, model: string, templates: TemplateS
     description: starter?.description ?? "",
     bodyJson: starterBodyJson(id, model),
     macroDescriptions: {},
+    macroSchemas: {},
   };
 }
 
@@ -70,6 +144,7 @@ function fromDetail(detail: TemplateDetail): Draft {
     description: detail.description,
     bodyJson: JSON.stringify(JSON.parse(detail.bodyJson), null, 2),
     macroDescriptions: descriptionsFromMacros(detail.macros),
+    macroSchemas: schemasFromMacros(detail.macros),
   };
 }
 
@@ -103,6 +178,7 @@ export function TemplatesScreen({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [starterOpen, setStarterOpen] = useState(false);
   const [focusName, setFocusName] = useState(startsNew);
+  const [schemaOpen, setSchemaOpen] = useState<Record<string, boolean>>({});
   const { request, notify } = useConsole();
 
   const bodyError = useMemo(() => {
@@ -119,9 +195,31 @@ export function TemplatesScreen({
     () => draft ? macros.filter((name) => (draft.macroDescriptions[name] ?? "").trim() !== "").length : 0,
     [draft, macros],
   );
+  const typedCount = useMemo(
+    () => draft
+      ? macros.filter((name) => macroSchemaTypeLabel(draft.macroSchemas[name] ?? "") !== null).length
+      : 0,
+    [draft, macros],
+  );
+  const schemaErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    if (!draft) return errors;
+    for (const name of macros) {
+      const error = macroSchemaError(draft.macroSchemas[name] ?? "");
+      if (error) errors[name] = error;
+    }
+    return errors;
+  }, [draft, macros]);
+  const invalidSchemas = Object.keys(schemaErrors).length > 0;
   const removedDescribed = useMemo(
     () => draft
       ? Object.entries(draft.macroDescriptions).filter(([name, description]) => description.trim() !== "" && !macros.includes(name))
+      : [],
+    [draft, macros],
+  );
+  const removedSchemas = useMemo(
+    () => draft
+      ? Object.entries(draft.macroSchemas).filter(([name, schema]) => schema.trim() !== "" && !macros.includes(name))
       : [],
     [draft, macros],
   );
@@ -139,11 +237,17 @@ export function TemplatesScreen({
     const currentMacros = JSON.stringify(macros.map((name) => ({
       name,
       description: (draft.macroDescriptions[name] ?? "").trim(),
+      schema: macroSchemaForComparison(draft.macroSchemas[name] ?? ""),
+    })));
+    const storedMacros = JSON.stringify(selected.macros.map((macro) => ({
+      name: macro.name,
+      description: macro.description,
+      schema: macro.schema ?? null,
     })));
     return draft.name !== selected.name
       || draft.description !== selected.description
       || draft.bodyJson !== JSON.stringify(JSON.parse(selected.bodyJson), null, 2)
-      || currentMacros !== JSON.stringify(selected.macros);
+      || currentMacros !== storedMacros;
   }, [draft, selected, macros]);
 
   useEffect(() => {
@@ -213,7 +317,7 @@ export function TemplatesScreen({
   };
 
   const save = async () => {
-    if (!draft || bodyError || nameError || saving) return;
+    if (!draft || bodyError || nameError || saving || invalidSchemas) return;
     setSaving(true);
     setError(null);
     try {
@@ -234,6 +338,7 @@ export function TemplatesScreen({
           macros: macros.map((macro) => ({
             name: macro,
             description: draft.macroDescriptions[macro] ?? "",
+            schema: macroSchemaValue(draft.macroSchemas[macro] ?? ""),
           })),
         }),
       });
@@ -289,11 +394,45 @@ export function TemplatesScreen({
   };
 
   const updateMacroDescription = (name: string, value: string) => {
-    if (!draft) return;
-    setDraft({
-      ...draft,
-      macroDescriptions: { ...draft.macroDescriptions, [name]: value },
-    });
+    setDraft((current) => current
+      ? { ...current, macroDescriptions: { ...current.macroDescriptions, [name]: value } }
+      : current);
+  };
+
+  const updateMacroSchema = (name: string, value: string) => {
+    setDraft((current) => current
+      ? { ...current, macroSchemas: { ...current.macroSchemas, [name]: value } }
+      : current);
+  };
+
+  const updateMacroType = (name: string, type: string) => {
+    if (type === "") {
+      updateMacroSchema(name, "");
+      return;
+    }
+    let next: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(draft?.macroSchemas[name] ?? "") as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        next = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Un borrador inválido se reemplaza por el tipo elegido.
+    }
+    updateMacroSchema(name, JSON.stringify({ ...next, type }));
+  };
+
+  const formatMacroSchema = (name: string) => {
+    const text = draft?.macroSchemas[name] ?? "";
+    try {
+      updateMacroSchema(name, JSON.stringify(JSON.parse(text), null, 2));
+    } catch {
+      // El error en vivo ya informa del JSON inválido.
+    }
+  };
+
+  const toggleMacroSchema = (name: string) => {
+    setSchemaOpen((current) => ({ ...current, [name]: !current[name] }));
   };
 
   const createBody = (() => {
@@ -304,12 +443,17 @@ export function TemplatesScreen({
       return draft.bodyJson;
     }
   })();
-  const macroFlags = draft
+  const macroDescriptionFlags = draft
     ? macros
         .filter((name) => (draft.macroDescriptions[name] ?? "").trim() !== "")
         .map((name) => `--macro-desc ${shellQuote(`${name}=${(draft.macroDescriptions[name] ?? "").trim()}`)}`)
-        .join(" ")
-    : "";
+    : [];
+  const macroSchemaFlags = draft
+    ? macros
+        .filter((name) => (draft.macroSchemas[name] ?? "").trim() !== "")
+        .map((name) => `--macro-schema ${shellQuote(`${name}=${macroSchemaCompact(draft.macroSchemas[name] ?? "")}`)}`)
+    : [];
+  const macroFlags = [...macroDescriptionFlags, ...macroSchemaFlags].join(" ");
   const withMacroFlags = (base: string) => macroFlags ? `${base} ${macroFlags}` : base;
   const command = !draft ? "jev template list" : tab === "render"
     ? `jev template render ${shellQuote(draft.name)} --context-file context.json`
@@ -365,43 +509,116 @@ export function TemplatesScreen({
               </div> : null}
               {tab === "macros" ? <div className="stack" style={{ gap: 10 }}>
                 <div className="row-between" style={{ alignItems: "flex-start" }}>
-                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Claves necesarias detectadas en el draft. Se admiten rutas anidadas como <code>{"{{cliente.nombre}}"}</code>; <code>\{"{{literal}}"}</code> escapa una macro. La descripción es opcional y no se envía a Jev.</p>
-                  <span className="chip" aria-live="polite">{describedCount} de {macros.length} descritas</span>
+                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Claves necesarias detectadas en el draft. Se admiten rutas anidadas como <code>{"{{cliente.nombre}}"}</code>; <code>\{"{{literal}}"}</code> escapa una macro. La descripción y el esquema son opcionales y no se envían a Jev.</p>
+                  <div className="macro-summary" aria-live="polite">
+                    <span className="chip">{describedCount} de {macros.length} descritas</span>
+                    <span className="chip">{typedCount} con tipo</span>
+                  </div>
                 </div>
                 {macros.length ? <div className="macro-rows">
                   {macros.map((macro) => {
                     const description = draft.macroDescriptions[macro] ?? "";
-                    return <div className="macro-row" key={macro}>
-                      <code className="macro-key">{"{{"}{macro}{"}}"}</code>
-                      <div className="field">
-                        <input
-                          className="input"
-                          type="text"
-                          maxLength={500}
-                          value={description}
-                          aria-label={`Descripción de {{${macro}}}`}
-                          aria-describedby="template-macros-hint"
-                          placeholder="Qué representa y qué formato/valores espera"
-                          onChange={(event) => updateMacroDescription(macro, event.target.value)}
+                    const schema = draft.macroSchemas[macro] ?? "";
+                    const typeLabel = macroSchemaTypeLabel(schema);
+                    const typeValue = typeLabel && (MACRO_SCHEMA_TYPES as readonly string[]).includes(typeLabel) ? typeLabel : "";
+                    const schemaError = schemaErrors[macro];
+                    const open = schemaOpen[macro] === true;
+                    const hintId = macroSchemaHintId(macro);
+                    return <div className="macro-entry" key={macro}>
+                      <div className="macro-row">
+                        <span className="macro-head">
+                          <code className="macro-key">{"{{"}{macro}{"}}"}</code>
+                          {typeLabel ? <span className="chip chip-soft macro-type-chip">{typeLabel}</span> : null}
+                        </span>
+                        <div className="field">
+                          <label className="sr-only" htmlFor={`macro-description-${hintId}`}>Descripción de {"{{"}{macro}{"}}"}</label>
+                          <input
+                            id={`macro-description-${hintId}`}
+                            className="input"
+                            type="text"
+                            maxLength={500}
+                            value={description}
+                            aria-label={`Descripción de {{${macro}}}`}
+                            aria-describedby="template-macros-hint"
+                            placeholder="Qué representa y qué formato/valores espera"
+                            onChange={(event) => updateMacroDescription(macro, event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape" && description !== "") {
+                                event.preventDefault();
+                                updateMacroDescription(macro, "");
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="field macro-type-field">
+                          <label className="sr-only" htmlFor={`macro-type-${hintId}`}>Tipo de {"{{"}{macro}{"}}"}</label>
+                          <select
+                            id={`macro-type-${hintId}`}
+                            className="select mono"
+                            value={typeValue}
+                            aria-label={`Tipo de {{${macro}}}`}
+                            onChange={(event) => updateMacroType(macro, event.target.value)}
+                          >
+                            <option value="">(sin tipo)</option>
+                            {MACRO_SCHEMA_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </div>
+                        <IconButton
+                          label={`Limpiar descripción de {{${macro}}}`}
+                          disabled={description === ""}
+                          onClick={() => updateMacroDescription(macro, "")}
+                        >
+                          <Icon name="close" />
+                        </IconButton>
+                      </div>
+                      <div className="macro-schema-bar">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`${open ? "Ocultar" : "Mostrar"} esquema JSON de {{${macro}}}`}
+                          aria-expanded={open}
+                          aria-controls={`macro-schema-editor-${hintId}`}
+                          onClick={() => toggleMacroSchema(macro)}
+                        >
+                          {open ? "Ocultar" : "Esquema JSON"}
+                        </Button>
+                        {schema && !open ? <code className="macro-schema-preview" title={schema}>{schema}</code> : null}
+                      </div>
+                      {open ? <div className="field macro-schema-editor" id={`macro-schema-editor-${hintId}`}>
+                        <div className="row-between">
+                          <label htmlFor={`macro-schema-${hintId}`}>Esquema JSON de {"{{"}{macro}{"}}"}</label>
+                          <span className="macro-schema-actions">
+                            <Button size="sm" variant="outline" disabled={schema.trim() === "" || Boolean(schemaError)} onClick={() => formatMacroSchema(macro)}>Formatear</Button>
+                            <Button size="sm" variant="ghost" disabled={schema === ""} onClick={() => updateMacroSchema(macro, "")}>Quitar esquema</Button>
+                          </span>
+                        </div>
+                        <textarea
+                          id={`macro-schema-${hintId}`}
+                          className="textarea"
+                          rows={5}
+                          spellCheck={false}
+                          value={schema}
+                          aria-label={`Esquema JSON de {{${macro}}}`}
+                          aria-describedby={hintId}
+                          aria-invalid={Boolean(schemaError)}
+                          placeholder={'{"type":"string","enum":["free","pro"]}'}
+                          onChange={(event) => updateMacroSchema(macro, event.target.value)}
                           onKeyDown={(event) => {
-                            if (event.key === "Escape" && description !== "") {
+                            if (event.key === "Escape" && schema !== "") {
                               event.preventDefault();
-                              updateMacroDescription(macro, "");
+                              updateMacroSchema(macro, "");
                             }
                           }}
                         />
-                      </div>
-                      <IconButton
-                        label={`Limpiar descripción de {{${macro}}}`}
-                        disabled={description === ""}
-                        onClick={() => updateMacroDescription(macro, "")}
-                      >
-                        <Icon name="close" />
-                      </IconButton>
+                        {schemaError
+                          ? <p className="form-error" role="alert">{schemaError}</p>
+                          : <p className="hint" id={hintId}>JSON Schema informativo. Admite booleanos, <code>enum</code>, <code>format</code>, <code>pattern</code>, límites, <code>default</code> y <code>examples</code>; los <code>$ref</code> deben ser locales (<code>#</code>).</p>}
+                      </div> : null}
                     </div>;
                   })}
                 </div> : <span className="hint">Sin macros.</span>}
                 {removedDescribed.length ? <Callout tone="warn">Al guardar se eliminará la descripción de {removedDescribed.map(([name]) => `{{${name}}}`).join(", ")} porque ya no aparece en el body.</Callout> : null}
+                {removedSchemas.length ? <Callout tone="warn">Al guardar se eliminará el esquema de {removedSchemas.map(([name]) => `{{${name}}}`).join(", ")} porque ya no aparece en el body.</Callout> : null}
                 {macros.length ? <Callout tone="info">El contexto debe proporcionar {macros.length === 1 ? "esta clave" : "todas estas claves"}. El render valida las ausentes antes de cualquier llamada.</Callout> : null}
               </div> : null}
             </div>
@@ -409,7 +626,7 @@ export function TemplatesScreen({
               <span>{dirty ? <span className="dirty-badge">sin guardar</span> : "guardada en SQLite"}</span>
               <div className="template-actions">
                 {draft.originalName ? <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}><Icon name="trash" />Eliminar</Button> : null}
-                <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || Boolean(bodyError) || Boolean(nameError) || (!dirty && Boolean(draft.originalName))}>{saving ? "Guardando…" : draft.originalName ? "Guardar cambios" : "Crear plantilla"}</Button>
+                <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || Boolean(bodyError) || Boolean(nameError) || invalidSchemas || (!dirty && Boolean(draft.originalName))}>{saving ? "Guardando…" : draft.originalName ? "Guardar cambios" : "Crear plantilla"}</Button>
               </div>
             </div>
           </Panel>

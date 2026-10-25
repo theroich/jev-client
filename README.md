@@ -96,9 +96,10 @@ automáticamente.
 ### Esquema SQLite
 
 La base usa cuatro tablas. El esquema está versionado con `PRAGMA user_version`
-(versión actual: **4**): cada versión se aplica en una transacción, las
-migraciones son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS`) y se
-pueden reaplicar sin duplicar datos. Si una base es más reciente de lo que
+(versión actual: **5**): cada versión se aplica en una transacción, las
+migraciones son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS` y
+comprobación de columnas en `ALTER TABLE`) y se pueden reaplicar sin duplicar
+datos. Si una base es más reciente de lo que
 soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
 
 **`config`** — clave/valor de la configuración persistente.
@@ -118,24 +119,32 @@ soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
 | `created_at` | `TEXT NOT NULL` | ISO 8601 |
 | `updated_at` | `TEXT NOT NULL` | ISO 8601 |
 
-**`template_macros`** — descripciones opcionales de las macros de cada
-plantilla. El body sigue siendo la única fuente de verdad de **qué** macros
-existen; esta tabla solo aporta su significado para humanos y agentes.
+**`template_macros`** — metadatos opcionales (descripción y JSON Schema) de las
+macros de cada plantilla. El body sigue siendo la única fuente de verdad de
+**qué** macros existen; esta tabla solo aporta su significado y su forma para
+humanos y agentes.
 
 | Columna | Tipo | Notas |
 | --- | --- | --- |
 | `template_name` | `TEXT NOT NULL` | FK a `templates.name` con `ON DELETE/UPDATE CASCADE` |
 | `macro` | `TEXT NOT NULL` | clave completa, p. ej. `cliente.nombre` |
 | `description` | `TEXT NOT NULL DEFAULT ''` | texto libre (máx. 500), `''` si no se describió |
+| `schema_json` | `TEXT` | JSON Schema compacto (máx. 8 KB) o `NULL` si no tiene |
 | `created_at` | `TEXT NOT NULL` | ISO 8601 |
 | `updated_at` | `TEXT NOT NULL` | ISO 8601 |
 
 La clave primaria es `(template_name, macro)`. Al leer, el repositorio fusiona
 `detectMacros(body_json)` con las filas guardadas: toda macro del body aparece
 aunque no tenga fila, y nunca se devuelven filas huérfanas. Al guardar se
-eliminan las filas de macros que ya no están en el body y se conservan las
-descripciones existentes si no se pasan explícitamente. Las descripciones **no**
-se envían a Jev.
+eliminan las filas de macros que ya no están en el body y se conservan
+descripciones y esquemas existentes si no se pasan explícitamente.
+
+El esquema es informativo: puede ser un objeto JSON Schema o un booleano
+(`true`/`false`), se guarda compacto y la API lo devuelve parseado. Se valida de
+forma estructural (JSON válido, `type` conocido, `enum` no vacío, `format` y
+`pattern` correctos, límites numéricos, `$ref` solo locales y máximo 8 KB), pero
+no se resuelve ni se compone con el de rutas padre/hijas. Ni la descripción ni el
+esquema **se envían a Jev** ni alteran el renderizado.
 
 **`requests`** — historial de peticiones (una fila por ejecución de `ask`, `demo`
 o por cada petición de un `batch`).
@@ -306,7 +315,9 @@ con huecos `{{clave}}` que se resuelven con un mapa de contexto:
 jev template create pedido --description "Pedido con cliente" \
   --file examples/template.json \
   --macro-desc 'estado_de_pedido=Qué pide el cliente, en texto libre' \
-  --macro-desc 'cliente.nombre=Nombre del cliente'
+  --macro-desc 'cliente.nombre=Nombre del cliente' \
+  --macro-schema 'cliente.plan={"type":"string","enum":["free","pro","enterprise"]}' \
+  --macro-type 'cliente.nombre=string'
 # ... o con el body inline / desde stdin
 jev template create pedido --body '{"model":"jev-1.13", ...}'
 cat body.json | jev template create pedido --body -
@@ -320,10 +331,12 @@ jev template show pedido --json         # { name, description, body, macros, ...
 jev template edit pedido
 # ... o reemplazar el body desde un fichero sin abrir el editor
 jev template edit pedido --file nuevo.json
-# Ajustar o vaciar descripciones sin tocar el body
+# Ajustar o vaciar descripciones y esquemas sin tocar el body
 jev template edit pedido --file nuevo.json \
   --macro-desc 'ticket=Identificador del pedido (TCK-1042)' \
-  --clear-macro-desc 'cliente.nombre'
+  --clear-macro-desc 'cliente.nombre' \
+  --macro-type 'ticket=string' \
+  --clear-macro-schema 'cliente.plan'
 
 # Validar una plantilla guardada o un fichero, sin enviar nada
 jev template validate pedido
@@ -340,9 +353,21 @@ jev template delete pedido --yes
 `template add` y `template remove` se mantienen como sinónimos de `create` y
 `delete` sin confirmación, respectivamente. `--macro-desc <clave>=<texto>` es
 repetible y exige que la macro exista en el body; `--clear-macro-desc <clave>`
-vacía su descripción. Sin estos flags, `edit` conserva las descripciones
-existentes. Las descripciones se recortan, admiten hasta 500 caracteres y son
-solo metadatos: no se envían a Jev ni se usan al renderizar.
+vacía su descripción. `--macro-schema <clave>=<json>` guarda un JSON Schema
+completo (objeto o booleano), `--macro-type <clave>=<tipo>` es el atajo de
+`{"type":"<tipo>"}` y `--clear-macro-schema <clave>` elimina el esquema
+conservando la descripción. Sin flags de esquema, `edit` conserva los existentes.
+Las descripciones se recortan, admiten hasta 500 caracteres; los esquemas se
+guardan compactos y admiten hasta 8 KB. Ambos son solo metadatos: no se envían a
+Jev ni se usan al renderizar.
+
+`jev template show` en texto imprime la descripción y el esquema bajo cada macro:
+
+```text
+  {{cliente.plan}}
+    Plan contratado por el cliente
+    schema: {"type":"string","enum":["free","pro"]}
+```
 
 Reglas de las macros:
 
@@ -518,10 +543,12 @@ produce un error explícito; nunca elige otro puerto fijo en silencio.
   modelo efectivo, los dos modelos conocidos y un valor libre.
 - **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
   macros anidadas y escapadas, cambios sin guardar, renombrado transaccional y
-  pestaña **Macros** con una descripción opcional por macro (contador
-  `N de M descritas`, guardado atómico con el body y aviso al quitar una macro
-  descrita). Las descripciones se persisten en `template_macros` y nunca se
-  envían a Jev.
+  pestaña **Macros** con una descripción y un JSON Schema opcionales por macro.
+  Cada fila ofrece un selector de tipo básico y un editor avanzado de JSON
+  (formatear, validación en vivo y bloqueo del guardado si es inválido), con
+  resumen `N de M descritas · K con tipo`, guardado atómico con el body y aviso
+  al quitar una macro descrita o con esquema. Los metadatos se persisten en
+  `template_macros` (`description`, `schema_json`) y nunca se envían a Jev.
   **Nueva plantilla** abre el modal **Empezar plantilla** con ejemplos válidos de
   `noul`, `choice` y `score` (`src/template-starters.ts`); `noul` llega
   preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`

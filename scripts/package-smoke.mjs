@@ -46,7 +46,7 @@ try {
   const healthResponse = await fetch(`${url.origin}/api/health`);
   if (!healthResponse.ok) throw new Error(`Health del paquete: ${healthResponse.status}`);
   const health = await healthResponse.json();
-  if (!health.ok || health.schemaVersion !== 4) throw new Error(`Health inválido: ${JSON.stringify(health)}`);
+  if (!health.ok || health.schemaVersion !== 5) throw new Error(`Health inválido: ${JSON.stringify(health)}`);
   const page = await fetch(`${url.origin}/`);
   const html = await page.text();
   if (!page.ok || !html.includes("Resumen")) throw new Error("La página instalada no renderiza Resumen");

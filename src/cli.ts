@@ -33,7 +33,15 @@ import {
   type HistoryFilters,
 } from "./request-repository.js";
 import { JevService, MAX_CONCURRENCY } from "./service.js";
-import { TemplateRepository, type TemplateMacro } from "./template-repository.js";
+import {
+  MACRO_SCHEMA_TYPES,
+  MacroSchemaError,
+  TemplateRepository,
+  validateMacroSchema,
+  type MacroSchema,
+  type MacroSchemaType,
+  type TemplateMacro,
+} from "./template-repository.js";
 import {
   detectMacros,
   resolveTemplateBody,
@@ -179,11 +187,11 @@ Flags comunes:
 `;
 
 const TEMPLATE_USAGE = `Uso:
-  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]...
-  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>) [--macro-desc <clave>=<texto>]...
+  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...
+  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...
   jev-client template list [--json] [--db <ruta>]
   jev-client template show <name> [--json] [--db <ruta>]
-  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--db <ruta>]
+  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]... [--clear-macro-schema <clave>]... [--db <ruta>]
   jev-client template delete <name> [--yes] [--db <ruta>]
   jev-client template remove <name> [--db <ruta>]
   jev-client template validate <name> [--db <ruta>]
@@ -198,6 +206,12 @@ Las descripciones de macros son metadatos opcionales para humanos y agentes:
 '--macro-desc ticket=Identificador del pedido' es repetible y
 '--clear-macro-desc ticket' vacía la descripción. Sin flags, 'edit' conserva
 las descripciones existentes.
+
+Cada macro admite además un JSON Schema informativo y opcional:
+'--macro-schema plan={"type":"string","enum":["free","pro"]}' guarda el
+esquema completo, '--macro-type plan=string' es el atajo {"type":"string"} y
+'--clear-macro-schema plan' lo elimina conservando la descripción. Los
+esquemas no se envían a Jev ni se resuelven al renderizar.
 `;
 
 const BATCH_USAGE = `Uso: jev-client batch <plantilla> --contexts <fichero.json> [flags]
@@ -287,6 +301,9 @@ const TEMPLATE_OPTIONS = {
   "context-file": { type: "string" },
   "macro-desc": { type: "string", multiple: true },
   "clear-macro-desc": { type: "string", multiple: true },
+  "macro-schema": { type: "string", multiple: true },
+  "macro-type": { type: "string", multiple: true },
+  "clear-macro-schema": { type: "string", multiple: true },
 } satisfies ParseArgsOptions;
 
 const ASK_OPTIONS = {
@@ -934,31 +951,87 @@ function templateName(positionals: string[]): string {
   return name;
 }
 
+/** Separa `<clave>=<valor>` conservando posibles `=` dentro del valor. */
+function splitMacroFlag(
+  raw: string,
+  flag: string,
+  valueLabel = "valor",
+): { name: string; value: string } {
+  const separator = raw.indexOf("=");
+  if (separator <= 0) {
+    throw new UsageError(`${flag} espera <clave>=<${valueLabel}>: ${JSON.stringify(raw)}`);
+  }
+  return {
+    name: raw.slice(0, separator).trim(),
+    value: raw.slice(separator + 1),
+  };
+}
+
 /** Lee los `--macro-desc <clave>=<texto>` repetibles. */
 function macroDescriptionsFlag(values: Values): TemplateMacro[] {
   return asStrings(values["macro-desc"]).map((raw) => {
-    const separator = raw.indexOf("=");
-    if (separator <= 0) {
-      throw new UsageError(
-        `--macro-desc espera <clave>=<texto>: ${JSON.stringify(raw)}`,
-      );
-    }
-    return {
-      name: raw.slice(0, separator).trim(),
-      description: raw.slice(separator + 1),
-    };
+    const { name, value } = splitMacroFlag(raw, "--macro-desc", "texto");
+    return { name, description: value };
   });
 }
 
 function clearedMacrosFlag(values: Values): string[] {
-  return asStrings(values["clear-macro-desc"])
+  return clearedMacroNames(values, "clear-macro-desc", "--clear-macro-desc");
+}
+
+function clearedMacroNames(values: Values, key: string, flag: string): string[] {
+  return asStrings(values[key])
     .map((name) => name.trim())
-    .filter((name) => name !== "");
+    .filter((name) => {
+      if (name === "") {
+        throw new UsageError(`${flag} espera <clave>`);
+      }
+      return true;
+    });
+}
+
+/** Lee `--macro-schema <clave>=<json>` y valida cada esquema. */
+function macroSchemasFlag(values: Values): Array<{ name: string; schema: MacroSchema }> {
+  return asStrings(values["macro-schema"]).map((raw) => {
+    const { name, value } = splitMacroFlag(raw, "--macro-schema");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch (error) {
+      throw new UsageError(
+        `--macro-schema ${JSON.stringify(name)} no es JSON válido: ${messageOf(error)}`,
+      );
+    }
+    try {
+      return { name, schema: validateMacroSchema(parsed) };
+    } catch (error) {
+      if (error instanceof MacroSchemaError) {
+        throw new UsageError(
+          `--macro-schema ${JSON.stringify(name)}: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+/** Lee `--macro-type <clave>=<tipo>` como atajo de `{"type":"<tipo>"}`. */
+function macroTypesFlag(values: Values): Array<{ name: string; schema: MacroSchema }> {
+  return asStrings(values["macro-type"]).map((raw) => {
+    const { name, value } = splitMacroFlag(raw, "--macro-type");
+    const type = value.trim();
+    if (!(MACRO_SCHEMA_TYPES as readonly string[]).includes(type)) {
+      throw new UsageError(
+        `--macro-type ${JSON.stringify(name)} espera uno de: ${MACRO_SCHEMA_TYPES.join(" | ")}`,
+      );
+    }
+    return { name, schema: { type: type as MacroSchemaType } };
+  });
 }
 
 /**
- * Combina las descripciones existentes con los flags de macros. Devuelve
- * `undefined` si no hay flags para que el repositorio conserve las actuales.
+ * Combina los metadatos existentes con los flags de macros. Devuelve
+ * `undefined` si no hay flags para que el repositorio conserve los actuales.
  */
 function mergeMacroFlags(
   values: Values,
@@ -966,13 +1039,29 @@ function mergeMacroFlags(
   existing: TemplateMacro[] = [],
 ): TemplateMacro[] | undefined {
   const described = macroDescriptionsFlag(values);
-  const cleared = clearedMacrosFlag(values);
-  if (described.length === 0 && cleared.length === 0) {
+  const clearedDescriptions = clearedMacrosFlag(values);
+  const typed = macroTypesFlag(values);
+  const schemas = macroSchemasFlag(values);
+  const clearedSchemas = clearedMacroNames(values, "clear-macro-schema", "--clear-macro-schema");
+  if (
+    described.length === 0 &&
+    clearedDescriptions.length === 0 &&
+    typed.length === 0 &&
+    schemas.length === 0 &&
+    clearedSchemas.length === 0
+  ) {
     return undefined;
   }
 
   const detected = new Set(detectMacros(bodyJson));
-  for (const name of [...described.map((entry) => entry.name), ...cleared]) {
+  const touched = [
+    ...described.map((entry) => entry.name),
+    ...clearedDescriptions,
+    ...typed.map((entry) => entry.name),
+    ...schemas.map((entry) => entry.name),
+    ...clearedSchemas,
+  ];
+  for (const name of touched) {
     if (!detected.has(name)) {
       throw new UsageError(
         `la macro ${JSON.stringify(name)} no está en el body de la plantilla`,
@@ -983,15 +1072,28 @@ function mergeMacroFlags(
   const descriptions = new Map(
     existing.map((macro) => [macro.name, macro.description] as const),
   );
+  const macroSchemas = new Map<string, MacroSchema | null>(
+    existing.map((macro) => [macro.name, macro.schema ?? null] as const),
+  );
   for (const entry of described) {
     descriptions.set(entry.name, entry.description);
   }
-  for (const name of cleared) {
+  for (const name of clearedDescriptions) {
     descriptions.set(name, "");
+  }
+  for (const entry of typed) {
+    macroSchemas.set(entry.name, entry.schema);
+  }
+  for (const entry of schemas) {
+    macroSchemas.set(entry.name, entry.schema);
+  }
+  for (const name of clearedSchemas) {
+    macroSchemas.set(name, null);
   }
   return detectMacros(bodyJson).map((name) => ({
     name,
     description: descriptions.get(name) ?? "",
+    schema: macroSchemas.get(name) ?? null,
   }));
 }
 
@@ -1003,7 +1105,7 @@ async function templateAdd(
   expectTemplateArity(
     positionals,
     2,
-    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]...",
+    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...",
   );
   const name = templateName(positionals);
   const raw = await readTemplateBodyInput(values, io);
@@ -1086,6 +1188,9 @@ function templateShow(
         for (const macro of template.macros) {
           io.stdout(`  {{${macro.name}}}\n`);
           io.stdout(`    ${macro.description || "(sin descripción)"}\n`);
+          if (macro.schema !== undefined && macro.schema !== null) {
+            io.stdout(`    schema: ${JSON.stringify(macro.schema)}\n`);
+          }
         }
       }
     }
@@ -1137,7 +1242,7 @@ async function templateEdit(
   expectTemplateArity(
     positionals,
     2,
-    "jev template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]...",
+    "jev template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]... [--clear-macro-schema <clave>]...",
   );
   const name = templateName(positionals);
   const file = asString(values.file);
