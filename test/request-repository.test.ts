@@ -169,6 +169,40 @@ test("devuelve undefined para un id inexistente", () => {
   db.close();
 });
 
+test("filtra por batch de forma parametrizada y expone count y facets", () => {
+  const db = openDatabase(":memory:");
+  const repository = new RequestRepository(db);
+
+  repository.insert(log({ model: "a", templateName: "t1", batchId: "b1" }));
+  repository.insert(
+    log({ model: "b", statusCode: 500, ok: false, batchId: "b2" }),
+  );
+  repository.insert(log({ model: "a", templateName: "t2", batchId: "b1" }));
+
+  assert.deepEqual(
+    repository.list({ batch: "b1" }).map((record) => record.id),
+    [3, 1],
+  );
+  assert.deepEqual(
+    repository.list({ batch: "b1", model: "a", limit: 1 }).map(
+      (record) => record.id,
+    ),
+    [3],
+  );
+  assert.equal(repository.list({ batch: "b1' OR 1=1 --" }).length, 0);
+  assert.equal(repository.count(), 3);
+  assert.equal(repository.count({ batch: "b1" }), 2);
+  assert.equal(repository.count({ batch: "b1", limit: 1 }), 2);
+  assert.deepEqual(repository.facets(), {
+    models: ["a", "b"],
+    templates: ["t1", "t2"],
+    statuses: [200, 500],
+    batches: ["b1", "b2"],
+  });
+
+  db.close();
+});
+
 test("crea los índices sobre created_at, model y template_name", () => {
   const db = openDatabase(":memory:");
   const rows = db

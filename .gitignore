@@ -1,4 +1,11 @@
 node_modules/
 dist/
+.tmp/
+web/.next/
+test-results/
+web/test-results/
+web/playwright-report/
+web/.e2e/
+*.tsbuildinfo
 *.log
 .DS_Store

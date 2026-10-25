@@ -209,6 +209,70 @@ test("capa el Retry-After", async () => {
   assert.ok(Date.now() - start < 1000, "el Retry-After debe quedar capado");
 });
 
+test("run cancela una petición en vuelo sin reintentarla", async () => {
+  const controller = new AbortController();
+  const { fetchImpl, calls } = fakeFetch(({ init }) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init.signal;
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      signal?.addEventListener("abort", () => reject(signal.reason), {
+        once: true,
+      });
+    }),
+  );
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    maxRetries: 3,
+    backoffMs: 0,
+  });
+
+  const pending = client.run(
+    { model: "", state: "x", questions: { q: { type: "noul" } } },
+    { signal: controller.signal },
+  );
+  assert.equal(calls.length, 1);
+  controller.abort();
+
+  await assert.rejects(pending, (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.equal(error.name, "AbortError");
+    return true;
+  });
+  assert.equal(calls.length, 1);
+});
+
+test("la cancelación interrumpe la espera entre reintentos", async () => {
+  const controller = new AbortController();
+  const { fetchImpl, calls } = fakeFetch(() => {
+    throw new Error("red temporal");
+  });
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    maxRetries: 3,
+    backoffMs: 60_000,
+  });
+
+  const pending = client.run(
+    { model: "", state: "x", questions: { q: { type: "noul" } } },
+    { signal: controller.signal },
+  );
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 1);
+  controller.abort();
+
+  await assert.rejects(pending, (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.equal(error.name, "AbortError");
+    return true;
+  });
+  assert.equal(calls.length, 1);
+});
+
 test("parsea los formatos de error conocidos", () => {
   const cases: Array<{
     name: string;

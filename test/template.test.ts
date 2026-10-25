@@ -199,3 +199,54 @@ test("TemplateRepository gestiona plantillas con timestamps", () => {
 
   db.close();
 });
+
+test("TemplateRepository.rename conserva el contenido y created_at", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("origen", "descripción", '{"model":"m"}');
+  const original = repository.get("origen");
+  assert.ok(original);
+
+  repository.rename("origen", "destino");
+
+  assert.equal(repository.get("origen"), undefined);
+  const renamed = repository.get("destino");
+  assert.ok(renamed);
+  assert.equal(renamed.description, original.description);
+  assert.equal(renamed.body_json, original.body_json);
+  assert.equal(renamed.created_at, original.created_at);
+  db.close();
+});
+
+test("TemplateRepository.rename no sobrescribe el destino ni pierde el origen", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("origen", "original", '{"model":"origen"}');
+  repository.save("destino", "destino", '{"model":"destino"}');
+
+  assert.throws(() => repository.rename("origen", "destino"), /ya existe/);
+
+  assert.equal(repository.get("origen")?.body_json, '{"model":"origen"}');
+  assert.equal(repository.get("destino")?.body_json, '{"model":"destino"}');
+  db.close();
+});
+
+test("TemplateRepository.rename revierte el cambio si SQLite falla", () => {
+  const db = openDatabase(":memory:");
+  const repository = new TemplateRepository(db);
+  repository.save("origen", "original", '{"model":"m"}');
+  db.exec(`
+    CREATE TRIGGER reject_template_rename
+    BEFORE UPDATE OF name ON templates
+    WHEN NEW.name = 'destino'
+    BEGIN
+      SELECT RAISE(FAIL, 'rename rechazado');
+    END
+  `);
+
+  assert.throws(() => repository.rename("origen", "destino"), /rename rechazado/);
+
+  assert.equal(repository.get("origen")?.body_json, '{"model":"m"}');
+  assert.equal(repository.get("destino"), undefined);
+  db.close();
+});

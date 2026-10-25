@@ -1,10 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
-import { JevClient, type FetchLike } from "./client.js";
+import type { FetchLike } from "./client.js";
 import {
   DEFAULT_ENDPOINT,
   DEFAULT_MODEL,
@@ -20,7 +19,7 @@ import {
   type ConfigKey,
 } from "./config-repository.js";
 import { openDatabase, resolveDatabasePath } from "./database.js";
-import { JevApiError } from "./errors.js";
+import { JevApiError, jevErrorHint } from "./errors.js";
 import {
   formatCost,
   formatHistoryDetail,
@@ -33,6 +32,7 @@ import {
   RequestRepository,
   type HistoryFilters,
 } from "./request-repository.js";
+import { JevService, MAX_CONCURRENCY } from "./service.js";
 import { TemplateRepository } from "./template-repository.js";
 import {
   resolveTemplateBody,
@@ -41,7 +41,8 @@ import {
   type TemplateContext,
 } from "./template.js";
 import { createTuiBackend, runTui, type TuiBackend } from "./tui.js";
-import type { JevRequest, JevResponse, Question, RequestLog, State } from "./types.js";
+import type { JevRequest, JevResponse, Question, State } from "./types.js";
+import { runWebConsoleCommand } from "./web-console.js";
 
 export const VERSION = "1.0.0";
 
@@ -80,6 +81,8 @@ Uso:
   jev-client templates <comando> alias de template
   jev-client batch <plantilla> --contexts <fichero.json>  ejecuta una plantilla para muchos contextos
   jev-client tui [--db <ruta>]  modo interactivo (configuración y plantillas)
+  jev-client web-console [flags]  consola web local Next.js
+  jev-client --web-console [flags] alias de web-console
   jev-client version          muestra la versión
   jev-client help             muestra esta ayuda
 
@@ -166,6 +169,7 @@ Filtros (list y export):
   --status <código>        código HTTP (p. ej. 200, 429)
   --model <modelo>         modelo exacto
   --template <nombre>      nombre de plantilla
+  --batch <id>             identificador de lote
   --limit <n>              número máximo de resultados
 
 Flags comunes:
@@ -259,6 +263,7 @@ const HISTORY_OPTIONS = {
   status: { type: "string" },
   model: { type: "string" },
   template: { type: "string" },
+  batch: { type: "string" },
   limit: { type: "string" },
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
@@ -299,8 +304,6 @@ const TUI_OPTIONS = {
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsOptions;
 
-const MAX_CONCURRENCY = 10;
-
 interface CommonOptions {
   config: ReturnType<typeof resolveConfig>;
   model?: string | undefined;
@@ -313,7 +316,7 @@ type Values = Record<string, string | boolean | undefined>;
 class UsageError extends Error {}
 
 export async function runCli(argv: string[], io: CliIO): Promise<number> {
-  const command = argv[0];
+  const command = argv[0] === "--web-console" ? "web-console" : argv[0];
   if (command === undefined) {
     io.stderr(`${USAGE}\n`);
     return 2;
@@ -336,6 +339,8 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         return await runBatch(argv.slice(1), io);
       case "tui":
         return await runTuiCommand(argv.slice(1), io);
+      case "web-console":
+        return await runWebConsoleCommand(argv.slice(1), io);
       case "version":
       case "--version":
         io.stdout(`jev-client ${VERSION}\n`);
@@ -378,11 +383,18 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
   }
 
   const options = readCommonOptions(values, io);
-  const client = createClient(options, io, createRecorder(values, io));
   const request = await buildRequest(values, options, io);
-  const response = await client.run(request);
-  writeResponse(io, response, options.json);
-  return 0;
+  const service = createService(values, io);
+  try {
+    const { response } = await service.ask(request, {
+      model: options.model,
+      save: values["no-save"] !== true,
+    });
+    writeResponse(io, response, options.json);
+    return 0;
+  } finally {
+    service.close();
+  }
 }
 
 async function runDemo(args: string[], io: CliIO): Promise<number> {
@@ -397,14 +409,17 @@ async function runDemo(args: string[], io: CliIO): Promise<number> {
   }
 
   const options = readCommonOptions(values, io);
-  const client = createClient(options, io, createRecorder(values, io));
-  const response = await client.run({
-    model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
-    state: DEMO_STATE,
-    questions: demoQuestions(),
-  });
-  writeResponse(io, response, options.json);
-  return 0;
+  const service = createService(values, io);
+  try {
+    const { response } = await service.demo({
+      model: options.model,
+      save: values["no-save"] !== true,
+    });
+    writeResponse(io, response, options.json);
+    return 0;
+  } finally {
+    service.close();
+  }
 }
 
 interface BatchItemResult {
@@ -443,14 +458,6 @@ async function runBatch(args: string[], io: CliIO): Promise<number> {
     throw new UsageError("falta --contexts <fichero.json>");
   }
 
-  const bodyJson = withTemplates(values, io, (repository) => {
-    const template = repository.get(templateName);
-    if (template === undefined) {
-      throw new Error(`plantilla no encontrada: ${templateName}`);
-    }
-    return template.body_json;
-  });
-
   const raw = await readInput(undefined, contextsFlag, io);
   if (raw === undefined || raw.trim() === "") {
     throw new Error("--contexts está vacío");
@@ -458,34 +465,29 @@ async function runBatch(args: string[], io: CliIO): Promise<number> {
   const contexts = parseContextsArray(raw);
 
   const options = readCommonOptions(values, io);
-  const batchId = randomUUID();
-  const client = createClient(
-    options,
-    io,
-    createRecorder(values, io, { templateName, batchId }),
-  );
+  const service = createService(values, io);
+  try {
+    const batch = await service.batch(templateName, contexts, {
+      concurrency,
+      failFast,
+      model: options.model,
+      save: values["no-save"] !== true,
+    });
+    const results = batch.items.filter((item) => item.status !== "skipped");
+    const skipped = batch.summary.skipped;
 
-  const results = await executeBatch(
-    contexts,
-    bodyJson,
-    options,
-    io,
-    client,
-    concurrency,
-    failFast,
-  );
+    if (options.json) {
+      io.stdout(
+        `${JSON.stringify(batchToJson(batch.batchId, templateName, results, contexts.length, skipped), null, 2)}\n`,
+      );
+    } else {
+      io.stdout(formatBatchReport(templateName, batch.batchId, results, skipped));
+    }
 
-  const skipped = contexts.length - results.length;
-
-  if (options.json) {
-    io.stdout(
-      `${JSON.stringify(batchToJson(batchId, templateName, results, contexts.length, skipped), null, 2)}\n`,
-    );
-  } else {
-    io.stdout(formatBatchReport(templateName, batchId, results, skipped));
+    return results.some((result) => !result.ok) || skipped > 0 ? 1 : 0;
+  } finally {
+    service.close();
   }
-
-  return results.some((result) => !result.ok) || skipped > 0 ? 1 : 0;
 }
 
 function parseConcurrency(value: string | undefined): number {
@@ -512,90 +514,6 @@ function parseContextsArray(raw: string): unknown[] {
     throw new Error("--contexts debe ser un array de mapas de contexto");
   }
   return parsed;
-}
-
-/**
- * Ejecuta una petición por mapa de contexto conservando el orden del fichero.
- * Con `failFast` procesa en serie y se detiene ante el primer error; si no,
- * usa un pool de `concurrency` trabajadores.
- */
-async function executeBatch(
-  contexts: unknown[],
-  bodyJson: string,
-  options: CommonOptions,
-  io: CliIO,
-  client: JevClient,
-  concurrency: number,
-  failFast: boolean,
-): Promise<BatchItemResult[]> {
-  const results: BatchItemResult[] = [];
-
-  const run = async (index: number): Promise<void> => {
-    const rawContext = contexts[index];
-    if (
-      !rawContext ||
-      typeof rawContext !== "object" ||
-      Array.isArray(rawContext)
-    ) {
-      results[index] = {
-        index,
-        ok: false,
-        error: `el contexto #${index + 1} no es un objeto`,
-      };
-      return;
-    }
-
-    let request: JevRequest;
-    try {
-      request = resolveTemplateBody(bodyJson, rawContext as TemplateContext);
-      request.model = resolveModel(
-        options.model,
-        request.model,
-        envOf(io),
-        options.storedModel,
-      );
-    } catch (error) {
-      results[index] = { index, ok: false, error: messageOf(error) };
-      return;
-    }
-
-    try {
-      const response = await client.run(request);
-      results[index] = {
-        index,
-        ok: true,
-        model: response.model,
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-        cost: response.usage.cost,
-        raw: response.raw,
-      };
-    } catch (error) {
-      results[index] = { index, ok: false, error: messageOf(error) };
-    }
-  };
-
-  if (failFast) {
-    for (let index = 0; index < contexts.length; index += 1) {
-      if (results.some((result) => result !== undefined && !result.ok)) {
-        break;
-      }
-      await run(index);
-    }
-    return results;
-  }
-
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < contexts.length) {
-      const index = cursor;
-      cursor += 1;
-      await run(index);
-    }
-  };
-  const workers = Math.max(1, Math.min(concurrency, contexts.length));
-  await Promise.all(Array.from({ length: workers }, () => worker()));
-  return results;
 }
 
 function batchToJson(
@@ -890,6 +808,11 @@ function parseHistoryFilters(values: Values): HistoryFilters {
   const template = asString(values.template);
   if (template !== undefined) {
     filters.template = template;
+  }
+
+  const batch = asString(values.batch);
+  if (batch !== undefined) {
+    filters.batch = batch;
   }
 
   const limit = asString(values.limit);
@@ -1390,58 +1313,21 @@ function withDatabase<T>(
   }
 }
 
-function createClient(
-  options: CommonOptions,
-  io: CliIO,
-  onRequest?: (log: RequestLog) => void,
-): JevClient {
-  const { config } = options;
-  if (!config.apiKey) {
-    throw new Error(
-      "falta la API key: usa --key, define OPENCODE_API_KEY (o JEV_API_KEY) " +
-        "o guarda api_key con 'jev config set'",
-    );
-  }
-
-  return new JevClient({
-    apiKey: config.apiKey,
-    endpoint: config.endpoint,
-    model: config.model,
-    timeoutMs: config.timeoutMs,
-    maxRetries: config.retries,
+function createService(values: Values, io: CliIO): JevService {
+  const timeout = asString(values.timeout);
+  const retries = asString(values.retries);
+  return new JevService({
+    flags: {
+      key: asString(values.key),
+      url: asString(values.url),
+      model: asString(values.model),
+      timeoutMs: timeout === undefined ? undefined : Math.round(Number(timeout) * 1000),
+      retries: retries === undefined ? undefined : Number(retries),
+    },
+    env: envOf(io),
+    dbPath: resolveDatabasePath(asString(values.db), envOf(io)),
     fetch: io.fetch,
-    onRequest,
   });
-}
-
-/**
- * Devuelve un hook que guarda cada ejecución en la base, salvo con --no-save.
- * Abre y cierra la base por petición para no mantener conexiones abiertas.
- * Con `metadata`, sella cada registro con su plantilla y batch.
- */
-function createRecorder(
-  values: Values,
-  io: CliIO,
-  metadata?: { templateName?: string; batchId?: string },
-): ((log: RequestLog) => void) | undefined {
-  if (values["no-save"] === true) {
-    return undefined;
-  }
-  const path = resolveDatabasePath(asString(values.db), envOf(io));
-  return (log) => {
-    if (metadata?.templateName !== undefined) {
-      log.templateName = metadata.templateName;
-    }
-    if (metadata?.batchId !== undefined) {
-      log.batchId = metadata.batchId;
-    }
-    const db = openDatabase(path);
-    try {
-      new RequestRepository(db).insert(log);
-    } finally {
-      db.close();
-    }
-  };
 }
 
 async function buildRequest(
@@ -1600,57 +1486,10 @@ function printError(stderr: (text: string) => void, error: unknown): void {
     return;
   }
 
-  if (error.statusCode === 401 || error.code === "api_key_expired") {
-    stderr(
-      "pista: la API key no es válida o ha caducado. Crea una nueva en " +
-        "https://opencode.ai/console y expórtala como OPENCODE_API_KEY.\n",
-    );
-  } else if (
-    error.code === "FreeUsageLimitError" ||
-    error.statusCode === 429
-  ) {
-    stderr(
-      "pista: jev-1.13-free tiene límite de uso. Prueba con 'jev-1.13' " +
-        "o revisa https://opencode.ai/go.\n",
-    );
-  } else if (
-    error.code === "api_usage_error" ||
-    error.code === "validation_error" ||
-    error.statusCode === 422
-  ) {
-    stderr(
-      "pista: un 422 suele ser una pregunta mal formada (falta criteria, " +
-        "tipo inválido) o un fallo del upstream. Revisa " +
-        "https://docs.typesafe.ai/primitives\n",
-    );
+  const hint = jevErrorHint(error);
+  if (hint !== undefined) {
+    stderr(`pista: ${hint}\n`);
   }
-}
-
-const DEMO_STATE =
-  "Nuestro checkout lleva caído 30 minutos y cada minuto perdemos ventas. " +
-  "Llevamos dos días sin respuesta de soporte. Necesitamos una solución ya.";
-
-function demoQuestions(): Record<string, Question> {
-  return {
-    is_urgent: {
-      type: "noul",
-      instructions: "¿El mensaje transmite urgencia o presión de tiempo?",
-    },
-    team: {
-      type: "choice",
-      instructions: "¿Qué equipo debería gestionar la incidencia?",
-      criteria: {
-        billing: "Cobros, facturas o pagos",
-        infra: "Caídas, errores 500 o problemas de plataforma",
-        sales: "Precios o dudas comerciales",
-      },
-    },
-    frustration: {
-      type: "score",
-      instructions: "¿Cómo de frustrado está el cliente?",
-      criteria: ["Tranquilo", "Molesto pero correcto", "Muy enfadado"],
-    },
-  };
 }
 
 function envOf(io: CliIO): NodeJS.ProcessEnv {

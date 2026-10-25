@@ -68,10 +68,23 @@ export function isConfigKey(value: string): value is ConfigKey {
 }
 
 export function validateConfigValue(key: ConfigKey, value: string): void {
-  if (value === "") {
+  if (value === "" || (key === "model" && value.trim() === "")) {
     throw new Error(`el valor de ${key} no puede estar vacío`);
   }
-  if (key === "timeout") {
+  if (key === "api_url") {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new Error("api_url debe ser una URL completa con protocolo http(s)");
+    }
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.hostname === ""
+    ) {
+      throw new Error("api_url debe ser una URL completa con protocolo http(s)");
+    }
+  } else if (key === "timeout") {
     const timeout = Number(value);
     if (!Number.isFinite(timeout) || timeout <= 0) {
       throw new Error("timeout debe ser un número positivo en segundos");
