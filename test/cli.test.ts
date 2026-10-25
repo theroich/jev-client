@@ -510,8 +510,8 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   const listJson = await run(["template", "list", "--json"], { dbPath, env: {} });
   const listed = JSON.parse(listJson.stdout) as Array<{ macros: Array<{ name: string; description: string }> }>;
   assert.deepEqual(listed[0]?.macros, [
-    { name: "cliente.plan", description: "free | pro | enterprise" },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)" },
+    { name: "cliente.plan", description: "free | pro | enterprise", schema: null },
+    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
   ]);
 
   const showJson = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
@@ -538,7 +538,7 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   const trimmed = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(trimmed.stdout) as { macros: unknown }).macros,
-    [{ name: "ticket", description: "Identificador del pedido (TCK-1042)" }],
+    [{ name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null }],
   );
 
   const cleared = await run(
@@ -549,7 +549,7 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   const afterClear = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(afterClear.stdout) as { macros: unknown }).macros,
-    [{ name: "ticket", description: "" }],
+    [{ name: "ticket", description: "", schema: null }],
   );
 
   const unknown = await run(
@@ -565,6 +565,131 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   );
   assert.equal(malformed.code, 2);
   assert.match(malformed.stderr, /espera <clave>=<texto>/);
+});
+
+test("template guarda, conserva y limpia esquemas de macros", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "jev-template-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dbPath = join(root, "jev.db");
+
+  const body = JSON.stringify({
+    model: "m",
+    state: { ticket: "{{ticket}}", plan: "{{cliente.plan}}" },
+    questions: { q: { type: "noul" } },
+  });
+  const create = await run(
+    [
+      "template",
+      "create",
+      "pedido",
+      "--body",
+      body,
+      "--macro-desc",
+      "ticket=Identificador del pedido",
+      "--macro-desc",
+      "cliente.plan=Plan contratado",
+      "--macro-schema",
+      'ticket={"type":"string","format":"uuid"}',
+      "--macro-type",
+      "cliente.plan=string",
+    ],
+    { dbPath, env: {} },
+  );
+  assert.equal(create.code, 0);
+
+  const expected = [
+    {
+      name: "cliente.plan",
+      description: "Plan contratado",
+      schema: { type: "string" },
+    },
+    {
+      name: "ticket",
+      description: "Identificador del pedido",
+      schema: { type: "string", format: "uuid" },
+    },
+  ];
+  const listJson = await run(["template", "list", "--json"], { dbPath, env: {} });
+  assert.deepEqual(
+    (JSON.parse(listJson.stdout) as Array<{ macros: unknown }>)[0]?.macros,
+    expected,
+  );
+  const showJson = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  assert.deepEqual((JSON.parse(showJson.stdout) as { macros: unknown }).macros, expected);
+
+  const human = await run(["template", "show", "pedido"], { dbPath, env: {} });
+  assert.match(human.stdout, /\{\{ticket\}\}\n\s+Identificador del pedido\n\s+schema: \{"type":"string","format":"uuid"\}/);
+
+  // `edit` sin flags de esquema conserva los existentes.
+  const file = join(root, "body.json");
+  await writeFile(file, body, "utf8");
+  assert.equal(
+    (await run(["template", "edit", "pedido", "--file", file], { dbPath, env: {} })).code,
+    0,
+  );
+  const preserved = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  assert.deepEqual((JSON.parse(preserved.stdout) as { macros: unknown }).macros, expected);
+
+  // `--macro-type` reemplaza solo el esquema de la macro indicada.
+  assert.equal(
+    (await run(["template", "edit", "pedido", "--file", file, "--macro-type", "ticket=boolean"], { dbPath, env: {} })).code,
+    0,
+  );
+  const retyped = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  assert.deepEqual((JSON.parse(retyped.stdout) as { macros: unknown }).macros, [
+    expected[0],
+    { name: "ticket", description: "Identificador del pedido", schema: { type: "boolean" } },
+  ]);
+
+  // Limpiar el esquema conserva la descripción.
+  assert.equal(
+    (await run(["template", "edit", "pedido", "--file", file, "--clear-macro-schema", "ticket"], { dbPath, env: {} })).code,
+    0,
+  );
+  const cleared = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  assert.deepEqual((JSON.parse(cleared.stdout) as { macros: unknown }).macros, [
+    expected[0],
+    { name: "ticket", description: "Identificador del pedido", schema: null },
+  ]);
+
+  // Los booleanos son JSON Schema válido.
+  assert.equal(
+    (await run(["template", "edit", "pedido", "--file", file, "--macro-schema", "ticket=false"], { dbPath, env: {} })).code,
+    0,
+  );
+  const booleanSchema = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  assert.deepEqual(
+    (JSON.parse(booleanSchema.stdout) as { macros: Array<{ schema: unknown }> }).macros[1]?.schema,
+    false,
+  );
+
+  const invalidJson = await run(
+    ["template", "create", "otra", "--body", body, "--macro-schema", "ticket={bad"],
+    { dbPath, env: {} },
+  );
+  assert.equal(invalidJson.code, 2);
+  assert.match(invalidJson.stderr, /no es JSON válido/);
+
+  const invalidType = await run(
+    ["template", "create", "otra", "--body", body, "--macro-type", "ticket=texto"],
+    { dbPath, env: {} },
+  );
+  assert.equal(invalidType.code, 2);
+  assert.match(invalidType.stderr, /--macro-type/);
+
+  const invalidPattern = await run(
+    ["template", "create", "otra", "--body", body, "--macro-schema", 'ticket={"pattern":"("}'],
+    { dbPath, env: {} },
+  );
+  assert.equal(invalidPattern.code, 2);
+  assert.match(invalidPattern.stderr, /pattern/);
+
+  const unknown = await run(
+    ["template", "edit", "pedido", "--file", file, "--macro-schema", "nope={}"],
+    { dbPath, env: {} },
+  );
+  assert.equal(unknown.code, 2);
+  assert.match(unknown.stderr, /no está en el body/);
 });
 
 test("template render con contexto incompleto falla antes de la API", async (t) => {

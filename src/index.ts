@@ -47,8 +47,16 @@ export {
   type TemplateContext,
 } from "./template.js";
 export {
+  MACRO_SCHEMA_TYPES,
   MAX_MACRO_DESCRIPTION_LENGTH,
+  MAX_MACRO_SCHEMA_BYTES,
+  MacroSchemaError,
   TemplateRepository,
+  serializeMacroSchema,
+  validateMacroSchema,
+  type MacroSchema,
+  type MacroSchemaErrorCode,
+  type MacroSchemaType,
   type Template,
   type TemplateMacro,
 } from "./template-repository.js";

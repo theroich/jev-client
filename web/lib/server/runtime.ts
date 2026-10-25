@@ -29,6 +29,9 @@ import { JevService } from "../../../dist/src/service.js";
 import {
   TemplateRepository,
   MAX_MACRO_DESCRIPTION_LENGTH,
+  MacroSchemaError,
+  validateMacroSchema,
+  type MacroSchema,
   type Template,
   type TemplateMacro,
 } from "../../../dist/src/template-repository.js";
@@ -353,13 +356,13 @@ function macrosFromInput(
 ): TemplateMacro[] | undefined {
   if (body.macros === undefined) return undefined;
   if (!Array.isArray(body.macros)) {
-    throw new ConsoleError(400, "invalid_macros", "macros debe ser un array de {name, description}");
+    throw new ConsoleError(400, "invalid_macros", "macros debe ser un array de {name, description, schema?}");
   }
   const detected = new Set(detectMacros(bodyJson));
-  const descriptions = new Map<string, string>();
+  const normalized = new Map<string, TemplateMacro>();
   for (const entry of body.macros) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new ConsoleError(400, "invalid_macro", "cada macro debe ser un objeto {name, description}");
+      throw new ConsoleError(400, "invalid_macro", "cada macro debe ser un objeto {name, description, schema?}");
     }
     const record = entry as Record<string, unknown>;
     const name = typeof record.name === "string" ? record.name.trim() : "";
@@ -388,9 +391,20 @@ function macrosFromInput(
         `la descripción de la macro ${JSON.stringify(name)} supera los ${MAX_MACRO_DESCRIPTION_LENGTH} caracteres`,
       );
     }
-    descriptions.set(name, description);
+    let schema: MacroSchema | null = null;
+    if (record.schema !== undefined && record.schema !== null) {
+      try {
+        schema = validateMacroSchema(record.schema);
+      } catch (error) {
+        if (error instanceof MacroSchemaError) {
+          throw new ConsoleError(400, error.code, error.message);
+        }
+        throw error;
+      }
+    }
+    normalized.set(name, { name, description, schema });
   }
-  return [...descriptions].map(([name, description]) => ({ name, description }));
+  return [...normalized.values()];
 }
 
 export function createTemplate(body: Record<string, unknown>, runtime = getConsoleRuntime()): TemplateDetail {

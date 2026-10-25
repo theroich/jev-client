@@ -59,6 +59,26 @@ test("el modal Empezar plantilla cabe a 360 px sin scroll horizontal", async ({ 
   expect(columns.trim().split(/\s+/).length).toBe(1);
 });
 
+test("la pestaña Macros con esquema cabe a 360 px y responde al teclado", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/plantillas/pedido");
+  await page.getByRole("tab", { name: "Macros" }).click();
+  await page.getByRole("button", { name: "Mostrar esquema JSON de {{estado_de_pedido}}" }).click();
+  const editor = page.getByRole("textbox", { name: "Esquema JSON de {{estado_de_pedido}}" });
+  await editor.fill('{"type":"string","enum":["ok"]}');
+  await expect(page.getByText("1 con tipo", { exact: true })).toBeVisible();
+  const dimensions = await page.evaluate(() => ({
+    width: window.innerWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width + 1);
+  // Esc limpia el campo enfocado sin tocar la descripción.
+  await editor.focus();
+  await page.keyboard.press("Escape");
+  await expect(editor).toHaveValue("");
+  await expect(page.getByText("0 con tipo", { exact: true })).toBeVisible();
+});
+
 test("breakpoints conservan la geometría del handoff", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/evaluar");
