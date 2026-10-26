@@ -194,6 +194,10 @@ Notas del script:
   pregunta mal formada; usa array ordenado para `score`, no para `choice`.
 - **`criteria` vacío o ausente** — `choice` exige al menos una clave; sin
   `criteria` la API responde `422` (la CLI añade `pista:`).
+- **Todas las preguntas eligen la misma opción** — si evalúas varios elementos
+  en un solo request, nómbralos en cada `instructions`: la clave no se envía al
+  modelo y `state` es compartido (ver
+  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
 - **`401` / `api_key_expired`** — key inválida/caducada; la CLI sugiere renovarla
   en https://opencode.ai/console.
 - **`429 FreeUsageLimitError`** — cuota agotada; prueba `--model jev-1.13`.

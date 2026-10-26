@@ -74,6 +74,31 @@ En `score`, la posición del array es la nota: `0` el primer nivel, `1` el
 segundo… El `score` es una media ponderada y puede ser decimal; cuando cae
 entre dos niveles se muestra con `≈`.
 
+## Anatomía de una pregunta: qué ve el modelo
+
+Un request es `{ model, state, questions: { clave: pregunta } }` y cada
+pregunta es `{ type, instructions, criteria }`. De ahí salen tres reglas que
+valen para `noul`, `choice` y `score`:
+
+1. **`state` es único y compartido** por todas las preguntas del request.
+2. **La clave de `questions` no se envía al modelo**: `"gato"` en
+   `{"gato": {…}}` solo identifica la respuesta en `answers`, no es contexto.
+3. El modelo solo ve, por pregunta, **`state` + `instructions` + `criteria`**.
+
+Por eso, al evaluar varios elementos en un solo request (varios animales,
+varios tickets, varias URLs…), hay que **nombrar el elemento dentro de cada
+`instructions`** —o ponerlo en `state` y referenciarlo por nombre—. Si el
+referente vive solo en la clave, todas las preguntas ven el mismo texto y las
+respuestas colapsan al mismo valor.
+
+| | `instructions` | Resultado |
+| --- | --- | --- |
+| Mal | `"¿Qué tamaño tiene este animal?"` (el animal, solo en la clave) | las 7 preguntas ≈ 1.75 («Mediano») |
+| Bien | `"¿Qué tamaño tiene un gato?"`, `"…una mosca?"`, … | mosca 0.03 («Diminuto») … elefante 3.93 («Enorme») |
+
+Detalle y caso completo en
+[`references/anatomia-pregunta.md`](references/anatomia-pregunta.md).
+
 ## Tabla de decisión
 
 | Quiero… | Comando | Referencia |
@@ -109,6 +134,8 @@ jev ask --state "…" --questions '…' --json 2>/dev/null | jq '.answers.q.noul
 - [`references/choice.md`](references/choice.md) — operación `choice`: casos de uso, CLI y bash.
 - [`references/score.md`](references/score.md) — operación `score`: casos de uso, CLI y bash.
 - [`references/templates.md`](references/templates.md) — manual de plantillas con casos reales.
+- [`references/anatomia-pregunta.md`](references/anatomia-pregunta.md) — qué ve el
+  modelo en cada pregunta y cómo evaluar varios elementos en un solo request.
 
 Fuera del alcance de esta skill (ver [`README.md`](../../README.md) para más):
 la TUI (`jev tui`), la consola web (`jev web-console`) y el servidor MCP
