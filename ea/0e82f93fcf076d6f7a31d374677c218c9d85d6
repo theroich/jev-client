@@ -1,0 +1,24 @@
+README.md
+  h_34a594f8693459 42-64,779-786
+skills/jev-cli/SKILL.md
+  h_34a594f8693459 77-101,137-138
+skills/jev-cli/references/anatomia-pregunta.md
+  h_34a594f8693459 1-188
+skills/jev-cli/references/choice.md
+  h_34a594f8693459 197-200
+skills/jev-cli/references/noul.md
+  h_34a594f8693459 191-194
+skills/jev-cli/references/score.md
+  h_34a594f8693459 201-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea0e82f93fcf076d6f7a31d374677c218c9d85d6",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
