@@ -1,0 +1,22 @@
+skills/jev-cli/SKILL.md
+  h_34a594f8693459 1-116
+skills/jev-cli/references/choice.md
+  h_34a594f8693459 1-210
+skills/jev-cli/references/noul.md
+  h_34a594f8693459 1-202
+skills/jev-cli/references/score.md
+  h_34a594f8693459 1-215
+skills/jev-cli/references/templates.md
+  h_34a594f8693459 1-420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9cc6ca9bc36905568bde64c76a4ef185858c6f47",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
