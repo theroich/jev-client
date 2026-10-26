@@ -51,12 +51,15 @@ petición llega mal formada y suele terminar en un `422`.
 
 ## 3. Ejemplos de consola
 
-### Inline con `--state` y `--questions`
+### Inline con `--state` y `--choice`
 
 ```sh
 jev ask \
   --state "El checkout lleva caído 30 minutos y perdemos ventas." \
-  --questions '{"team":{"type":"choice","instructions":"¿Qué equipo debería gestionar la incidencia?","criteria":{"billing":"Cobros, facturas o pagos","infra":"Caídas, errores 500 o problemas de plataforma","sales":"Precios o dudas comerciales"}}}'
+  --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
+  --option 'team.billing=Cobros, facturas o pagos' \
+  --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
+  --option 'team.sales=Precios o dudas comerciales'
 ```
 
 ```text
@@ -79,7 +82,10 @@ La pregunta `team` de `examples/questions.json` es un `choice` con
 
 ```sh
 printf 'La factura de este mes no me ha llegado.' | jev ask --state - \
-  --questions '{"team":{"type":"choice","instructions":"¿Qué equipo debe atenderlo?","criteria":{"billing":"Facturas","infra":"Caídas","sales":"Comercial"}}}'
+  --choice 'team=¿Qué equipo debe atenderlo?' \
+  --option 'team.billing=Facturas' \
+  --option 'team.infra=Caídas' \
+  --option 'team.sales=Comercial'
 ```
 
 ### Con `--json` para consumo por máquina
@@ -134,21 +140,15 @@ trap 'rm -rf "$(dirname "$DB")"' EXIT
 # Clasifica un texto y devuelve la clave elegida.
 classify() {
   local state="$1"
-  local questions='{
-    "team": {
-      "type": "choice",
-      "instructions": "¿Qué equipo debería gestionar la incidencia?",
-      "criteria": {
-        "billing": "Cobros, facturas o pagos",
-        "infra": "Caídas, errores 500 o problemas de plataforma",
-        "sales": "Precios o dudas comerciales"
-      }
-    }
-  }'
 
   local out code
   out=$(jev ask --db "$DB" --no-save --json \
-          --state "$state" --questions "$questions" 2>/dev/null)
+          --state "$state" \
+          --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
+          --option 'team.billing=Cobros, facturas o pagos' \
+          --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
+          --option 'team.sales=Precios o dudas comerciales' \
+          2>/dev/null)
   code=$?
 
   if [ "$code" -ne 0 ]; then

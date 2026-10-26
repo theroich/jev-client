@@ -264,25 +264,43 @@ fichero sin contaminarlo.
 ### `jev ask`
 
 ```sh
-# State y preguntas inline
-jev ask \
-  --state "Me han cobrado dos veces este mes." \
-  --questions '{"billing":{"type":"noul","instructions":"¿Es de facturación?"}}'
+# Flags tipados (el caso común): no hace falta escribir JSON inline
+jev ask --state "Me han cobrado dos veces este mes." \
+  --noul 'billing=¿Es de facturación?'
+
+# choice: las opciones se añaden con --option <pregunta>.<opción>=<descripción>
+jev ask --state "El checkout lleva caído 30 minutos." \
+  --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
+  --option 'team.billing=Cobros, facturas o pagos' \
+  --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
+  --option 'team.sales=Precios o dudas comerciales'
+
+# score: los niveles se añaden con --level <pregunta>=<nivel> (el orden es la nota)
+jev ask --state "Llevamos dos días sin respuesta." \
+  --score 'urgency=¿Cómo de urgente es la incidencia?' \
+  --level 'urgency=Puede esperar' --level 'urgency=Esta semana' \
+  --level 'urgency=Hoy mismo'
 
 # Desde ficheros
 jev ask --state-file examples/state.json --questions-file examples/questions.json
 
-# Payload completo
+# Payload completo (power user)
 jev ask --request-file examples/request.json
 
 # Texto por stdin
 echo "El checkout está caído" | jev ask --state - \
-  --questions '{"urgent":{"type":"noul","instructions":"¿Es urgente?"}}'
+  --noul 'urgent=¿Es urgente?'
 
 # Modelo y endpoint explícitos
 jev ask --key sk-... --url https://…/v1/systemone --model jev-1.13-free \
-  --state "hola" --questions '{"q":{"type":"noul","instructions":"¿Saludo?"}}'
+  --state "hola" --noul 'q=¿Saludo?'
 ```
+
+Los flags `--noul`, `--choice` y `--score` (con `--option` y `--level`) traducen la
+entrada de consola al mismo JSON que el cliente ya entiende: `--noul
+'clave=instrucción'` equivale a `--questions '{"clave":{"type":"noul",
+"instructions":"instrucción"}}'`. No se combinan con `--questions`,
+`--questions-file`, `--request` ni `--request-file`.
 
 El `state` puede ser texto plano, un objeto JSON (`{...}`) o un array (`[...]`).
 Si empieza por `{` o `[` se envía como JSON; si no, como string.
