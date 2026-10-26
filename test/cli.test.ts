@@ -6,12 +6,21 @@ import { join } from "node:path";
 
 import { buildQuestionsFromFlags, runCli, type CliIO } from "../src/cli.js";
 import type { FetchLike } from "../src/client.js";
-
 const stubBody = {
   model: "jev-1.13",
   answers: { is_urgent: { type: "noul", noul: 0.99 } },
   usage: { input_tokens: 12, output_tokens: 3, cost: 1.5e-6 },
 };
+
+function pngBytes(width: number, height: number): Buffer {
+  const buffer = Buffer.alloc(24);
+  buffer.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  buffer.writeUInt32BE(13, 8);
+  buffer.write("IHDR", 12, "ascii");
+  buffer.writeUInt32BE(width, 16);
+  buffer.writeUInt32BE(height, 20);
+  return buffer;
+}
 
 interface Harness {
   code: number;
@@ -402,6 +411,126 @@ test("ask rechaza mezclar flags tipados con --questions", async () => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /no se combinan/);
   assert.equal(result.calls.length, 0);
+});
+
+test("--asset ref=ruta carga la imagen y manda el header", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const png = join(dir, "foto.png");
+  await writeFile(png, pngBytes(300, 300));
+
+  const result = await run([
+    "ask",
+    "--state",
+    '{"foto":"ref-1"}',
+    "--questions",
+    '{"q":{"type":"noul","instructions":"¿Qué hay en ref-1?"}}',
+    "--asset",
+    "ref-1=" + png,
+  ]);
+
+  assert.equal(result.code, 0);
+  const headers = new Headers(result.calls[0]?.init.headers);
+  assert.equal(headers.get("typeSafe-danger-zone-images"), "true");
+  const sent = JSON.parse(String(result.calls[0]?.init.body)) as {
+    state: { foto: string };
+    assets: Record<string, { format: string; data_base64: string }>;
+  };
+  assert.equal(sent.state.foto, "ref-1");
+  assert.equal(sent.assets["ref-1"]?.format, "png");
+  assert.ok(sent.assets["ref-1"]?.data_base64);
+});
+
+test("--assets-file lee el mapa assets completo", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const png = join(dir, "foto.png");
+  await writeFile(png, pngBytes(300, 300));
+
+  const assetsFile = join(dir, "assets.json");
+  await writeFile(assetsFile, JSON.stringify({ "ref-a": { path: png } }), "utf8");
+  const file = await run([
+    "ask",
+    "--state",
+    '{"foto":"ref-a"}',
+    "--questions",
+    '{"q":{"type":"noul","instructions":"ref-a"}}',
+    "--assets-file",
+    assetsFile,
+  ]);
+  assert.equal(file.code, 0);
+  const fileSent = JSON.parse(String(file.calls[0]?.init.body)) as {
+    assets: Record<string, { format: string }>;
+  };
+  assert.equal(fileSent.assets["ref-a"]?.format, "png");
+});
+
+test("--asset con data_base64 en --assets-file lo valida", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const assetsFile = join(dir, "assets.json");
+  await writeFile(
+    assetsFile,
+    JSON.stringify({ "ref-b": { data_base64: pngBytes(300, 300).toString("base64"), format: "png" } }),
+    "utf8",
+  );
+  const result = await run([
+    "ask",
+    "--state",
+    '{"foto":"ref-b"}',
+    "--questions",
+    '{"q":{"type":"noul","instructions":"ref-b"}}',
+    "--assets-file",
+    assetsFile,
+  ]);
+  assert.equal(result.code, 0);
+  const sent = JSON.parse(String(result.calls[0]?.init.body)) as {
+    assets: Record<string, { format: string }>;
+  };
+  assert.equal(sent.assets["ref-b"]?.format, "png");
+});
+
+test("--no-images-header omite el header de imágenes", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const png = join(dir, "foto.png");
+  await writeFile(png, pngBytes(300, 300));
+
+  const result = await run([
+    "ask",
+    "--state",
+    '{"foto":"ref-1"}',
+    "--questions",
+    '{"q":{"type":"noul","instructions":"ref-1"}}',
+    "--asset",
+    "ref-1=" + png,
+    "--no-images-header",
+  ]);
+
+  assert.equal(result.code, 0);
+  const headers = new Headers(result.calls[0]?.init.headers);
+  assert.equal(headers.get("typeSafe-danger-zone-images"), null);
+});
+
+test("--asset con imagen fuera de límites falla antes de llamar", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const png = join(dir, "small.png");
+  await writeFile(png, pngBytes(50, 50));
+
+  const result = await run([
+    "ask",
+    "--state",
+    "texto",
+    "--questions",
+    '{"q":{"type":"noul","instructions":"?"}}',
+    "--asset",
+    png,
+  ]);
+
+  assert.equal(result.code, 1);
+  assert.equal(result.calls.length, 0);
+  assert.match(result.stderr, /mínimo por lado/);
 });
 
 test("ask sin API key", async () => {

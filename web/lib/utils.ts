@@ -19,6 +19,13 @@ export function formatCost(value: number | null | undefined): string {
   return String(value);
 }
 
+export function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return "—";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function formatTokens(
   input: number | null | undefined,
   output: number | null | undefined,

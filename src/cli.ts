@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
+import { loadImageAsset, validateImageAsset } from "./assets.js";
 import type { FetchLike } from "./client.js";
 import {
   DEFAULT_ENDPOINT,
@@ -50,7 +51,7 @@ import {
   type TemplateContext,
 } from "./template.js";
 import { createTuiBackend, runTui, type TuiBackend } from "./tui.js";
-import type { JevRequest, JevResponse, Question, State } from "./types.js";
+import type { ImageAsset, JevRequest, JevResponse, Question, State } from "./types.js";
 import { VERSION } from "./version.js";
 import { runWebConsoleCommand } from "./web-console.js";
 
@@ -134,6 +135,9 @@ Flags:
   --score <clave>=<instrucción>           pregunta de escala ordenada (repetible)
   --option <pregunta>.<opción>=<descrip.> opción de un --choice (repetible)
   --level <pregunta>=<nivel>              nivel de un --score, en orden (repetible)
+  --asset [<ref>=]<ruta>                  imagen (PNG/JPEG); sin <ref> genera un UUID (repetible)
+  --assets-file <ruta>                    mapa assets completo en JSON
+  --no-images-header                      omite el header de imágenes (para probar el 400)
   --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
   --url <endpoint>         endpoint completo (env: JEV_URL)
   --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
@@ -343,6 +347,9 @@ const ASK_OPTIONS = {
   score: { type: "string", multiple: true },
   option: { type: "string", multiple: true },
   level: { type: "string", multiple: true },
+  asset: { type: "string", multiple: true },
+  "assets-file": { type: "string" },
+  "no-images-header": { type: "boolean" },
 } satisfies ParseArgsOptions;
 
 const BATCH_OPTIONS = {
@@ -447,6 +454,7 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
     const { response } = await service.ask(request, {
       model: options.model,
       save: values["no-save"] !== true,
+      imagesHeader: values["no-images-header"] !== true,
     });
     writeResponse(io, response, options.json);
     return 0;
@@ -1675,6 +1683,7 @@ async function buildRequest(
 ): Promise<JevRequest> {
   const requestInline = asString(values.request);
   const requestFile = asString(values["request-file"]);
+  const flagAssets = await buildAssets(values, io);
 
   if (hasTypedQuestionFlags(values)) {
     if (
@@ -1695,11 +1704,14 @@ async function buildRequest(
     if (stateRaw === undefined || stateRaw.trim() === "") {
       throw new Error("el state está vacío");
     }
-    return {
-      model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
-      state: decodeState(stateRaw),
-      questions: buildQuestionsFromFlags(values),
-    };
+    return mergeAssets(
+      {
+        model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
+        state: decodeState(stateRaw),
+        questions: buildQuestionsFromFlags(values),
+      },
+      flagAssets,
+    );
   }
 
   if (requestInline !== undefined || requestFile !== undefined) {
@@ -1707,7 +1719,7 @@ async function buildRequest(
     if (raw === undefined) {
       throw new Error("el request está vacío");
     }
-    return buildRequestFromPayload(raw, options, io);
+    return mergeAssets(buildRequestFromPayload(raw, options, io), flagAssets);
   }
 
   const stateRaw = await readInput(
@@ -1728,11 +1740,85 @@ async function buildRequest(
     throw new Error("faltan --questions o --questions-file");
   }
 
-  return {
-    model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
-    state: decodeState(stateRaw),
-    questions: decodeQuestions(questionsRaw),
-  };
+  return mergeAssets(
+    {
+      model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
+      state: decodeState(stateRaw),
+      questions: decodeQuestions(questionsRaw),
+    },
+    flagAssets,
+  );
+}
+
+function mergeAssets(
+  request: JevRequest,
+  assets: Record<string, ImageAsset> | undefined,
+): JevRequest {
+  if (assets === undefined || Object.keys(assets).length === 0) {
+    return request;
+  }
+  return { ...request, assets: { ...(request.assets ?? {}), ...assets } };
+}
+
+/** Separa `--asset [<ref>=]<ruta>` conservando `=` dentro de la ruta. */
+function splitAssetFlag(raw: string): { ref: string | undefined; path: string } {
+  const separator = raw.indexOf("=");
+  if (separator <= 0) {
+    return { ref: undefined, path: raw };
+  }
+  return { ref: raw.slice(0, separator).trim(), path: raw.slice(separator + 1) };
+}
+
+/** Carga las imágenes de `--asset` y `--assets-file`; valida límites. */
+async function buildAssets(
+  values: Values,
+  io: CliIO,
+): Promise<Record<string, ImageAsset> | undefined> {
+  const assets: Record<string, ImageAsset> = {};
+
+  for (const raw of asStrings(values.asset)) {
+    const { ref, path } = splitAssetFlag(raw);
+    const loaded = await loadImageAsset(path, ref);
+    assets[loaded.ref] = loaded.asset;
+  }
+
+  const assetsFile = asString(values["assets-file"]);
+  if (assetsFile !== undefined) {
+    const raw = await readInput(undefined, assetsFile, io);
+    if (raw === undefined || raw.trim() === "") {
+      throw new Error("--assets-file está vacío");
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(`JSON inválido en --assets-file: ${messageOf(error)}`);
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("--assets-file debe ser un objeto JSON { ref: asset }");
+    }
+    for (const [ref, value] of Object.entries(parsed as Record<string, unknown>)) {
+      assets[ref] = await resolveAssetEntry(ref, value);
+    }
+  }
+
+  return Object.keys(assets).length === 0 ? undefined : assets;
+}
+
+/** Resuelve una entrada del mapa `assets` (ruta, data_base64 o asset completo). */
+async function resolveAssetEntry(ref: string, value: unknown): Promise<ImageAsset> {
+  if (typeof value === "string") {
+    return (await loadImageAsset(value, ref)).asset;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`el asset ${JSON.stringify(ref)} debe ser una ruta o un objeto`);
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.path === "string") {
+    const loaded = await loadImageAsset(record.path, ref);
+    return loaded.asset;
+  }
+  return validateImageAsset(ref, record as unknown as ImageAsset);
 }
 
 function buildRequestFromPayload(

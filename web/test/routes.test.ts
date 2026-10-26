@@ -486,6 +486,35 @@ test("ask valida state y preguntas sin llamar al provider", async () => {
   assert.equal(runtime.requests.count(), 0);
 });
 
+test("ask acepta assets y los redacta al persistir", async () => {
+  const png = Buffer.alloc(24);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  png.writeUInt32BE(13, 8);
+  png.write("IHDR", 12, "ascii");
+  png.writeUInt32BE(300, 16);
+  png.writeUInt32BE(300, 20);
+
+  const response = await ask(request("/api/ask", "POST", {
+    body: {
+      state: { foto: "ref-1" },
+      questions: { animal: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+      save: true,
+      assets: { "ref-1": { data_base64: png.toString("base64"), format: "png" } },
+    },
+  }));
+  assert.equal(response.status, 200);
+  const execution = await response.json() as { requestId: number };
+  const row = runtime.requests.get(execution.requestId);
+  assert.ok(row);
+  assert.equal((row.requestJson ?? "").includes("data_base64"), false);
+
+  const invalid = await ask(request("/api/ask", "POST", {
+    body: { state: "hola", questions: { q: { type: "noul" } }, assets: { "ref-x": { format: "png" } } },
+  }));
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_assets");
+});
+
 test("un 401 del provider se distingue de una sesión inválida", async () => {
   providerStatus = 401;
   const response = await ask(request("/api/ask", "POST", { body: { state: "hola", questions: { q: { type: "noul" } }, save: false } }));

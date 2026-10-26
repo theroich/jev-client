@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "./database.js";
+import { redactRequestAssets } from "./assets.js";
 import type { RequestLog, RequestSource } from "./types.js";
 
 /** Registro leído de la tabla `requests`. */
@@ -95,7 +96,7 @@ export class RequestRepository {
       model: log.model,
       status_code: log.statusCode,
       ok: log.ok ? 1 : 0,
-      request_json: JSON.stringify(log.requestBody),
+      request_json: JSON.stringify(redactRequestAssets(log.requestBody)),
       response_json: log.responseBody ?? null,
       input_tokens: log.inputTokens ?? null,
       output_tokens: log.outputTokens ?? null,

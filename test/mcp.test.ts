@@ -284,3 +284,65 @@ test("jev_history_list y jev_history_get exponen source", async (t) => {
   assert.equal((detail.json as { source: string }).source, "mcp");
   assert.equal(ctx.requests.count(), rows.length);
 });
+
+function pngBase64(width: number, height: number): string {
+  const buffer = Buffer.alloc(24);
+  buffer.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  buffer.writeUInt32BE(13, 8);
+  buffer.write("IHDR", 12, "ascii");
+  buffer.writeUInt32BE(width, 16);
+  buffer.writeUInt32BE(height, 20);
+  return buffer.toString("base64");
+}
+
+test("jev_ask acepta assets y los redacta al persistir", async (t) => {
+  const { client, ctx, close } = await connect();
+  t.after(close);
+
+  const result = await callText(client, "jev_ask", {
+    state: { foto: "ref-1" },
+    questions: { animal: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+    assets: { "ref-1": { data_base64: pngBase64(300, 300), format: "png" } },
+  });
+  assert.equal(result.isError, undefined);
+  const requestId = (result.json as { requestId: number }).requestId;
+  const row = new RequestRepository(ctx.service.db).get(requestId);
+  assert.ok(row);
+  assert.equal((row.requestJson ?? "").includes("data_base64"), false);
+});
+
+test("jev_image_check devuelve dimensiones y el motivo del rechazo", async (t) => {
+  const { client, close } = await connect();
+  t.after(close);
+
+  const ok = await callText(client, "jev_image_check", {
+    data_base64: pngBase64(300, 300),
+    format: "png",
+  });
+  assert.equal(ok.isError, undefined);
+  const okJson = ok.json as { ok: boolean; width: number; height: number; reason: string | null };
+  assert.equal(okJson.ok, true);
+  assert.equal(okJson.width, 300);
+  assert.equal(okJson.height, 300);
+  assert.equal(okJson.reason, null);
+
+  const small = await callText(client, "jev_image_check", {
+    data_base64: pngBase64(50, 50),
+    format: "png",
+  });
+  const smallJson = small.json as { ok: boolean; reason: string | null };
+  assert.equal(smallJson.ok, false);
+  assert.match(smallJson.reason ?? "", /mínimo por lado/);
+});
+
+test("jev_image_check valida el base64 antes de decodificar", async (t) => {
+  const { client, close } = await connect();
+  t.after(close);
+
+  const result = await callText(client, "jev_image_check", {
+    data_base64: "data:abc",
+    format: "png",
+  });
+  assert.equal(result.isError, true);
+  assert.equal((result.json as { code: string }).code, "invalid_arguments");
+});

@@ -134,6 +134,20 @@ export function formatCost(value: number): string {
   return String(value);
 }
 
+/** Tamaño legible en bytes (KiB/MiB). */
+export function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return "—";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** Una línea por petición para `history list`. */
 export function formatHistoryRecord(record: RequestRecord): string {
   const model = record.model ?? "-";

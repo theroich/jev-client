@@ -22,6 +22,7 @@ import {
   type TemplateContext,
 } from "./template.js";
 import type {
+  ImageAsset,
   JevRequest,
   JevResponse,
   Question,
@@ -79,6 +80,8 @@ export interface ExecutionOptions {
   source?: RequestSource;
   /** Nombre de plantilla asociado; se guarda en `requests.template_name`. */
   templateName?: string;
+  /** Envía el header de imágenes cuando hay `assets`. Default: true. */
+  imagesHeader?: boolean;
   signal?: AbortSignal;
 }
 
@@ -158,6 +161,8 @@ export interface BatchExecutionOptions extends ExecutionOptions {
   concurrency?: number;
   /** No programa nuevos items después del primer error. Default: false. */
   failFast?: boolean;
+  /** Imágenes aportadas en tiempo de ejecución, adjuntadas a cada petición. */
+  assets?: Record<string, ImageAsset>;
   onEvent?: (event: BatchEvent) => void;
 }
 
@@ -296,6 +301,9 @@ export class JevService {
           rawContext as TemplateContext,
         );
         request = this.withModel(request, options, prepared.stored);
+        if (options.assets !== undefined && Object.keys(options.assets).length > 0) {
+          request = { ...request, assets: options.assets };
+        }
       } catch (error) {
         return {
           index,
@@ -451,6 +459,7 @@ export class JevService {
       model: config.model,
       timeoutMs: config.timeoutMs,
       maxRetries: config.retries,
+      imagesHeader: options.imagesHeader,
       fetch: this.fetchImpl,
       onRequest: (log) => {
         if (metadata.templateName !== undefined) {

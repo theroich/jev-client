@@ -41,6 +41,7 @@ export {
   resolveTemplateBody,
   detectMacros,
   validateQuestions,
+  validateTemplateAssets,
   validateTemplateBody,
   validateTemplateRequest,
   type MacroResolution,
@@ -70,6 +71,7 @@ export {
 } from "./template-starters.js";
 export {
   answerSummary,
+  formatBytes,
   formatCost,
   formatHistoryDetail,
   formatHistoryRecord,
@@ -105,6 +107,8 @@ export {
 } from "./service.js";
 export type {
   Answer,
+  ImageAsset,
+  ImageFormat,
   JevRequest,
   JevResponse,
   Question,
@@ -113,6 +117,27 @@ export type {
   State,
   Usage,
 } from "./types.js";
+export {
+  IMAGE_FORMATS,
+  IMAGE_LIMITS,
+  IMAGES_HEADER,
+  assertImageLimits,
+  canonicalFormat,
+  detectImageFormat,
+  estimateImageTokens,
+  loadImageAsset,
+  newImageRef,
+  orphanAssetRefs,
+  readImageSize,
+  redactAssets,
+  redactRequestAssets,
+  validateAssets,
+  validateImageAsset,
+  type ImageAssetError,
+  type ImageLimitsReport,
+  type ImageSize,
+  type RedactedAsset,
+} from "./assets.js";
 export { runCli, VERSION, type CliIO } from "./cli.js";
 export {
   runWebConsoleCommand,

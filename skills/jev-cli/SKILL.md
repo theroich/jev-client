@@ -110,6 +110,7 @@ Detalle y caso completo en
 | Guardar un request con huecos y reutilizarlo | `jev template create` | [`references/templates.md`](references/templates.md) |
 | Ejecutar una plantilla para muchos contextos | `jev batch <plantilla> --contexts …` | [`references/templates.md`](references/templates.md) |
 | Previsualizar un request sin gastar tokens | `jev template render` | [`references/templates.md`](references/templates.md) |
+| Evaluar una imagen (experimental) | `jev ask --asset <ref>=foto.jpg …` | [`references/templates.md`](references/templates.md) |
 
 ## Flags tipados para `jev ask`
 
@@ -128,6 +129,25 @@ Todos son repetibles. `--option` es para las opciones de un `--choice` y
 `--level` para la escala (ordenada) de un `--score`; la posición de aparición de
 `--level` es la nota. No se combinan con `--questions`, `--questions-file`,
 `--request` ni `--request-file` (esos siguen siendo la vía JSON/fichero).
+
+## Imágenes (experimental)
+
+`jev ask` acepta imágenes con `--asset [<ref>=]<ruta>` (repetible) o
+`--assets-file <ruta>` (mapa JSON). La referencia se escribe en `state` donde
+iría texto; el cliente añade el header `TypeSafe-Danger-Zone-Images: true`
+automáticamente (`--no-images-header` lo omite para depurar el `400`).
+
+```sh
+jev ask --state '{"foto":"<ref>"}' --asset <ref>=foto.jpg \
+    --choice 'animal=¿Qué animal aparece en `foto`?' \
+    --option 'animal.GATO=Felino' --option 'animal.PERRO=Canino'
+```
+
+- Solo PNG/JPEG estático, 280–1568 px por lado, ≤16 MiB por fichero.
+- `data:` en `state` **no** funciona: usa `assets` + referencia.
+- El `box` (localizar objetos) no está disponible vía el proxy de OpenCode.
+
+Las imágenes son experimentales: formato y límites pueden cambiar.
 
 ## Contrato de scripting
 

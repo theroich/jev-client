@@ -73,6 +73,15 @@ export function appOverviewDoc(): string {
     "La API key nunca aparece en una respuesta MCP (`jev_config_get` y `jev_overview` la enmascaran).",
     "El transporte es stdio local (sin puertos). Las lecturas no se guardan; solo las ejecuciones",
     "reales y las mutaciones de plantillas.",
+    "",
+    "## Imágenes (experimental)",
+    "",
+    "Jev acepta imágenes vía el campo `assets` (`{ ref: { data_base64, format } }`) más el header",
+    "`TypeSafe-Danger-Zone-Images: true`. La referencia se escribe donde iría texto (`state`, ",
+    "`instructions` o `criteria`) y la API la sustituye por la imagen. `jev_ask`, `jev_batch` y",
+    "`jev_template_render` aceptan un parámetro `assets`; `jev_image_check` valida una imagen (formato,",
+    "dimensiones, límites) sin gastar llamada. Las imágenes son experimentales y sus límites pueden",
+    "cambiar: PNG/JPEG estático, 280–1568 px por lado y 16 MiB por fichero.",
   ].join("\n");
 }
 
@@ -167,6 +176,16 @@ export function examplesDoc(): string {
     "7. Ejecutar un request ad-hoc:",
     "```json",
     '{"tool":"jev_ask","state":"El checkout lleva caído 30 minutos.","questions":{"urgent":{"type":"noul","instructions":"¿Es urgente?"}}}',
+    "```",
+    "",
+    "8. Validar una imagen antes de enviarla:",
+    "```json",
+    '{"tool":"jev_image_check","path":"/ruta/foto.jpg"}',
+    "```",
+    "",
+    "9. Ejecutar un request con una imagen (experimental):",
+    "```json",
+    '{"tool":"jev_ask","state":{"foto":"<uuid>"},"assets":{"<uuid>":{"path":"/ruta/foto.jpg"}},"questions":{"animal":{"type":"choice","instructions":"¿Qué animal aparece en `foto`?","criteria":{"GATO":"Felino","PERRO":"Canino"}}}}',
     "```",
   ].join("\n");
 }
