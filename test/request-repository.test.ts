@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 import { openDatabase } from "../src/database.js";
 import { RequestRepository } from "../src/request-repository.js";
@@ -54,6 +55,36 @@ test("inserta y lee una petición correcta", () => {
     state: "hola",
     questions: { q: { type: "noul" } },
   });
+
+  db.close();
+});
+
+test("redacta data_base64 al persistir para no volcar imágenes", () => {
+  const db = openDatabase(":memory:");
+  const repository = new RequestRepository(db);
+
+  const id = repository.insert(
+    log({
+      requestBody: {
+        model: "jev-1.13",
+        state: { foto: "uuid-1" },
+        questions: { q: { type: "noul", instructions: "uuid-1" } },
+        assets: {
+          "uuid-1": { type: "image", format: "jpg", data_base64: "YWJjZA==" },
+        },
+      },
+    }),
+  );
+  const record = repository.get(id);
+  assert.ok(record);
+  const stored = record.requestJson ?? "";
+  assert.equal(stored.includes("data_base64"), false);
+  assert.equal(stored.includes("YWJjZA=="), false);
+
+  const parsed = JSON.parse(stored) as { assets?: Record<string, { bytes: number; sha256: string; format: string }> };
+  assert.equal(parsed.assets?.["uuid-1"]?.format, "jpg");
+  assert.equal(parsed.assets?.["uuid-1"]?.bytes, 4);
+  assert.equal(parsed.assets?.["uuid-1"]?.sha256, createHash("sha256").update("abcd").digest("hex"));
 
   db.close();
 });

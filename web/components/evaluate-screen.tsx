@@ -11,7 +11,7 @@ import {
   questionsFromDrafts,
   type QuestionDraft,
 } from "@/lib/questions";
-import { buildAskCommand, formatCost, parseStateInput } from "@/lib/utils";
+import { buildAskCommand, formatBytes, formatCost, parseStateInput } from "@/lib/utils";
 import { AnswerCard } from "./answer-card";
 import { describeApiError, useConsole } from "./console-context";
 import {
@@ -51,8 +51,58 @@ function validationErrors(drafts: QuestionDraft[], stateEmpty: boolean, stateErr
   return [...new Set(errors)];
 }
 
+interface AttachedImage {
+  ref: string;
+  name: string;
+  format: "png" | "jpg";
+  dataBase64: string;
+  bytes: number;
+  width: number;
+  height: number;
+  dataUrl: string;
+}
+
+const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("no se pudo leer el fichero"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function measureImage(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = dataUrl;
+  });
+}
+
+async function fileToImage(file: File): Promise<AttachedImage> {
+  const format = file.type === "image/png" ? "png" : "jpg";
+  const ref = crypto.randomUUID();
+  const dataUrl = await readAsDataUrl(file);
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const size = await measureImage(dataUrl);
+  return {
+    ref,
+    name: file.name,
+    format,
+    dataBase64: base64,
+    bytes: file.size,
+    width: size.width,
+    height: size.height,
+    dataUrl,
+  };
+}
+
 export function EvaluateScreen({ defaultModel }: { defaultModel: string }) {
   const [stateText, setStateText] = useState("");
+  const [images, setImages] = useState<AttachedImage[]>([]);
   const [drafts, setDrafts] = useState<QuestionDraft[]>([newDraft(1)]);
   const [model, setModel] = useState(defaultModel);
   const [save, setSave] = useState(true);
@@ -68,8 +118,57 @@ export function EvaluateScreen({ defaultModel }: { defaultModel: string }) {
 
   const parsedState = useMemo(() => parseStateInput(stateText), [stateText]);
   const questions = useMemo(() => questionsFromDrafts(drafts), [drafts]);
-  const errors = useMemo(() => validationErrors(drafts, parsedState.kind === "vacío", parsedState.error), [drafts, parsedState]);
+  const errors = useMemo(() => validationErrors(drafts, parsedState.kind === "vacío" && images.length === 0, parsedState.error), [drafts, parsedState, images]);
   const command = buildAskCommand(stateText, questions, model, defaultModel, save);
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const accepted: AttachedImage[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/png") && !file.type.startsWith("image/jpeg")) {
+        notify(`Ignorado ${file.name}: solo se admiten PNG/JPEG`);
+        continue;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        notify(`Ignorado ${file.name}: supera los 16 MiB`);
+        continue;
+      }
+      try {
+        accepted.push(await fileToImage(file));
+      } catch {
+        notify(`No se pudo leer ${file.name}`);
+      }
+    }
+    if (accepted.length > 0) setImages((current) => [...current, ...accepted]);
+  };
+
+  const assetsForRequest = () => {
+    if (images.length === 0) return undefined;
+    const assets: Record<string, { type: "image"; format: "png" | "jpg"; data_base64: string }> = {};
+    for (const image of images) {
+      assets[image.ref] = { type: "image", format: image.format, data_base64: image.dataBase64 };
+    }
+    return assets;
+  };
+
+  const stateForRequest = () => {
+    if (images.length === 0) return parsedState.value;
+    const keys = images.length === 1 ? ["foto"] : images.map((_, index) => `foto_${index + 1}`);
+    const refs: Record<string, string> = {};
+    images.forEach((image, index) => {
+      refs[keys[index] ?? `foto_${index + 1}`] = image.ref;
+    });
+    const base =
+      parsedState.kind === "JSON" &&
+      parsedState.value !== null &&
+      typeof parsedState.value === "object" &&
+      !Array.isArray(parsedState.value)
+        ? (parsedState.value as Record<string, unknown>)
+        : parsedState.kind === "vacío"
+          ? {}
+          : { texto: stateText };
+    return { ...base, ...refs };
+  };
 
   const execute = async (demo: boolean) => {
     if (running || (!demo && errors.length > 0)) return;
@@ -81,7 +180,7 @@ export function EvaluateScreen({ defaultModel }: { defaultModel: string }) {
       const execution = await request<ExecutionResult>(demo ? "/api/demo" : "/api/ask", {
         method: "POST",
         signal: controller.signal,
-        body: JSON.stringify(demo ? { save } : { state: parsedState.value, questions, model, save }),
+        body: JSON.stringify(demo ? { save } : { state: stateForRequest(), questions, model, save, assets: assetsForRequest() }),
       });
       setResult(execution);
       setTab("report");
@@ -141,6 +240,22 @@ export function EvaluateScreen({ defaultModel }: { defaultModel: string }) {
           <Panel title="State" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>{parsedState.error ? "JSON inválido" : parsedState.kind}</span>}>
             <textarea className="textarea" rows={5} spellCheck={false} aria-label="Contenido a evaluar" aria-invalid={Boolean(parsedState.error)} value={stateText} onChange={(event) => setStateText(event.target.value)} placeholder="Texto plano, objeto JSON o array JSON" />
             <p className={`hint${parsedState.error ? " form-error" : ""}`}>{parsedState.error ?? <>Si empieza por <code>{"{"}</code> o <code>[</code> se envía como JSON estricto; si no, como string.</>}</p>
+            <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+              <label className="hint">Imagen (experimental) · PNG/JPEG · máx. 16 MiB</label>
+              <input type="file" accept="image/png,image/jpeg" multiple onChange={(event) => void onFiles(event.target.files)} aria-label="Adjuntar imágenes" />
+              {images.length > 0 ? <div className="stack" style={{ gap: 6 }}>
+                {images.map((image) => <div className="row" key={image.ref} style={{ gap: 8, alignItems: "center" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={image.dataUrl} alt={image.name} width={40} height={40} style={{ objectFit: "cover", borderRadius: 4, border: "1px solid var(--border)" }} />
+                  <div className="stack" style={{ gap: 1 }}>
+                    <span className="mono" style={{ fontSize: 11 }}>{image.ref}</span>
+                    <span className="hint">{image.name} · {image.width}×{image.height} px · {formatBytes(image.bytes)}</span>
+                  </div>
+                  <IconButton label={`Quitar ${image.name}`} onClick={() => setImages((current) => current.filter((item) => item.ref !== image.ref))}><Icon name="close" /></IconButton>
+                </div>)}
+                <p className="hint">La referencia se inserta en <code>state</code>; úsala en las <code>instructions</code> (p. ej. «¿Qué animal aparece en <code>foto</code>?»).</p>
+              </div> : null}
+            </div>
           </Panel>
 
           <Panel title="Preguntas" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>{drafts.length} {drafts.length === 1 ? "pregunta" : "preguntas"}</span>}>

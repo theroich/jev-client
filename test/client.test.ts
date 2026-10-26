@@ -386,6 +386,122 @@ test("emite el hook onRequest en un error de red", async () => {
   assert.equal(log.responseBody, null);
 });
 
+test("incluye assets en el body y el header solo cuando hay imágenes", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
+
+  await client.run({
+    model: "",
+    state: { foto: "ref-1" },
+    questions: { q: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+    assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
+  });
+
+  const sent = JSON.parse(String(calls[0]?.init.body)) as { assets?: unknown };
+  assert.deepEqual(sent.assets, { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } });
+  const headers = new Headers(calls[0]?.init.headers);
+  assert.equal(headers.get("typeSafe-danger-zone-images"), "true");
+});
+
+test("no añade assets ni header cuando no hay imágenes", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
+
+  await client.run({ model: "", state: "x", questions: { q: { type: "noul" } } });
+
+  const sent = JSON.parse(String(calls[0]?.init.body)) as Record<string, unknown>;
+  assert.equal("assets" in sent, false);
+  const headers = new Headers(calls[0]?.init.headers);
+  assert.equal(headers.get("typeSafe-danger-zone-images"), null);
+});
+
+test("imagesHeader false omite el header pero conserva los assets", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl, imagesHeader: false });
+
+  await client.run({
+    model: "",
+    state: { foto: "ref-1" },
+    questions: { q: { type: "noul", instructions: "ref-1" } },
+    assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
+  });
+
+  const headers = new Headers(calls[0]?.init.headers);
+  assert.equal(headers.get("typeSafe-danger-zone-images"), null);
+  const sent = JSON.parse(String(calls[0]?.init.body)) as { assets?: unknown };
+  assert.ok(sent.assets);
+});
+
+test("extraHeaders se mezclan sin poder tocar Authorization", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({
+    apiKey: "k",
+    fetch: fetchImpl,
+    extraHeaders: { "X-Trace": "abc", Authorization: "Bearer hack" },
+  });
+
+  await client.systemOne("x", { q: { type: "noul" } });
+  const headers = new Headers(calls[0]?.init.headers);
+  assert.equal(headers.get("x-trace"), "abc");
+  assert.equal(headers.get("authorization"), "Bearer k");
+});
+
+test("rechaza localmente assets con referencias huérfanas", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
+
+  await assert.rejects(
+    client.run({
+      model: "",
+      state: "x",
+      questions: { q: { type: "noul" } },
+      assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
+    }),
+    /no están referenciados/,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("rechaza localmente data_base64 con prefijo data: o format inválido", async () => {
+  const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
+
+  await assert.rejects(
+    client.run({
+      model: "",
+      state: { foto: "ref-1" },
+      questions: { q: { type: "noul", instructions: "ref-1" } },
+      assets: { "ref-1": { type: "image", format: "jpg", data_base64: "data:YWJj" } },
+    }),
+    /data_base64 inválido/,
+  );
+  await assert.rejects(
+    client.run({
+      model: "",
+      state: { foto: "ref-1" },
+      questions: { q: { type: "noul", instructions: "ref-1" } },
+      assets: { "ref-1": { type: "image", data_base64: "YWJj" } },
+    }),
+    /necesita un format/,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("expone las cabeceras enviadas en onRequest", async () => {
+  let log: import("../src/types.js").RequestLog | undefined;
+  const { fetchImpl } = fakeFetch(() => jsonResponse(okBody));
+  const client = new JevClient({ apiKey: "k", fetch: fetchImpl, onRequest: (entry) => (log = entry) });
+
+  await client.run({
+    model: "",
+    state: { foto: "ref-1" },
+    questions: { q: { type: "noul", instructions: "ref-1" } },
+    assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
+  });
+
+  assert.equal(log?.requestHeaders?.["TypeSafe-Danger-Zone-Images"], "true");
+});
+
 test("funciona contra un servidor HTTP real", async (t) => {
   let receivedAuth = "";
   let receivedPath = "";

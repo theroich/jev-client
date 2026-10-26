@@ -13,7 +13,15 @@ import {
   validateTemplateBody,
   type TemplateContext,
 } from "../template.js";
-import type { JevRequest, Question, State } from "../types.js";
+import {
+  assertImageLimits,
+  detectImageFormat,
+  loadImageAsset,
+  newImageRef,
+  readImageSize,
+  validateImageAsset,
+} from "../assets.js";
+import type { ImageAsset, JevRequest, Question, State } from "../types.js";
 import { VERSION } from "../version.js";
 import {
   resolvedConfig,
@@ -152,6 +160,44 @@ function booleanArg(args: Record<string, unknown>, key: string): boolean | undef
     fail("invalid_arguments", `${key} debe ser un booleano`);
   }
   return value;
+}
+
+/**
+ * Normaliza el parámetro `assets`: `{ ref: { path?, data_base64?, format? } }`.
+ * Con `path` el servidor lee el fichero (stdio local); con `data_base64` se usa
+ * tal cual (validando formato).
+ */
+async function assetsFromArgs(
+  args: Record<string, unknown>,
+): Promise<Record<string, ImageAsset> | undefined> {
+  const value = args.assets;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("invalid_arguments", "assets debe ser un objeto { ref: { path | data_base64 } }");
+  }
+  const assets: Record<string, ImageAsset> = {};
+  for (const [ref, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entry === "string") {
+      assets[ref] = (await loadImageAsset(entry, ref)).asset;
+      continue;
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      fail("invalid_arguments", `el asset ${JSON.stringify(ref)} debe ser un objeto`);
+    }
+    const record = entry as Record<string, unknown>;
+    if (typeof record.path === "string") {
+      assets[ref] = (await loadImageAsset(record.path, ref)).asset;
+      continue;
+    }
+    try {
+      assets[ref] = validateImageAsset(ref, record as unknown as ImageAsset);
+    } catch (error) {
+      fail("invalid_arguments", error instanceof Error ? error.message : String(error));
+    }
+  }
+  return Object.keys(assets).length === 0 ? undefined : assets;
 }
 
 /** Acepta un body como cadena JSON o como objeto y devuelve la cadena JSON. */
@@ -397,11 +443,34 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
         properties: {
           name: { type: "string", description: "Nombre de la plantilla." },
           context: { type: "object", description: "Mapa clave → valor para las macros." },
+          assets: {
+            type: "object",
+            description: "Imágenes opcionales: { ref: { path | data_base64, format } }. Requiere header experimental.",
+          },
         },
         required: ["name", "context"],
         additionalProperties: false,
       },
       run: templateRenderRun,
+    }),
+    readOnlyTool({
+      name: "jev_image_check",
+      title: "Valida una imagen sin gastar llamada",
+      description:
+        "Comprueba una imagen (por ruta o data_base64) y devuelve formato, dimensiones, bytes, si " +
+        "cumple los límites de la API de imágenes y el motivo del rechazo. Es el dry-run para no " +
+        "gastar una llamada real. Las imágenes son experimentales y requieren el header " +
+        "TypeSafe-Danger-Zone-Images.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Ruta local del fichero de imagen (PNG/JPEG)." },
+          data_base64: { type: "string", description: "Base64 sin prefijo data: y sin saltos de línea." },
+          format: { type: "string", enum: ["png", "jpg", "jpeg"], description: "Formato cuando se usa data_base64." },
+        },
+        additionalProperties: false,
+      },
+      run: imageCheckRun,
     }),
   ];
 
@@ -497,6 +566,12 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
               description: "Preguntas tipadas (noul, choice, score) con instructions/criteria.",
             },
             model: { type: "string", description: "Modelo opcional para esta ejecución." },
+            assets: {
+              type: "object",
+              description:
+                "Imágenes opcionales: { ref: { path | data_base64, format } }. La referencia se escribe " +
+                "en state/instructions/criteria. Requiere el header experimental TypeSafe-Danger-Zone-Images.",
+            },
           },
           required: ["state", "questions"],
           additionalProperties: false,
@@ -516,6 +591,10 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
             contexts: { type: "array", description: "Array de mapas de contexto." },
             concurrency: { type: "integer", minimum: 1, maximum: 10 },
             failFast: { type: "boolean", description: "Detenerse ante el primer error." },
+            assets: {
+              type: "object",
+              description: "Imágenes opcionales adjuntadas a cada petición del lote.",
+            },
           },
           required: ["template", "contexts"],
           additionalProperties: false,
@@ -708,11 +787,68 @@ async function templateRenderRun(args: Record<string, unknown>, ctx: McpContext)
     fail("template_not_found", `plantilla no encontrada: ${name}`);
   }
   try {
-    return { request: resolveTemplateBody(template.body_json, context as TemplateContext) };
+    const request = resolveTemplateBody(template.body_json, context as TemplateContext);
+    const assets = await assetsFromArgs(args);
+    return { request: assets === undefined ? request : { ...request, assets } };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     fail("invalid_render", message);
   }
+}
+
+async function imageCheckRun(args: Record<string, unknown>, _ctx: McpContext): Promise<unknown> {
+  const path = args.path;
+  const dataBase64 = args.data_base64;
+
+  if (path === undefined && dataBase64 === undefined) {
+    fail("invalid_arguments", "usa 'path' o 'data_base64' (no ambos)");
+  }
+  if (path !== undefined && dataBase64 !== undefined) {
+    fail("invalid_arguments", "usa 'path' o 'data_base64', no ambos");
+  }
+
+  let buffer: Buffer;
+  let format: ImageAsset["format"];
+  if (typeof path === "string") {
+    if (path.trim() === "") {
+      fail("invalid_arguments", "path debe ser una cadena no vacía");
+    }
+    const loaded = await loadImageAsset(path);
+    buffer = Buffer.from(loaded.asset.data_base64 ?? "", "base64");
+    format = loaded.asset.format;
+  } else {
+    if (typeof dataBase64 !== "string" || dataBase64.trim() === "") {
+      fail("invalid_arguments", "data_base64 debe ser una cadena no vacía");
+    }
+    if (args.format !== undefined && typeof args.format !== "string") {
+      fail("invalid_arguments", "format debe ser png|jpg|jpeg");
+    }
+    let asset: ImageAsset;
+    try {
+      asset = validateImageAsset(newImageRef(), {
+        data_base64: dataBase64,
+        format: (args.format as ImageAsset["format"]) ?? undefined,
+      });
+    } catch (error) {
+      fail("invalid_arguments", error instanceof Error ? error.message : String(error));
+    }
+    buffer = Buffer.from(asset.data_base64 ?? "", "base64");
+    format = asset.format;
+  }
+
+  const detected = detectImageFormat(buffer);
+  const size = readImageSize(buffer);
+  const report = assertImageLimits(buffer);
+  return {
+    format: format ?? detected ?? "desconocido",
+    width: size?.width ?? report.width ?? null,
+    height: size?.height ?? report.height ?? null,
+    bytes: buffer.length,
+    ok: report.ok,
+    reason: report.ok ? null : report.reason,
+    experimental: true,
+    header: "TypeSafe-Danger-Zone-Images",
+  };
 }
 
 async function templateCreateRun(args: Record<string, unknown>, ctx: McpContext): Promise<unknown> {
@@ -848,10 +984,12 @@ async function askRun(args: Record<string, unknown>, ctx: McpContext): Promise<u
     const message = error instanceof Error ? error.message : String(error);
     fail("invalid_request", message);
   }
+  const assets = await assetsFromArgs(args);
   const request: JevRequest = {
     model: typeof model === "string" ? model : "",
     state: state as State,
     questions,
+    assets,
   };
   const result = await ctx.service.ask(request, { source: "mcp" });
   return executionResultJson(result);
@@ -874,9 +1012,11 @@ async function batchRun(args: Record<string, unknown>, ctx: McpContext): Promise
   }
   const concurrency = integerArg(args, "concurrency", { min: 1, max: MAX_CONCURRENCY }) ?? 1;
   const failFast = booleanArg(args, "failFast") ?? false;
+  const assets = await assetsFromArgs(args);
   const batch = await ctx.service.batch(template, contexts as unknown[], {
     concurrency,
     failFast,
+    assets,
     source: "mcp",
   });
   return batchResultJson(batch);

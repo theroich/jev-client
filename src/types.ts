@@ -11,10 +11,29 @@ export interface Question {
   criteria?: Record<string, unknown> | unknown[] | string;
 }
 
+export type ImageFormat = "png" | "jpg" | "jpeg";
+
+/**
+ * Imagen adjunta a un request, indexada por referencia. La referencia se
+ * escribe donde iría texto (`state`, `instructions` o `criteria`) y la API
+ * la sustituye por la imagen real.
+ */
+export interface ImageAsset {
+  type?: "image";
+  /** Base64 sin prefijo `data:` y sin saltos de línea. */
+  data_base64?: string;
+  /** Requerido con `data_base64`. La API detecta el formato real de los bytes. */
+  format?: ImageFormat;
+  /** Multipart: nombre de la parte que lleva el fichero. */
+  part?: string;
+}
+
 export interface JevRequest {
   model: string;
   state: State;
   questions: Record<string, Question>;
+  /** Imágenes del request, por referencia. Requiere el header Danger-Zone-Images. */
+  assets?: Record<string, ImageAsset>;
 }
 
 export interface Usage {
@@ -61,6 +80,8 @@ export interface RequestLog {
   ok: boolean;
   /** Payload enviado a la API. */
   requestBody: unknown;
+  /** Cabeceras reales enviadas (útil para depurar el header de imágenes). */
+  requestHeaders?: Record<string, string>;
   /** Cuerpo crudo recibido (también en errores); `null` si no lo hubo. */
   responseBody: string | null;
   inputTokens?: number;

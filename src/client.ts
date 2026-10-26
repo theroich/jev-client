@@ -5,6 +5,7 @@ import {
   DEFAULT_RETRIES,
   DEFAULT_TIMEOUT_MS,
 } from "./config.js";
+import { IMAGES_HEADER, orphanAssetRefs, validateAssets } from "./assets.js";
 import type {
   Answer,
   JevRequest,
@@ -41,6 +42,13 @@ export interface ClientOptions {
   maxRetryDelayMs?: number;
   /** fetch inyectable (tests). Default: fetch global. */
   fetch?: FetchLike;
+  /** Cabeceras extra mezcladas con las por defecto (sin poder tocar `Authorization`). */
+  extraHeaders?: Record<string, string>;
+  /**
+   * Añade `TypeSafe-Danger-Zone-Images: true` cuando el request lleva `assets`.
+   * Default: true. Se puede desactivar para comprobar el 400 de la API.
+   */
+  imagesHeader?: boolean;
   /** Hook que recibe el registro de cada ejecución (con o sin éxito). */
   onRequest?: (log: RequestLog) => void;
 }
@@ -58,6 +66,8 @@ export class JevClient {
   private readonly backoffMs: number;
   private readonly maxRetryDelayMs: number;
   private readonly fetchImpl: FetchLike;
+  private readonly extraHeaders: Record<string, string>;
+  private readonly imagesHeader: boolean;
   private readonly onRequest?: (log: RequestLog) => void;
 
   constructor(options: ClientOptions) {
@@ -73,6 +83,8 @@ export class JevClient {
     this.maxRetryDelayMs = Math.max(0, options.maxRetryDelayMs ?? 10_000);
     this.fetchImpl =
       options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+    this.extraHeaders = options.extraHeaders ?? {};
+    this.imagesHeader = options.imagesHeader ?? true;
     this.onRequest = options.onRequest;
   }
 
@@ -99,9 +111,27 @@ export class JevClient {
       throw new Error("el request necesita al menos una pregunta");
     }
 
+    const assets = request.assets;
+    const hasAssets = assets !== undefined && Object.keys(assets).length > 0;
+    if (hasAssets) {
+      validateAssets(assets);
+      const orphan = orphanAssetRefs(request);
+      if (orphan.length > 0) {
+        throw new Error(
+          `los assets no están referenciados en state/questions: ${orphan.join(", ")} ` +
+            "(la API devolvería 400)",
+        );
+      }
+    }
+
     const model = request.model || this.model;
-    const bodyObject = { model, state: request.state, questions };
+    const bodyObject: Record<string, unknown> = { model, state: request.state, questions };
+    if (hasAssets) {
+      bodyObject.assets = assets;
+    }
     const body = JSON.stringify(bodyObject);
+
+    const headers = this.buildHeaders(hasAssets);
 
     const startedAt = new Date();
     let statusCode: number | null = null;
@@ -127,12 +157,7 @@ export class JevClient {
         try {
           response = await this.fetchImpl(this.endpoint, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${this.apiKey}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              "User-Agent": USER_AGENT,
-            },
+            headers,
             body,
             signal,
           });
@@ -203,6 +228,7 @@ export class JevClient {
         statusCode,
         ok,
         requestBody: bodyObject,
+        requestHeaders: headers,
         responseBody,
         inputTokens,
         outputTokens,
@@ -211,6 +237,25 @@ export class JevClient {
         errorMessage,
       });
     }
+  }
+
+  private buildHeaders(hasAssets: boolean): Record<string, string> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": USER_AGENT,
+    };
+    for (const [key, value] of Object.entries(this.extraHeaders)) {
+      if (key.toLowerCase() === "authorization") {
+        continue;
+      }
+      headers[key] = value;
+    }
+    if (hasAssets && this.imagesHeader) {
+      headers[IMAGES_HEADER] = "true";
+    }
+    return headers;
   }
 
   private networkError(error: unknown): Error {

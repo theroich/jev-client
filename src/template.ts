@@ -1,4 +1,4 @@
-import type { JevRequest, Question, State } from "./types.js";
+import type { ImageAsset, JevRequest, Question, State } from "./types.js";
 
 /** Mapa clave-valor usado para resolver las macros de una plantilla. */
 export type TemplateContext = Record<string, unknown>;
@@ -278,7 +278,45 @@ export function validateTemplateRequest(value: unknown): JevRequest {
     throw new Error("la plantilla tiene un state inválido");
   }
 
-  return { model, state: state as State, questions: validateQuestions(record.questions) };
+  const assets = validateTemplateAssets(record.assets);
+  const request: JevRequest = {
+    model,
+    state: state as State,
+    questions: validateQuestions(record.questions),
+  };
+  if (assets !== undefined) {
+    request.assets = assets;
+  }
+  return request;
+}
+
+/**
+ * Valida el `assets` de una plantilla. Las plantillas no guardan base64: solo
+ * pueden contener referencias (el `data_base64` se aporta en tiempo de
+ * ejecución vía `--asset`, MCP o la consola web).
+ */
+export function validateTemplateAssets(
+  value: unknown,
+): Record<string, ImageAsset> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("los assets deben ser un objeto JSON");
+  }
+  const assets = value as Record<string, ImageAsset>;
+  for (const [ref, asset] of Object.entries(assets)) {
+    if (!asset || typeof asset !== "object" || Array.isArray(asset)) {
+      throw new Error(`el asset ${JSON.stringify(ref)} debe ser un objeto`);
+    }
+    if (asset.data_base64 !== undefined) {
+      throw new Error(
+        `el asset ${JSON.stringify(ref)} no puede incluir data_base64 en una plantilla: ` +
+          "aporta la imagen en tiempo de ejecución (--asset, MCP o subida web)",
+      );
+    }
+  }
+  return assets;
 }
 
 /** Valida un objeto de preguntas (nombres y tipos soportados). */
