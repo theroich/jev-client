@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runCli, type CliIO } from "../src/cli.js";
+import { buildQuestionsFromFlags, runCli, type CliIO } from "../src/cli.js";
 import type { FetchLike } from "../src/client.js";
 
 const stubBody = {
@@ -212,6 +212,195 @@ test("ask rechaza tipos de pregunta no soportados", async () => {
 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /tipo no soportado/);
+  assert.equal(result.calls.length, 0);
+});
+
+test("buildQuestionsFromFlags mapea noul, choice y score", () => {
+  assert.deepEqual(
+    buildQuestionsFromFlags({ noul: ["billing=¿Es de facturación?"] }),
+    { billing: { type: "noul", instructions: "¿Es de facturación?" } },
+  );
+
+  assert.deepEqual(
+    buildQuestionsFromFlags({
+      choice: ["team=¿Qué equipo?"],
+      option: ["team.billing=Cobros", "team.infra=Caídas"],
+    }),
+    {
+      team: {
+        type: "choice",
+        instructions: "¿Qué equipo?",
+        criteria: { billing: "Cobros", infra: "Caídas" },
+      },
+    },
+  );
+
+  assert.deepEqual(
+    buildQuestionsFromFlags({
+      score: ["urgency=¿Cómo de urgente?"],
+      level: [
+        "urgency=Puede esperar",
+        "urgency=Esta semana",
+        "urgency=Hoy mismo",
+      ],
+    }),
+    {
+      urgency: {
+        type: "score",
+        instructions: "¿Cómo de urgente?",
+        criteria: ["Puede esperar", "Esta semana", "Hoy mismo"],
+      },
+    },
+  );
+});
+
+test("buildQuestionsFromFlags conserva el orden de aparición de --level", () => {
+  const questions = buildQuestionsFromFlags({
+    score: ["u=¿Urgencia?"],
+    level: ["u=Bajo", "u=Medio", "u=Alto"],
+  });
+  assert.deepEqual(questions.u?.criteria, ["Bajo", "Medio", "Alto"]);
+});
+
+test("buildQuestionsFromFlags rechaza errores de forma", () => {
+  assert.throws(
+    () => buildQuestionsFromFlags({ choice: ["team=¿?"] }),
+    /necesita al menos un --option/,
+  );
+  assert.throws(
+    () => buildQuestionsFromFlags({ score: ["u=¿?"] }),
+    /necesita al menos un --level/,
+  );
+  assert.throws(
+    () => buildQuestionsFromFlags({ option: ["team.billing=Cobros"] }),
+    /no es un --choice/,
+  );
+  assert.throws(
+    () => buildQuestionsFromFlags({ level: ["u=Hoy"] }),
+    /no es un --score/,
+  );
+  assert.throws(
+    () =>
+      buildQuestionsFromFlags({
+        noul: ["team=¿?"],
+        option: ["team.billing=Cobros"],
+      }),
+    /no es un --choice/,
+  );
+  assert.throws(
+    () => buildQuestionsFromFlags({ noul: ["a=¿?"], choice: ["a=¿?"] }),
+    /clave duplicada/,
+  );
+  assert.throws(
+    () =>
+      buildQuestionsFromFlags({
+        choice: ["team=¿?"],
+        option: ["team.b.illing=Cobros"],
+      }),
+    /no puede contener/,
+  );
+});
+
+test("ask con flags tipados envía el mismo body que --questions", async () => {
+  const noul = await run([
+    "ask",
+    "--state",
+    "Me han cobrado dos veces este mes.",
+    "--noul",
+    "billing=¿Es de facturación?",
+  ]);
+  assert.equal(noul.code, 0);
+
+  const choice = await run([
+    "ask",
+    "--state",
+    "El checkout lleva caído 30 minutos.",
+    "--choice",
+    "team=¿Qué equipo debería gestionar la incidencia?",
+    "--option",
+    "team.billing=Cobros, facturas o pagos",
+    "--option",
+    "team.infra=Caídas, errores 500 o problemas de plataforma",
+    "--option",
+    "team.sales=Precios o dudas comerciales",
+  ]);
+  assert.equal(choice.code, 0);
+
+  const score = await run([
+    "ask",
+    "--state",
+    "Llevamos dos días sin respuesta.",
+    "--score",
+    "urgency=¿Cómo de urgente es la incidencia?",
+    "--level",
+    "urgency=Puede esperar",
+    "--level",
+    "urgency=Esta semana",
+    "--level",
+    "urgency=Hoy mismo",
+  ]);
+  assert.equal(score.code, 0);
+
+  const flaggedNoul = JSON.parse(String(noul.calls[0]?.init.body)) as {
+    questions: Record<string, unknown>;
+  };
+  const flaggedChoice = JSON.parse(String(choice.calls[0]?.init.body)) as {
+    questions: Record<string, unknown>;
+  };
+  const flaggedScore = JSON.parse(String(score.calls[0]?.init.body)) as {
+    questions: Record<string, unknown>;
+  };
+
+  assert.deepEqual(flaggedNoul.questions, {
+    billing: { type: "noul", instructions: "¿Es de facturación?" },
+  });
+  assert.deepEqual(flaggedChoice.questions, {
+    team: {
+      type: "choice",
+      instructions: "¿Qué equipo debería gestionar la incidencia?",
+      criteria: {
+        billing: "Cobros, facturas o pagos",
+        infra: "Caídas, errores 500 o problemas de plataforma",
+        sales: "Precios o dudas comerciales",
+      },
+    },
+  });
+  assert.deepEqual(flaggedScore.questions, {
+    urgency: {
+      type: "score",
+      instructions: "¿Cómo de urgente es la incidencia?",
+      criteria: ["Puede esperar", "Esta semana", "Hoy mismo"],
+    },
+  });
+});
+
+test("ask con --choice sin --option es error de uso local", async () => {
+  const result = await run([
+    "ask",
+    "--state",
+    "hola",
+    "--choice",
+    "team=¿Qué equipo?",
+  ]);
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /necesita al menos un --option/);
+  assert.equal(result.calls.length, 0);
+});
+
+test("ask rechaza mezclar flags tipados con --questions", async () => {
+  const result = await run([
+    "ask",
+    "--state",
+    "hola",
+    "--noul",
+    "q=¿?",
+    "--questions",
+    '{"q":{"type":"noul"}}',
+  ]);
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /no se combinan/);
   assert.equal(result.calls.length, 0);
 });
 

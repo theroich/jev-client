@@ -103,13 +103,31 @@ Detalle y caso completo en
 
 | Quiero… | Comando | Referencia |
 | --- | --- | --- |
-| Decidir sí/no (¿es facturación?, ¿es urgente?) | `jev ask --questions '{"q":{"type":"noul",…}}'` | [`references/noul.md`](references/noul.md) |
-| Clasificar entre opciones fijas (equipo, tono, categoría) | `jev ask --questions '{"q":{"type":"choice",…}}'` | [`references/choice.md`](references/choice.md) |
-| Puntuar en una escala ordenada (urgencia, frustración) | `jev ask --questions '{"q":{"type":"score",…}}'` | [`references/score.md`](references/score.md) |
+| Decidir sí/no (¿es facturación?, ¿es urgente?) | `jev ask --noul 'q=¿…?'` | [`references/noul.md`](references/noul.md) |
+| Clasificar entre opciones fijas (equipo, tono, categoría) | `jev ask --choice 'q=¿…?' --option 'q.a=…'` | [`references/choice.md`](references/choice.md) |
+| Puntuar en una escala ordenada (urgencia, frustración) | `jev ask --score 'q=¿…?' --level 'q=…'` | [`references/score.md`](references/score.md) |
 | Ejecutar cualquiera de lo anterior en un script bash | `jev ask … --json` + `jq` | el fichero de la operación |
 | Guardar un request con huecos y reutilizarlo | `jev template create` | [`references/templates.md`](references/templates.md) |
 | Ejecutar una plantilla para muchos contextos | `jev batch <plantilla> --contexts …` | [`references/templates.md`](references/templates.md) |
 | Previsualizar un request sin gastar tokens | `jev template render` | [`references/templates.md`](references/templates.md) |
+
+## Flags tipados para `jev ask`
+
+Para el caso común no hace falta escribir JSON inline. Estos flags traducen la
+entrada de consola al request que el cliente ya entiende:
+
+| Flag | Forma | Produce (`questions.<clave>`) |
+| --- | --- | --- |
+| `--noul` | `--noul <clave>=<instrucción>` | `{ type: "noul", instructions }` |
+| `--choice` | `--choice <clave>=<instrucción>` | `{ type: "choice", instructions, criteria: {…} }` |
+| `--score` | `--score <clave>=<instrucción>` | `{ type: "score", instructions, criteria: […] }` |
+| `--option` | `--option <pregunta>.<opción>=<descripción>` | añade `{ opción: descripción }` al `criteria` del `--choice` |
+| `--level` | `--level <pregunta>=<nivel>` | añade `nivel` (por orden) al `criteria` del `--score` |
+
+Todos son repetibles. `--option` es para las opciones de un `--choice` y
+`--level` para la escala (ordenada) de un `--score`; la posición de aparición de
+`--level` es la nota. No se combinan con `--questions`, `--questions-file`,
+`--request` ni `--request-file` (esos siguen siendo la vía JSON/fichero).
 
 ## Contrato de scripting
 
@@ -125,7 +143,7 @@ Esto es lo que necesitas para invocar `jev` de forma no interactiva:
   scripts y tests— y evita tocar la base del usuario.
 
 ```sh
-jev ask --state "…" --questions '…' --json 2>/dev/null | jq '.answers.q.noul'
+jev ask --state "…" --noul 'q=¿…?' --json 2>/dev/null | jq '.answers.q.noul'
 ```
 
 ## Punteros

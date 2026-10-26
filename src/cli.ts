@@ -112,7 +112,7 @@ Ejemplos:
   jev-client demo
   jev-client demo --json
   jev-client ask --state "Me han cobrado dos veces" \\
-      --questions '{"billing":{"type":"noul","instructions":"¿Es de facturación?"}}'
+      --noul 'billing=¿Es de facturación?'
   jev-client ask --state-file ticket.txt --questions-file preguntas.json
   jev-client ask --request-file request.json
   jev-client config set model jev-1.13-free
@@ -129,6 +129,11 @@ Flags:
   --questions-file <ruta>  fichero con las preguntas en JSON
   --request <json>         payload completo en JSON ('-' para stdin)
   --request-file <ruta>    fichero con el payload completo
+  --noul <clave>=<instrucción>            pregunta sí/no (repetible)
+  --choice <clave>=<instrucción>          pregunta de clasificación (repetible)
+  --score <clave>=<instrucción>           pregunta de escala ordenada (repetible)
+  --option <pregunta>.<opción>=<descrip.> opción de un --choice (repetible)
+  --level <pregunta>=<nivel>              nivel de un --score, en orden (repetible)
   --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
   --url <endpoint>         endpoint completo (env: JEV_URL)
   --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
@@ -138,6 +143,23 @@ Flags:
   --no-save                no registrar esta ejecución en el historial
   --json                   imprime la respuesta cruda en JSON
   -h, --help               muestra esta ayuda
+
+Los flags --noul/--choice/--score sustituyen al --questions inline: construyen
+el JSON que el cliente ya entiende sin escribirlo a mano. --option aporta las
+opciones de un --choice y --level los niveles (en orden) de un --score. No se
+combinan con --questions, --questions-file, --request ni --request-file.
+
+Ejemplos:
+  jev ask --state "Me han cobrado dos veces." --noul 'billing=¿Es de facturación?'
+  jev ask --state "El checkout lleva caído 30 minutos." \\
+      --choice 'team=¿Qué equipo debería gestionar la incidencia?' \\
+      --option 'team.billing=Cobros, facturas o pagos' \\
+      --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \\
+      --option 'team.sales=Precios o dudas comerciales'
+  jev ask --state "Llevamos dos días sin respuesta." \\
+      --score 'urgency=¿Cómo de urgente es la incidencia?' \\
+      --level 'urgency=Puede esperar' --level 'urgency=Esta semana' \\
+      --level 'urgency=Hoy mismo'
 `;
 
 const DEMO_USAGE = `Uso: jev-client demo [flags]
@@ -316,6 +338,11 @@ const ASK_OPTIONS = {
   "questions-file": { type: "string" },
   request: { type: "string" },
   "request-file": { type: "string" },
+  noul: { type: "string", multiple: true },
+  choice: { type: "string", multiple: true },
+  score: { type: "string", multiple: true },
+  option: { type: "string", multiple: true },
+  level: { type: "string", multiple: true },
 } satisfies ParseArgsOptions;
 
 const BATCH_OPTIONS = {
@@ -1521,6 +1548,126 @@ function createService(values: Values, io: CliIO): JevService {
   });
 }
 
+/** ¿Se usó algún flag tipado (--noul/--choice/--score/--option/--level)? */
+function hasTypedQuestionFlags(values: Values): boolean {
+  return (
+    asStrings(values.noul).length > 0 ||
+    asStrings(values.choice).length > 0 ||
+    asStrings(values.score).length > 0 ||
+    asStrings(values.option).length > 0 ||
+    asStrings(values.level).length > 0
+  );
+}
+
+/** Separa `<pregunta>.<opción>=<descripción>` de un `--option`. */
+function splitOptionFlag(
+  raw: string,
+): { question: string; option: string; value: string } {
+  const { name, value } = splitMacroFlag(raw, "--option", "descripción");
+  const dot = name.indexOf(".");
+  if (dot <= 0 || dot === name.length - 1) {
+    throw new UsageError(
+      `--option espera <pregunta>.<opción>=<descripción>: ${JSON.stringify(raw)}`,
+    );
+  }
+  const question = name.slice(0, dot);
+  const option = name.slice(dot + 1);
+  if (option.includes(".")) {
+    throw new UsageError(
+      `--option: la opción no puede contener '.': ${JSON.stringify(raw)}`,
+    );
+  }
+  return { question, option, value };
+}
+
+/**
+ * Construye las `questions` a partir de los flags tipados `--noul`, `--choice`,
+ * `--score`, `--option` y `--level`. Traduce la entrada de consola al request
+ * JSON que el cliente ya entiende, validando localmente los errores de forma.
+ */
+export function buildQuestionsFromFlags(
+  values: Values,
+): Record<string, Question> {
+  const questions: Record<string, Question> = {};
+
+  const register = (
+    kind: "noul" | "choice" | "score",
+    raw: string,
+    flag: string,
+  ): void => {
+    const { name, value } = splitMacroFlag(raw, flag, "instrucción");
+    if (Object.prototype.hasOwnProperty.call(questions, name)) {
+      throw new UsageError(
+        `clave duplicada: ${JSON.stringify(name)} (--noul/--choice/--score)`,
+      );
+    }
+    if (kind === "noul") {
+      questions[name] = { type: "noul", instructions: value };
+    } else if (kind === "choice") {
+      questions[name] = { type: "choice", instructions: value, criteria: {} };
+    } else {
+      questions[name] = { type: "score", instructions: value, criteria: [] };
+    }
+  };
+
+  for (const raw of asStrings(values.noul)) {
+    register("noul", raw, "--noul");
+  }
+  for (const raw of asStrings(values.choice)) {
+    register("choice", raw, "--choice");
+  }
+  for (const raw of asStrings(values.score)) {
+    register("score", raw, "--score");
+  }
+
+  for (const raw of asStrings(values.option)) {
+    const { question, option, value } = splitOptionFlag(raw);
+    const target = questions[question];
+    if (target === undefined || target.type !== "choice") {
+      throw new UsageError(
+        `--option ${JSON.stringify(question + "." + option)}: ` +
+          `la pregunta ${JSON.stringify(question)} no es un --choice`,
+      );
+    }
+    const criteria = target.criteria as Record<string, unknown>;
+    if (Object.prototype.hasOwnProperty.call(criteria, option)) {
+      throw new UsageError(`opción duplicada: ${JSON.stringify(question + "." + option)}`);
+    }
+    criteria[option] = value;
+  }
+
+  for (const raw of asStrings(values.level)) {
+    const { name, value } = splitMacroFlag(raw, "--level", "nivel");
+    const target = questions[name];
+    if (target === undefined || target.type !== "score") {
+      throw new UsageError(
+        `--level ${JSON.stringify(name)}: la pregunta ${JSON.stringify(name)} no es un --score`,
+      );
+    }
+    (target.criteria as unknown[]).push(value);
+  }
+
+  for (const [name, question] of Object.entries(questions)) {
+    if (question.type === "choice") {
+      if (Object.keys(question.criteria as Record<string, unknown>).length === 0) {
+        throw new UsageError(
+          `--choice ${JSON.stringify(name)} necesita al menos un --option ` +
+            `${JSON.stringify(name)}.<opción>=<descripción>`,
+        );
+      }
+    } else if (question.type === "score") {
+      if ((question.criteria as unknown[]).length === 0) {
+        throw new UsageError(
+          `--score ${JSON.stringify(name)} necesita al menos un --level ` +
+            `${JSON.stringify(name)}=<nivel>`,
+        );
+      }
+    }
+  }
+
+  return questions;
+}
+
 async function buildRequest(
   values: Values,
   options: CommonOptions,
@@ -1528,6 +1675,32 @@ async function buildRequest(
 ): Promise<JevRequest> {
   const requestInline = asString(values.request);
   const requestFile = asString(values["request-file"]);
+
+  if (hasTypedQuestionFlags(values)) {
+    if (
+      requestInline !== undefined ||
+      requestFile !== undefined ||
+      asString(values.questions) !== undefined ||
+      asString(values["questions-file"]) !== undefined
+    ) {
+      throw new UsageError(
+        "--noul/--choice/--score no se combinan con --questions, --questions-file, --request ni --request-file",
+      );
+    }
+    const stateRaw = await readInput(
+      asString(values.state),
+      asString(values["state-file"]),
+      io,
+    );
+    if (stateRaw === undefined || stateRaw.trim() === "") {
+      throw new Error("el state está vacío");
+    }
+    return {
+      model: resolveModel(options.model, undefined, envOf(io), options.storedModel),
+      state: decodeState(stateRaw),
+      questions: buildQuestionsFromFlags(values),
+    };
+  }
 
   if (requestInline !== undefined || requestFile !== undefined) {
     const raw = await readInput(requestInline, requestFile, io);

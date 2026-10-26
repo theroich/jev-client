@@ -45,12 +45,12 @@ Con `criteria` opcional (un string que ayuda al modelo a definir el criterio):
 
 ## 3. Ejemplos de consola
 
-### Inline con `--state` y `--questions`
+### Inline con `--state` y `--noul`
 
 ```sh
 jev ask \
   --state "Me han cobrado dos veces este mes." \
-  --questions '{"billing":{"type":"noul","instructions":"¿Es de facturación?"}}'
+  --noul 'billing=¿Es de facturación?'
 ```
 
 ```text
@@ -74,14 +74,14 @@ jev ask --state-file examples/state.json --questions-file examples/questions.jso
 
 ```sh
 echo "El checkout está caído" | jev ask --state - \
-  --questions '{"urgent":{"type":"noul","instructions":"¿Es urgente?"}}'
+  --noul 'urgent=¿Es urgente?'
 ```
 
 ### Con `--json` para consumo por máquina
 
 ```sh
 jev ask --state "Me han cobrado dos veces este mes." \
-  --questions '{"billing":{"type":"noul","instructions":"¿Es de facturación?"}}' \
+  --noul 'billing=¿Es de facturación?' \
   --json 2>/dev/null
 ```
 
@@ -133,12 +133,10 @@ trap 'rm -rf "$(dirname "$DB")"' EXIT
 # Evalúa una pregunta noul y devuelve la probabilidad de "sí" (0-1).
 ask_noul() {
   local state="$1" instructions="$2"
-  local questions
-  questions=$(jq -nc --arg i "$instructions" '{q:{type:"noul",instructions:$i}}')
 
   local out code
   out=$(jev ask --db "$DB" --no-save --json \
-          --state "$state" --questions "$questions" 2>/dev/null)
+          --state "$state" --noul "q=$instructions" 2>/dev/null)
   code=$?
 
   if [ "$code" -ne 0 ]; then

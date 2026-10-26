@@ -49,12 +49,15 @@ Cuando cae exacto en un nivel, no lleva `≈`.
 
 ## 3. Ejemplos de consola
 
-### Inline con `--state` y `--questions`
+### Inline con `--state` y `--score`
 
 ```sh
 jev ask \
   --state "Llevamos dos días sin respuesta y el checkout está caído." \
-  --questions '{"urgency":{"type":"score","instructions":"¿Cómo de urgente es la incidencia?","criteria":["Puede esperar","Esta semana","Hoy mismo"]}}'
+  --score 'urgency=¿Cómo de urgente es la incidencia?' \
+  --level 'urgency=Puede esperar' \
+  --level 'urgency=Esta semana' \
+  --level 'urgency=Hoy mismo'
 ```
 
 ```text
@@ -77,7 +80,10 @@ La pregunta `urgency` de `examples/questions.json` es un `score` con
 
 ```sh
 echo "El cliente amenaza con darse de baja." | jev ask --state - \
-  --questions '{"frustracion":{"type":"score","instructions":"¿Cómo de frustrado está el cliente?","criteria":["Tranquilo","Molesto","Muy enfadado"]}}'
+  --score 'frustracion=¿Cómo de frustrado está el cliente?' \
+  --level 'frustracion=Tranquilo' \
+  --level 'frustracion=Molesto' \
+  --level 'frustracion=Muy enfadado'
 ```
 
 ### Con `--json` para consumo por máquina
@@ -136,17 +142,15 @@ trap 'rm -rf "$(dirname "$DB")"' EXIT
 # Puntúa urgencia y devuelve "score<TAB>nivel" (etiqueta más cercana).
 score_urgencia() {
   local state="$1"
-  local questions='{
-    "urgency": {
-      "type": "score",
-      "instructions": "¿Cómo de urgente es la incidencia?",
-      "criteria": ["Puede esperar", "Esta semana", "Hoy mismo"]
-    }
-  }'
 
   local out code
   out=$(jev ask --db "$DB" --no-save --json \
-          --state "$state" --questions "$questions" 2>/dev/null)
+          --state "$state" \
+          --score 'urgency=¿Cómo de urgente es la incidencia?' \
+          --level 'urgency=Puede esperar' \
+          --level 'urgency=Esta semana' \
+          --level 'urgency=Hoy mismo' \
+          2>/dev/null)
   code=$?
 
   if [ "$code" -ne 0 ]; then
