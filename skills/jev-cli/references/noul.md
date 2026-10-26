@@ -188,6 +188,10 @@ Notas del script:
 - **`criteria` con la forma equivocada** — en `noul`, `criteria` es un string
   opcional, no un objeto ni un array. Un objeto/array aquí es para
   `choice`/`score`.
+- **Todas las preguntas dan la misma probabilidad** — si evalúas varios
+  elementos en un solo request, nómbralos en cada `instructions`: la clave no
+  se envía al modelo y `state` es compartido (ver
+  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
 - **Falta la API key** — `error: falta la API key` (código `1`). Usa `--key`,
   `OPENCODE_API_KEY`/`JEV_API_KEY`, o `jev config set api_key`.
 - **Timeouts y reintentos** — cada intento tiene `--timeout` (default 30 s) y

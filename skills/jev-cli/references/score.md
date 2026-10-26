@@ -198,6 +198,10 @@ Notas del script:
   `criteria` la API responde `422` (la CLI añade `pista:`).
 - **Orden del array** — la posición define la nota; asegúrate de ordenar de
   menor a mayor intensidad, o el resultado será contraintuitivo.
+- **Todos los scores salen casi iguales** — si evalúas varios elementos en un
+  solo request, nómbralos en cada `instructions`: la clave no se envía al
+  modelo y `state` es compartido (ver
+  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
 - **`401` / `api_key_expired`** — key inválida/caducada; renueva en
   https://opencode.ai/console.
 - **`429 FreeUsageLimitError`** — cuota agotada; prueba `--model jev-1.13`.

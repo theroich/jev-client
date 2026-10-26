@@ -39,6 +39,29 @@ npm start -- demo
 npm run dev -- demo   # compila y ejecuta
 ```
 
+### Problemas de arranque
+
+**`better-sqlite3` compilado contra otra versión de Node.** El error típico es
+`NODE_MODULE_VERSION 137` frente a `115`: el binario nativo se instaló con una
+versión de Node distinta de la que ejecuta `jev`. Usa el binario que
+corresponda a tu Node (por ejemplo `ivm-node 24.11.1`) o recompila el módulo:
+
+```sh
+npm rebuild better-sqlite3
+```
+
+**Desajuste de esquema SQLite.** `la base usa el esquema N, pero esta versión
+solo admite hasta M` significa que otra versión (más reciente) de `jev` escribió
+en `~/.jev-client/db/jev.db`. Aísla la ejecución en una base temporal:
+
+```sh
+jev ask --db "$(mktemp -d)/jev.db" …
+# o: JEV_DB=/tmp/jev-prueba.db jev ask …
+```
+
+Si no necesitas el historial, también puedes renombrar o borrar la base para
+que se recree con el esquema de esta versión.
+
 ## Configuración
 
 La configuración se resuelve con esta precedencia: **flag > variable de entorno >
@@ -752,6 +775,14 @@ La consola publica el mismo catálogo que usa MCP (requieren sesión de consola)
 En `score`, la posición en el array es la nota: `0` el primero, `1` el segundo…
 El `score` devuelto es la media ponderada y puede ser decimal; cuando cae entre
 dos niveles se muestra con `≈`.
+
+Un request comparte un único `state` entre todas sus preguntas, y la **clave**
+de `questions` (`"urgency"`) solo identifica la respuesta en `answers`: **no se
+envía al modelo**. El modelo solo ve `state` + `instructions` + `criteria` de
+cada pregunta. Al evaluar varios elementos en un mismo request, nómbralos en
+cada `instructions` o referéncialos desde `state`; si el referente vive solo en
+la clave, todas las respuestas tienden al mismo valor. Ver
+[`skills/jev-cli/references/anatomia-pregunta.md`](skills/jev-cli/references/anatomia-pregunta.md).
 
 ## Códigos de salida
 
