@@ -175,7 +175,7 @@ jev ask --state "…" --noul 'q=¿…?' --json 2>/dev/null | jq '.answers.q.noul
 - [`references/anatomia-pregunta.md`](references/anatomia-pregunta.md) — qué ve el
   modelo en cada pregunta y cómo evaluar varios elementos en un solo request.
 
-Fuera del alcance de esta skill (ver [`README.md`](../../README.md) para más):
+Fuera del alcance de esta skill (ver [`README.md`](../../README.md) para el uso):
 la TUI (`jev tui`), la consola web (`jev web-console`) y el servidor MCP
-(`jev mcp`). Para usos como librería TypeScript, consulta la sección
-«Uso como librería» del README.
+(`jev mcp`). Para usos como librería TypeScript, consulta
+[`docs/libreria.md`](../../docs/libreria.md).

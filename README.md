@@ -1,22 +1,45 @@
 # jev-client
 
-CLI y librería en **Node.js + TypeScript** para consumir la API de **Jev**
-(System One de TypeSafe) a través de **OpenCode**.
+`jev` es una herramienta de consola que hace **preguntas a la API de Jev**
+(System One de TypeSafe, a través de OpenCode) sobre un texto o un JSON.
 
-Jev no genera texto: recibe un `state` y una o más preguntas tipadas, y devuelve
-una respuesta por pregunta con probabilidades.
+Jev no redacta respuestas: **clasifica**. Le pasas un material (`state`) y una o
+varias preguntas, y devuelve una respuesta por pregunta con probabilidades. Por
+ejemplo, puedes preguntarle si un ticket es urgente, qué equipo debe atenderlo o
+cuánto enfado transmite.
+
+```sh
+jev ask --state "Me han cobrado dos veces este mes." \
+  --noul 'billing=¿Es de facturación?'
+```
 
 ```
-POST https://opencode.ai/inference/systemone/v1/systemone
-Authorization: Bearer <API_KEY>
+modelo: jev-1.13
+  billing: noul=0.9
+tokens: 283 in / 20 out, cost=1.189e-5
 ```
 
-## Requisitos
+Además de la consola, incluye una **TUI**, una **consola web local** y un
+**servidor MCP** para que lo use un agente. Todo comparte la misma configuración
+y el mismo historial.
 
-- Node.js 20.9+ (o Node.js 22+)
-- Una API key de [OpenCode Console](https://opencode.ai/console)
+- [Instalación](#instalación)
+- [Primer paso: la API key](#primer-paso-la-api-key)
+- [Probar que todo funciona: `jev demo`](#probar-que-todo-funciona-jev-demo)
+- [Preguntar: `jev ask`](#preguntar-jev-ask)
+- [Repetir preguntas con plantillas](#repetir-preguntas-con-plantillas)
+- [Preguntar en lote: `jev batch`](#preguntar-en-lote-jev-batch)
+- [Consultar el historial](#consultar-el-historial)
+- [Modo interactivo: `jev tui`](#modo-interactivo-jev-tui)
+- [Consola web local](#consola-web-local)
+- [Usar Jev desde un agente (MCP)](#usar-jev-desde-un-agente-mcp)
+- [Analizar imágenes](#analizar-imágenes)
+- [Problemas frecuentes](#problemas-frecuentes)
 
 ## Instalación
+
+Necesitas **Node.js 20.9+** (o 22+) y una API key de
+[OpenCode Console](https://opencode.ai/console).
 
 ```sh
 cd jev-client
@@ -24,14 +47,14 @@ npm install
 npm run build
 ```
 
-Para tener el comando `jev` disponible:
+Para tener el comando `jev` disponible en cualquier carpeta:
 
 ```sh
 npm link          # opcional
 jev demo
 ```
 
-O sin enlazar:
+También puedes ejecutarlo sin enlazarlo:
 
 ```sh
 node dist/src/bin.js demo
@@ -39,210 +62,54 @@ npm start -- demo
 npm run dev -- demo   # compila y ejecuta
 ```
 
-### Problemas de arranque
-
-**`better-sqlite3` compilado contra otra versión de Node.** El error típico es
-`NODE_MODULE_VERSION 137` frente a `115`: el binario nativo se instaló con una
-versión de Node distinta de la que ejecuta `jev`. Usa el binario que
-corresponda a tu Node (por ejemplo `ivm-node 24.11.1`) o recompila el módulo:
+Si instalas el paquete publicado:
 
 ```sh
-npm rebuild better-sqlite3
+npm install -g jev-client
+jev --help
 ```
 
-**Desajuste de esquema SQLite.** `la base usa el esquema N, pero esta versión
-solo admite hasta M` significa que otra versión (más reciente) de `jev` escribió
-en `~/.jev-client/db/jev.db`. Aísla la ejecución en una base temporal:
+## Primer paso: la API key
 
-```sh
-jev ask --db "$(mktemp -d)/jev.db" …
-# o: JEV_DB=/tmp/jev-prueba.db jev ask …
-```
-
-Si no necesitas el historial, también puedes renombrar o borrar la base para
-que se recree con el esquema de esta versión.
-
-## Configuración
-
-La configuración se resuelve con esta precedencia: **flag > variable de entorno >
-base SQLite > valor por defecto**. Las cadenas vacías cuentan como no definidas.
-
-| Qué | Flag | Variable | Clave SQLite | Default |
-| --- | --- | --- | --- | --- |
-| API key | `--key` | `OPENCODE_API_KEY` o `JEV_API_KEY` | `api_key` | — (obligatoria) |
-| Endpoint | `--url` | `JEV_URL` | `api_url` | `https://opencode.ai/inference/systemone/v1/systemone` |
-| Modelo | `--model` | `JEV_MODEL` | `model` | `jev-1.13` |
-| Timeout (segundos) | `--timeout` | — | `timeout` | `30` |
-| Reintentos | `--retries` | — | `retries` | `2` |
-| Base SQLite | `--db` | `JEV_DB` | — | ver abajo |
+La forma más rápida es pasarla por variable de entorno:
 
 ```sh
 export OPENCODE_API_KEY="sk-..."
 ```
 
-`--url` espera el **endpoint completo**, no la base. Si un request completo
-incluye `model`, ese modelo explícito se mantiene por delante del guardado en
-SQLite.
-
-Otros flags comunes a `ask` y `demo`:
-
-```
---db ~/.jev-client/db/jev.db     ruta de la base (también en config)
---timeout 30                     timeout de cada intento HTTP, en segundos
---retries 2                      reintentos ante 429/5xx y errores de red
---no-save                        no registrar esta ejecución en el historial
---json                           imprime la respuesta cruda de la API
-```
-
-### Persistencia SQLite
-
-Se eligió **`better-sqlite3` 12.x** porque mantiene el requisito actual de
-**Node.js 20 o superior**. La versión 13 del driver ya exige Node 22, igual que
-la alternativa `node:sqlite`, por lo que no se sube el mínimo de Node.
-
-La base se crea y migra automáticamente en el primer uso de `ask`, `demo` o
-`config`. Vive por defecto en `<home-del-SO>/.jev-client/db/jev.db`. El
-directorio personal se obtiene mediante `os.homedir()`, por lo que funciona en
-Linux, macOS y Windows; por ejemplo, `~/.jev-client/db/jev.db` en Unix y
-`%USERPROFILE%\.jev-client\db\jev.db` en Windows.
-
-Se puede cambiar en `ask`, `demo` y `config` con `--db /ruta/jev.db` o
-`JEV_DB=/ruta/jev.db`. Al crear el directorio y el fichero se usan permisos
-restrictivos (`0700` y `0600` en sistemas POSIX). Las migraciones están
-versionadas con `PRAGMA user_version` y se pueden reaplicar sin duplicar datos.
-
-**La API key guardada en SQLite queda en claro.** Los permisos del fichero no la
-cifran. Para no persistirla, no uses `config set api_key`: pásala con `--key` o
-mediante `OPENCODE_API_KEY`/`JEV_API_KEY`; esas dos vías nunca la guardan
-automáticamente.
-
-### Esquema SQLite
-
-La base usa cuatro tablas. El esquema está versionado con `PRAGMA user_version`
-(versión actual: **6**): cada versión se aplica en una transacción, las
-migraciones son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS` y
-comprobación de columnas en `ALTER TABLE`) y se pueden reaplicar sin duplicar
-datos. Si una base es más reciente de lo que
-soporta esta versión, `openDatabase` lanza un error antes de tocar nada.
-
-**`config`** — clave/valor de la configuración persistente.
-
-| Columna | Tipo | Notas |
-| --- | --- | --- |
-| `key` | `TEXT PRIMARY KEY` | `api_url`, `api_key`, `model`, `timeout`, `retries` |
-| `value` | `TEXT NOT NULL` | siempre texto; `timeout`/`retries` se validan como números |
-
-**`templates`** — plantillas JSON con macros.
-
-| Columna | Tipo | Notas |
-| --- | --- | --- |
-| `name` | `TEXT PRIMARY KEY` | nombre de la plantilla |
-| `description` | `TEXT NOT NULL DEFAULT ''` | descripción opcional |
-| `body_json` | `TEXT NOT NULL` | body de la plantilla (con macros `{{clave}}`) |
-| `created_at` | `TEXT NOT NULL` | ISO 8601 |
-| `updated_at` | `TEXT NOT NULL` | ISO 8601 |
-
-**`template_macros`** — metadatos opcionales (descripción y JSON Schema) de las
-macros de cada plantilla. El body sigue siendo la única fuente de verdad de
-**qué** macros existen; esta tabla solo aporta su significado y su forma para
-humanos y agentes.
-
-| Columna | Tipo | Notas |
-| --- | --- | --- |
-| `template_name` | `TEXT NOT NULL` | FK a `templates.name` con `ON DELETE/UPDATE CASCADE` |
-| `macro` | `TEXT NOT NULL` | clave completa, p. ej. `cliente.nombre` |
-| `description` | `TEXT NOT NULL DEFAULT ''` | texto libre (máx. 500), `''` si no se describió |
-| `schema_json` | `TEXT` | JSON Schema compacto (máx. 8 KB) o `NULL` si no tiene |
-| `created_at` | `TEXT NOT NULL` | ISO 8601 |
-| `updated_at` | `TEXT NOT NULL` | ISO 8601 |
-
-La clave primaria es `(template_name, macro)`. Al leer, el repositorio fusiona
-`detectMacros(body_json)` con las filas guardadas: toda macro del body aparece
-aunque no tenga fila, y nunca se devuelven filas huérfanas. Al guardar se
-eliminan las filas de macros que ya no están en el body y se conservan
-descripciones y esquemas existentes si no se pasan explícitamente.
-
-El esquema es informativo: puede ser un objeto JSON Schema o un booleano
-(`true`/`false`), se guarda compacto y la API lo devuelve parseado. Se valida de
-forma estructural (JSON válido, `type` conocido, `enum` no vacío, `format` y
-`pattern` correctos, límites numéricos, `$ref` solo locales y máximo 8 KB), pero
-no se resuelve ni se compone con el de rutas padre/hijas. Ni la descripción ni el
-esquema **se envían a Jev** ni alteran el renderizado.
-
-**`requests`** — historial de peticiones (una fila por ejecución de `ask`, `demo`
-o por cada petición de un `batch`).
-
-| Columna | Tipo | Notas |
-| --- | --- | --- |
-| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | id de la petición |
-| `created_at` | `TEXT NOT NULL` | ISO 8601 |
-| `started_at` / `finished_at` | `TEXT` | marcas de inicio y fin |
-| `duration_ms` | `INTEGER` | duración en milisegundos |
-| `endpoint` | `TEXT` | URL usada |
-| `model` | `TEXT` | modelo usado |
-| `status_code` | `INTEGER` | código HTTP (o `NULL`) |
-| `ok` | `INTEGER NOT NULL` | `1` éxito, `0` fallo |
-| `request_json` | `TEXT` | payload enviado (`model`, `state`, `questions`) |
-| `response_json` | `TEXT` | cuerpo crudo recibido |
-| `input_tokens` / `output_tokens` | `INTEGER` | tokens, `NULL` si no se informan |
-| `cost` | `REAL` | coste, `NULL` si no se informa |
-| `error_code` / `error_message` | `TEXT` | error si la petición falló |
-| `template_name` / `batch_id` | `TEXT` | sellos de plantilla y batch |
-| `source` | `TEXT NOT NULL DEFAULT 'cli'` | origen de la ejecución: `cli`, `tui`, `web` o `mcp` |
-
-Índices sobre `requests`: `idx_requests_created_at`, `idx_requests_model` e
-`idx_requests_template_name`.
-
-**Qué NO se guarda.** El historial no persiste cabeceras (ni la `Authorization`
-con la API key): solo el payload enviado y el cuerpo devuelto por la API. Para
-no conservar una ejecución concreta, usa `--no-save`.
-
-Para inspeccionar o migrar la base a mano, `sqlite3` sirve:
-
-```sh
-sqlite3 ~/.jev-client/db/jev.db '.schema'
-sqlite3 ~/.jev-client/db/jev.db 'PRAGMA user_version;'
-```
-
-## Comandos
-
-### `jev config`
-
-Gestiona las claves persistentes `api_url`, `api_key`, `model`, `timeout` y
-`retries`:
-
-```sh
-jev config set api_url https://opencode.ai/inference/systemone/v1/systemone
-jev config set model jev-1.13
-jev config set timeout 30
-jev config set retries 2
-
-jev config get model
-jev config list
-jev config list --json          # objeto JSON clave -> valor
-jev config unset model
-jev config path                 # ruta de la base de datos que se está usando
-```
-
-`config get api_key` muestra la key enmascarada (por ejemplo
-`sk-a…1234`); usa `--reveal` para verla completa o `--json` para el valor sin
-máscara (orientado a scripting).
-
-Para guardar la key (con el aviso explícito de que quedará en claro):
+o guardarla para no repetirla:
 
 ```sh
 jev config set api_key "sk-..."
-# aviso: la API key se guarda en claro en ...
 ```
 
-Todos los subcomandos aceptan `--db`. `config get` devuelve un error si la clave
-no existe; `config unset` es idempotente. Los valores de `timeout` deben ser
-números positivos en segundos y los de `retries`, enteros mayores o iguales a
-cero.
+> La key guardada con `jev config set` queda en claro en tu base local. Si no
+> quieres persistirla, usa `OPENCODE_API_KEY`, `JEV_API_KEY` o `--key`.
 
-### `jev demo`
+Comprueba lo que hay configurado:
 
-Ejemplo integrado (urgencia, equipo y frustración):
+```sh
+jev config list
+jev config get model
+jev config get api_key          # la muestra enmascarada
+jev config get api_key --reveal # la muestra completa
+```
+
+Cambiar el modelo o el timeout de forma permanente:
+
+```sh
+jev config set model jev-1.13
+jev config set timeout 30
+jev config set retries 2
+jev config unset model          # vuelve al valor por defecto
+jev config path                 # ruta de la base de datos en uso
+```
+
+La precedencia es **flag > variable de entorno > valor guardado > valor por
+defecto**. Detalle completo en
+[`docs/configuracion.md`](docs/configuracion.md).
+
+## Probar que todo funciona: `jev demo`
 
 ```sh
 jev demo
@@ -253,96 +120,170 @@ modelo: jev-1.13
   frustration: score=1.99 ≈ "Muy enfadado" (confidence=0.98)
     2=0.99, 1=0.01, 0=0
   is_urgent: noul=0.99
-  team: choice=infra (confidence=0.59)
-    infra=0.73, billing=0.27, sales=0
+  team: choice=infra (confidence=0.52)
+    infra=0.68, billing=0.32, sales=0
 tokens: 449 in / 73 out, cost=1.886e-5
 ```
 
-La línea de `tokens` va a `stderr`, así que `--json` se puede redirigir a un
-fichero sin contaminarlo.
+La probabilidad exacta varía ligeramente en cada llamada: lo relevante es la
+opción elegida y su confianza.
 
-### `jev ask`
+Es un ejemplo integrado con urgencia, equipo y frustración. Si ves respuestas y
+tokens, la key y la conexión funcionan.
+
+`--json` imprime la respuesta cruda de la API, útil para procesarla con otra
+herramienta:
 
 ```sh
-# Flags tipados (el caso común): no hace falta escribir JSON inline
+jev demo --json | jq '.answers'
+```
+
+## Preguntar: `jev ask`
+
+### Tres formas de preguntar
+
+Jev admite tres tipos de pregunta. Todos se pueden escribir directamente en la
+consola.
+
+**Sí/no (`noul`)** — devuelve una probabilidad entre 0 y 1:
+
+```sh
 jev ask --state "Me han cobrado dos veces este mes." \
   --noul 'billing=¿Es de facturación?'
+```
 
-# choice: las opciones se añaden con --option <pregunta>.<opción>=<descripción>
+```
+modelo: jev-1.13
+  billing: noul=0.9
+tokens: 283 in / 20 out, cost=1.189e-5
+```
+
+**Elegir una opción (`choice`)** — describes las opciones con `--option`:
+
+```sh
 jev ask --state "El checkout lleva caído 30 minutos." \
   --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
   --option 'team.billing=Cobros, facturas o pagos' \
   --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
   --option 'team.sales=Precios o dudas comerciales'
+```
 
-# score: los niveles se añaden con --level <pregunta>=<nivel> (el orden es la nota)
+```
+modelo: jev-1.13
+  team: choice=infra (confidence=0.61)
+    infra=0.74, billing=0.26, sales=0
+tokens: 354 in / 38 out, cost=1.487e-5
+```
+
+**Puntuar (`score`)** — los niveles se añaden en orden, del más bajo al más alto:
+
+```sh
 jev ask --state "Llevamos dos días sin respuesta." \
   --score 'urgency=¿Cómo de urgente es la incidencia?' \
   --level 'urgency=Puede esperar' --level 'urgency=Esta semana' \
   --level 'urgency=Hoy mismo'
+```
 
-# Desde ficheros
-jev ask --state-file examples/state.json --questions-file examples/questions.json
+```
+modelo: jev-1.13
+  urgency: score=1.29 ≈ "Esta semana" (confidence=0.47)
+    1=0.65, 2=0.32, 0=0.03
+tokens: 312 in / 18 out, cost=1.310e-5
+```
 
-# Payload completo (power user)
-jev ask --request-file examples/request.json
+`score` devuelve una media ponderada y puede salir decimal; cuando cae entre dos
+niveles se muestra con `≈`.
 
-# Texto por stdin
+Puedes combinar varias preguntas en una sola llamada: se evalúan contra el mismo
+`state` y reciben una respuesta cada una.
+
+```sh
+jev ask --state "Me han cobrado dos veces y quiero el reembolso." \
+  --noul 'refund=¿Pide un reembolso?' \
+  --choice 'team=¿Qué equipo debe atenderlo?' \
+  --option 'team.billing=Cobros' --option 'team.legal=Reclamaciones' \
+  --score 'urgency=¿Cómo de urgente es?' \
+  --level 'urgency=Puede esperar' --level 'urgency=Hoy'
+```
+
+### Qué se envía como `state`
+
+Puede ser texto plano, un objeto JSON o un array:
+
+```sh
+jev ask --state "El cliente está enfadado." --noul 'angry=¿Está enfadado?'
+
+jev ask --state '{"ticket":"Me han cobrado dos veces","plan":"pro"}' \
+  --noul 'refund=¿Pide un reembolso?'
+
+jev ask --state '["error 500","checkout caído"]' \
+  --noul 'infra=¿Es un problema de plataforma?'
+```
+
+Si el texto empieza por `{` o `[`, se envía como JSON; si no, como string.
+
+### Leer el material de stdin o de ficheros
+
+```sh
 echo "El checkout está caído" | jev ask --state - \
   --noul 'urgent=¿Es urgente?'
+```
 
-# Modelo y endpoint explícitos
-jev ask --key sk-... --url https://…/v1/systemone --model jev-1.13-free \
+```sh
+jev ask --state-file examples/state.json \
+        --questions-file examples/questions.json
+```
+
+`examples/state.json` es el material y `examples/questions.json` las preguntas.
+Útil cuando el JSON es largo o lo genera otro programa.
+
+### Payload completo
+
+Si ya tienes el request de Jev tal cual (`model`, `state` y `questions`):
+
+```sh
+jev ask --request-file examples/request.json
+```
+
+También admite JSON inline con `--request '{"..."}'`.
+
+### Elegir modelo, endpoint y timeout
+
+```sh
+jev ask --model jev-1.13-free \
+  --url https://opencode.ai/inference/systemone/v1/systemone \
+  --timeout 60 --retries 3 \
   --state "hola" --noul 'q=¿Saludo?'
 ```
 
-Los flags `--noul`, `--choice` y `--score` (con `--option` y `--level`) traducen la
-entrada de consola al mismo JSON que el cliente ya entiende: `--noul
-'clave=instrucción'` equivale a `--questions '{"clave":{"type":"noul",
-"instructions":"instrucción"}}'`. No se combinan con `--questions`,
-`--questions-file`, `--request` ni `--request-file`.
+Flags útiles en `ask`, `demo` y `batch`:
 
-El `state` puede ser texto plano, un objeto JSON (`{...}`) o un array (`[...]`).
-Si empieza por `{` o `[` se envía como JSON; si no, como string.
-
-### `jev history`
-
-Todas las ejecuciones de `ask` y `demo` (correctas y fallidas) quedan registradas
-en la tabla `requests` de la base SQLite. Se guarda el payload enviado, el cuerpo
-recibido, el código de estado, la duración, los tokens y el coste cuando la API
-los informa (`NULL` cuando no), y el código/mensaje de error si lo hubo.
-
-```sh
-jev history list               # una línea por petición, la más reciente primero
-jev history show 12            # petición y respuesta completas
-jev history export > hist.jsonl  # volcado JSONL (una petición por línea)
-```
-
-Filtros de `list` y `export`:
-
-| Flag | Filtro |
+| Flag | Para qué |
 | --- | --- |
-| `--since <ISO>` | solo peticiones con `created_at` mayor o igual |
-| `--status <código>` | código HTTP (p. ej. `200`, `429`) |
-| `--model <modelo>` | modelo exacto |
-| `--template <nombre>` | nombre de plantilla |
-| `--batch <id>` | peticiones de un `batch_id` concreto |
-| `--limit <n>` | número máximo de resultados |
+| `--json` | imprime la respuesta cruda de la API |
+| `--no-save` | no guarda esta ejecución en el historial |
+| `--db <ruta>` | usa otra base de datos |
+| `--key <clave>` | API key solo para esta ejecución |
+| `--model <modelo>` | modelo solo para esta ejecución |
+| `--url <endpoint>` | endpoint completo solo para esta ejecución |
+| `--timeout <s>` / `--retries <n>` | timeout y reintentos |
 
-Todos los subcomandos aceptan `--db`. Si no quieres registrar una ejecución
-concreta, añade `--no-save` a `ask` o `demo`.
+## Repetir preguntas con plantillas
 
-### `jev template`
+Una **plantilla** es un request de Jev con huecos (`{{clave}}`) que se rellenan
+con un contexto. Sirve para no repetir el mismo JSON cada vez.
 
-Plantillas de request en JSON con macros. Una plantilla es un payload de Jev
-con huecos `{{clave}}` que se resuelven con un mapa de contexto:
+### Crear una plantilla
+
+El fichero [`examples/template.json`](examples/template.json) contiene:
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
     "pedido": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}"
+    "cliente": "{{cliente.nombre}}",
+    "plan": "{{cliente.plan}}"
   },
   "questions": {
     "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
@@ -350,143 +291,234 @@ con huecos `{{clave}}` que se resuelven con un mapa de contexto:
 }
 ```
 
-`templates` es un alias de `template`. Subcomandos:
+Guárdala con un nombre:
 
 ```sh
-# Guardar una plantilla (sobrescribe si el nombre ya existe)
-jev template create pedido --description "Pedido con cliente" \
+jev template create pedido \
+  --description "Pedido de cliente con macros" \
   --file examples/template.json \
   --macro-desc 'estado_de_pedido=Qué pide el cliente, en texto libre' \
   --macro-desc 'cliente.nombre=Nombre del cliente' \
-  --macro-schema 'cliente.plan={"type":"string","enum":["free","pro","enterprise"]}' \
-  --macro-type 'cliente.nombre=string'
-# ... o con el body inline / desde stdin
-jev template create pedido --body '{"model":"jev-1.13", ...}'
-cat body.json | jev template create pedido --body -
-
-jev template list                       # pedido - Pedido con cliente
-jev template list --json                # array JSON con descripción, fechas y macros
-jev template show pedido                # imprime el body y las macros con su descripción
-jev template show pedido --json         # { name, description, body, macros, ... }
-
-# Editar con $EDITOR (o VISUAL); falla si no está definido
-jev template edit pedido
-# ... o reemplazar el body desde un fichero sin abrir el editor
-jev template edit pedido --file nuevo.json
-# Ajustar o vaciar descripciones y esquemas sin tocar el body
-jev template edit pedido --file nuevo.json \
-  --macro-desc 'ticket=Identificador del pedido (TCK-1042)' \
-  --clear-macro-desc 'cliente.nombre' \
-  --macro-type 'ticket=string' \
-  --clear-macro-schema 'cliente.plan'
-
-# Validar una plantilla guardada o un fichero, sin enviar nada
-jev template validate pedido
-jev template validate --file examples/template.json
-
-# Previsualizar el request resuelto sin enviar la petición
-jev template render pedido --context-file examples/context.json
-
-# Borrar (con confirmación) o forzar con --yes
-jev template delete pedido
-jev template delete pedido --yes
+  --macro-type 'cliente.plan=string'
 ```
 
-`template add` y `template remove` se mantienen como sinónimos de `create` y
-`delete` sin confirmación, respectivamente. `--macro-desc <clave>=<texto>` es
-repetible y exige que la macro exista en el body; `--clear-macro-desc <clave>`
-vacía su descripción. `--macro-schema <clave>=<json>` guarda un JSON Schema
-completo (objeto o booleano), `--macro-type <clave>=<tipo>` es el atajo de
-`{"type":"<tipo>"}` y `--clear-macro-schema <clave>` elimina el esquema
-conservando la descripción. Sin flags de esquema, `edit` conserva los existentes.
-Las descripciones se recortan, admiten hasta 500 caracteres; los esquemas se
-guardan compactos y admiten hasta 8 KB. Ambos son solo metadatos: no se envían a
-Jev ni se usan al renderizar.
+```
+plantilla guardada: pedido
+```
 
-`jev template show` en texto imprime la descripción y el esquema bajo cada macro:
+Las macros se detectan solas del body. `--macro-desc` y `--macro-type` son
+opcionales: añaden una descripción y un tipo para que la plantilla se entienda
+mejor en la TUI, la consola web y los agentes.
 
-```text
-  {{cliente.plan}}
-    Plan contratado por el cliente
-    schema: {"type":"string","enum":["free","pro"]}
+También puedes pasar el body inline o por stdin:
+
+```sh
+jev template create saludo --body '{"model":"jev-1.13","state":"{{texto}}","questions":{"q":{"type":"noul","instructions":"¿Es un saludo?"}}}'
+cat body.json | jev template create saludo --body -
+```
+
+`jev templates` es un alias de `jev template`.
+
+### Ver y validar
+
+```sh
+jev template list
+# pedido - Pedido de cliente con macros
+
+jev template show pedido
+```
+
+`show` imprime el body y la lista de macros con su descripción y esquema.
+
+```sh
+jev template validate pedido
+# plantilla válida: pedido
+```
+
+`validate` comprueba la plantilla sin llamar a Jev. También acepta un fichero:
+
+```sh
+jev template validate --file examples/template.json
+```
+
+### Rellenar y previsualizar
+
+El contexto es un JSON con una clave por macro. Por ejemplo,
+[`examples/context.json`](examples/context.json):
+
+```json
+{
+  "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
+  "cliente": { "nombre": "Ana", "plan": "pro" }
+}
+```
+
+```sh
+jev template render pedido --context-file examples/context.json
+```
+
+```
+{
+  "model": "jev-1.13",
+  "state": {
+    "pedido": "Me han cobrado dos veces y quiero el reembolso.",
+    "cliente": "Ana",
+    "plan": "pro"
+  },
+  "questions": {
+    "urgent": {
+      "type": "noul",
+      "instructions": "¿Es urgente?"
+    }
+  }
+}
+```
+
+`render` no llama a Jev. Para ejecutar el resultado:
+
+```sh
+jev template render pedido --context-file examples/context.json > /tmp/request.json
+jev ask --request-file /tmp/request.json
 ```
 
 Reglas de las macros:
 
-- `{{clave}}` busca la clave en el contexto; admite rutas anidadas
-  (`{{cliente.nombre}}`). Si existe una clave literal con puntos, se prefiere a
-  la ruta anidada.
-- Si el string es **exactamente** una macro, se inserta el valor con su tipo
-  nativo (objeto, array, número, booleano). Si va embebida en texto, se
-  interpola como string.
-- `\{{...}}` escapa una macro literal (`{{...}}` sin resolver).
-- Si falta alguna macro, el comando falla antes de llamar a la API y lista todas
-  las claves ausentes.
-- El resultado se valida como request (model, state, questions y tipos de
-  pregunta).
+- `{{clave}}` busca la clave en el contexto. Admite rutas anidadas
+  (`{{cliente.nombre}}`); si existe una clave literal con puntos, tiene
+  prioridad.
+- Si el texto es **exactamente** una macro, se inserta el valor con su tipo
+  nativo (objeto, array, número, booleano). Si va embebida en una frase, se
+  interpola como texto.
+- `\{{...}}` deja la macro escrita sin resolver.
+- Si falta alguna macro, el comando falla **antes** de llamar a la API y enumera
+  todas las claves que faltan.
 
-### `jev batch`
-
-Ejecuta una plantilla una vez por cada mapa de contexto de un fichero JSON (un
-array de objetos). Cada mapa produce una petición y una fila en el historial,
-todas con el mismo `batch_id` y su `template_name`:
+### Editar, describir y borrar
 
 ```sh
-# Fichero con un array de mapas de contexto
-jev batch pedido --contexts examples/contexts.json
+# Abrir el body en $EDITOR
+jev template edit pedido
 
-# Hasta 3 peticiones concurrentes
+# Reemplazar el body desde un fichero
+jev template edit pedido --file nuevo-body.json
+
+# Añadir, cambiar o vaciar metadatos sin tocar el body
+jev template edit pedido --macro-desc 'cliente.plan=Plan contratado'
+jev template edit pedido --clear-macro-desc 'cliente.nombre'
+jev template edit pedido --clear-macro-schema 'cliente.plan'
+
+# Borrar (pide confirmación)
+jev template delete pedido
+jev template delete pedido --yes
+```
+
+`jev template add` y `jev template remove` son sinónimos rápidos de `create` y
+`delete` sin confirmación.
+
+## Preguntar en lote: `jev batch`
+
+Ejecuta una plantilla una vez por cada contexto de un array JSON. Cada petición
+queda en el historial bajo el mismo `batch_id`.
+
+[`examples/contexts.json`](examples/contexts.json):
+
+```json
+[
+  {
+    "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
+    "cliente": { "nombre": "Ana", "plan": "pro" }
+  },
+  {
+    "estado_de_pedido": "El checkout se queda colgado al pagar.",
+    "cliente": { "nombre": "Luis", "plan": "free" }
+  },
+  {
+    "estado_de_pedido": "No me llega la factura de este mes.",
+    "cliente": { "nombre": "Marta", "plan": "pro" }
+  }
+]
+```
+
+```sh
+jev batch pedido --contexts examples/contexts.json
+```
+
+```
+batch: pedido — 3 peticiones (batch 4f3c…)
+  1: ok    jev-1.13  306 in / 20 out  cost=1.3e-5
+  2: ok    jev-1.13  302 in / 20 out  cost=1.3e-5
+  3: ok    jev-1.13  302 in / 20 out  cost=1.3e-5
+resumen: 3 ok, 0 error
+tokens: 910 in / 60 out
+coste: 3.8e-5
+```
+
+Si un contexto no encaja con la plantilla, esa fila muestra el error y el resto
+continúa:
+
+```
+  2: error faltan macros en el contexto: cliente.plan
+```
+
+Opciones:
+
+```sh
+# Hasta 3 peticiones a la vez (máximo 10)
 jev batch pedido --contexts examples/contexts.json --concurrency 3
 
-# Detenerse ante el primer error (por defecto sigue con el resto)
+# Parar en el primer error (por defecto sigue con el resto)
 jev batch pedido --contexts examples/contexts.json --fail-fast
+
+# Leer los contextos de stdin
+cat contexts.json | jev batch pedido --contexts -
 ```
 
-```text
-batch: pedido — 3 peticiones (batch 4f3c…)
-  1: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
-  2: error faltan macros en el contexto: cliente.plan
-  3: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
-resumen: 2 ok, 1 error
-tokens: 24 in / 6 out
-coste: 3.0e-6 (1 sin coste informado)
+Con `--continue-on-error` (por defecto), un contexto inválido no cancela el
+resto; el proceso sale con código `1` si hubo errores. Los resultados se
+imprimen en el orden del fichero, aunque se ejecuten en paralelo.
+
+## Consultar el historial
+
+Todas las ejecuciones de `ask`, `demo` y `batch` se guardan en una base local
+SQLite, también las que fallan.
+
+```sh
+jev history list                # una línea por petición, la más reciente primero
+jev history show 12             # petición y respuesta completas
+jev history export > hist.jsonl # una petición por línea (JSONL)
 ```
 
-- `--contexts <fichero.json>` espera un array de mapas de contexto; `-` lee de
-  stdin.
-- `--concurrency <n>` controla cuántas peticiones van a la vez; por defecto `1`
-  para no saturar la API. El máximo es `10`.
-- Con `--continue-on-error` (por defecto) un contexto inválido o una petición
-  fallida no cancelan el resto; el proceso sale con código `1` si hubo errores.
-  Con `--fail-fast` se detiene ante el primer error.
-- El resumen de coste suma solo los costes informados y cuenta aparte los que
-  la API no devolvió (`sin coste informado`).
-- Los resultados se imprimen en el orden del fichero de contextos, con
-  independencia de la concurrencia.
-- `--json` imprime un único objeto JSON con el `batch_id`, la plantilla, el
-  resumen (`ok`, `errors`, `input_tokens`, `output_tokens`, `cost`,
-  `cost_unknown`) y el array `items` (uno por contexto, en orden, con su
-  `index`, `ok`, `model`, tokens, `cost`, `error` y `response` cruda).
+Filtrar:
 
-### `jev tui`
+```sh
+jev history list --limit 20
+jev history list --status 429
+jev history list --model jev-1.13
+jev history list --template pedido
+jev history list --batch 4f3c…
+jev history list --since 2026-10-01T00:00:00Z
+```
 
-Modo interactivo a pantalla completa para configurar el provider y gestionar
-plantillas sin memorizar comandos:
+Para no guardar una ejecución concreta, añade `--no-save` a `ask`, `demo` o
+`batch`. La base vive en `~/.jev-client/db/jev.db` y se puede cambiar con
+`--db` o `JEV_DB`. Detalle técnico en
+[`docs/persistencia.md`](docs/persistencia.md).
+
+## Modo interactivo: `jev tui`
+
+Para configurar el provider y gestionar plantillas sin memorizar comandos:
 
 ```sh
 jev tui
 jev tui --db /ruta/jev.db
 ```
 
-Con dos pantallas principales:
+Tiene dos zonas:
 
-- **Configuración del provider**: edita `api_url`, `api_key`, `model`, `timeout`
-  y `retries` con validación en vivo. La `api_key` se muestra enmascarada (y
-  nunca se muestra completa) y cada cambio confirmado se guarda en SQLite.
-- **Plantillas**: listado con búsqueda incremental, detalle, creación y edición
-  con editor de JSON y validación en vivo. Muestra las macros detectadas
-  (`{{clave}}`) y sus descripciones (solo lectura) para avisar de las claves de
-  contexto necesarias.
+- **Configuración**: `api_url`, `api_key`, `model`, `timeout` y `retries`, con
+  validación mientras escribes. La key se muestra enmascarada.
+- **Plantillas**: buscar, ver, crear, editar y borrar. Al editar, el JSON se
+  valida en vivo y se muestran las macros detectadas.
 
 | Tecla | Acción |
 | --- | --- |
@@ -495,238 +527,53 @@ Con dos pantallas principales:
 | `Esc` | cancelar / volver |
 | `q` | volver al menú (o salir) |
 | `Ctrl-C` | salir (pide confirmación si hay cambios) |
-| En plantillas: `n` nueva, `e` editar, `d` borrar, `/` buscar, `Enter` ver, `q` menú |
-| En la búsqueda: escribir filtra, `Backspace` borra, `Esc`/`Enter` salen |
-| En el detalle: `e` editar, `d` borrar, `b`/`q` volver |
+| `n` / `e` / `d` / `/` | en plantillas: nueva, editar, borrar, buscar |
 
-Los atajos de comando no distinguen mayúsculas (`n`/`N`, `q`/`Q`), pero el
-texto que se escribe en nombre, descripción, body o búsqueda conserva su caso.
-En las confirmaciones, `s`/`S`/`y`/`Y`/`Enter` aceptan y `n`/`N`/`Esc` rechazan.
+Los cambios se guardan en la misma base que usan `jev config` y
+`jev template`, así que se ven desde fuera de la TUI. Sin terminal interactiva
+`jev tui` sale con un error y propone los comandos equivalentes.
 
-Los cambios se guardan en las mismas tablas SQLite (`config` y `templates`) que
-usan los comandos no interactivos, así que se ven con `jev config get` o
-`jev template show`. Al salir con cambios sin guardar en el editor de plantillas
-se pide confirmación.
+## Consola web local
 
-**Sin TTY.** Si no hay terminal interactiva, `jev tui` sale con código `1` y un
-mensaje claro listando los comandos equivalentes, sin bloquear ni dejar la
-terminal en mal estado:
-
-```sh
-echo "" | jev tui   # error: requiere una terminal (TTY)
-```
-
-**Decisión de librería.** Se eligió una TUI propia basada en `readline` y modos
-raw de Node, en lugar de `ink` o `blessed`:
-
-- **Sin dependencias nuevas** (solo `better-sqlite3`, que ya estaba): `ink`
-  arrastra React y `blessed` dejó de mantenerse y usa bindings nativos.
-- **Soporta Node 20** sin problemas; `blessed` y el ecosistema de `ink` han ido
-  subiendo el mínimo de Node.
-- **Testeable en CI**: la máquina de estados (`TuiApp`) no toca la terminal, por
-  lo que se prueba sin TTY; el driver raw queda aislado en `runTui`.
-
-### Checklist de pruebas manuales
-
-Lo siguiente no se puede automatizar del todo (depende de un TTY real) y conviene
-revisarlo a mano antes de publicar:
-
-- [ ] `jev tui` abre el menú y `↑`/`↓` mueven la selección.
-- [ ] En Plantillas, `n`/`e`/`d`/`/` responden y `q` vuelve al menú; en el
-      detalle `e`/`d`/`b`/`q` y en provider `q` también responden.
-- [ ] Cambiar `model` y `api_url` desde la TUI y comprobar que persisten con
-      `jev config get model` y `jev config get api_url` en otra ejecución.
-- [ ] La `api_key` se muestra enmascarada al consultarla y al editarla; nunca se
-      ve el valor completo.
-- [ ] Crear una plantilla desde la TUI y verla después con `jev template show`.
-- [ ] Editar una plantilla con un JSON inválido muestra el error y bloquea el
-      guardado; con JSON válido muestra las macros detectadas.
-- [ ] Salir con `Ctrl-C` en mitad de una edición pide confirmación si hay cambios.
-- [ ] `echo "" | jev tui` imprime el error de "requiere una terminal" y sale con
-      código `1`; la terminal queda usable.
-- [ ] Redimensionar la ventana no corrompe la pantalla (cada tecla redibuja).
-
-## Consola web local (`jev web-console`)
-
-La consola web es una tercera interfaz sobre el mismo dominio, además de la CLI y
-la TUI. Usa **Next.js 16.4.3 + React 19.3.1**, App Router y route handlers como
-BFF local; no sustituye `jev tui` ni requiere una cuenta ni telemetría.
+Una interfaz gráfica con las mismas funciones, sin cuenta ni telemetría:
 
 ```sh
 jev web-console
-jev --web-console                 # alias con los mismos flags
+jev --web-console              # alias
 jev web-console --port 0 --no-open
 ```
 
-Al arrancar migra la misma SQLite, espera `GET /api/health`, imprime URL, base,
-versión, esquema, PID y modo, y queda en primer plano. `Ctrl-C`/`SIGTERM` cierra
-el hijo y libera el puerto con salida `0`. Un puerto ocupado o un build ausente
-produce un error explícito; nunca elige otro puerto fijo en silencio.
+Abre en el navegador la URL que imprime. Pantallas:
 
-| Flag | Default | Descripción |
-| --- | --- | --- |
-| `--port <n>` | `7411` | Puerto de escucha; `0` elige uno libre. |
-| `--host <addr>` | `127.0.0.1` | Loopback salvo decisión explícita. |
-| `--allow-remote` | off | Necesario para LAN/`0.0.0.0`; mantiene token y aviso de seguridad. |
-| `--open` / `--no-open` | abrir con TTY | No abre con CI/SSH; `--no-open` es apto para headless. |
-| `--dev` | off | Usa `next dev` desde el checkout, no desde un paquete instalado. |
-| `--db <ruta>` | `JEV_DB` / ruta habitual | Base compartida con el resto de comandos. |
-| `--key`, `--url`, `--model` | — | Flags de sesión; tienen prioridad máxima y no se persisten. |
-| `--timeout`, `--retries` | — | Segundos y reintentos de esta sesión. |
-| `-h`, `--help` | — | Ayuda específica de la consola. |
+| Pantalla | Para qué |
+| --- | --- |
+| **Resumen** | estado, métricas y prueba de conexión |
+| **Evaluar** | lanzar preguntas `noul`, `choice` y `score` y ver probabilidades |
+| **Plantillas** | crear, editar, validar y renderizar, con descripción y tipo por macro |
+| **Lotes** | pegar un array de contextos, ejecutar y seguir el progreso |
+| **Historial** | filtrar, ver el detalle y exportar |
+| **Configuración** | editar la configuración y revelar la key solo si lo pides |
 
-### Pantallas y paridad
+Cada pantalla muestra la orden de CLI equivalente. `--port`, `--host`,
+`--allow-remote`, `--open`/`--no-open`, `--dev` y los flags de sesión se explican
+en [`docs/web-console.md`](docs/web-console.md), junto con el modelo de
+seguridad. `--allow-remote` expone una consola de administración: úsalo solo en
+redes de confianza.
 
-- **Resumen**: métricas reales de `requests`, últimas peticiones, precedencia del
-  provider y prueba de conexión real mínima (`state: "ping"`, `--no-save`).
-- **Evaluar**: `noul`, `choice` y `score`, state texto/JSON estricto, demo real,
-  `--no-save`, cancelación, informe de probabilidades y JSON crudo seguro. Las
-  respuestas siguen el orden de las preguntas del request. El selector admite el
-  modelo efectivo, los dos modelos conocidos y un valor libre.
-- **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
-  macros anidadas y escapadas, cambios sin guardar, renombrado transaccional y
-  pestaña **Macros** con una descripción y un JSON Schema opcionales por macro.
-  Cada fila ofrece un selector de tipo básico y un editor avanzado de JSON
-  (formatear, validación en vivo y bloqueo del guardado si es inválido), con
-  resumen `N de M descritas · K con tipo`, guardado atómico con el body y aviso
-  al quitar una macro descrita o con esquema. Los metadatos se persisten en
-  `template_macros` (`description`, `schema_json`) y nunca se envían a Jev.
-  **Nueva plantilla** abre el modal **Empezar plantilla** con ejemplos válidos de
-  `noul`, `choice` y `score` (`src/template-starters.ts`); `noul` llega
-  preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`
-  como array ordenado. El editor queda libre después. Renderizar nunca llama a
-  Jev.
-- **Lotes**: el editor de contextos arranca con un esqueleto JSON a 2 espacios que
-  contiene una clave plana por macro de la plantilla activa (orden de
-  `detectMacros`), listo para rellenar. Al cambiar de plantilla se regenera solo
-  si no había ediciones; si las hay se conserva el texto y aparece la acción
-  **Rellenar con las macros de <plantilla>** (con confirmación). Un desplegable
-  **Macros de la plantilla** muestra `{{clave}}` y su descripción cuando existe,
-  y los valores todavía vacíos piden confirmación antes de ejecutar. Después,
-  pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`, `--no-save`
-  y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta las
-  peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
-  como omitido.
-- **Historial**: filtros `since/status/model/template/batch/limit`, detalle por
-  pestañas y export `application/x-ndjson` con exactamente
-  `historyRecordToJson`. Los filtros viven en la URL. Se usa límite 1–200, sin
-  cursor adicional en esta versión.
-- **Configuración**: guarda solo claves modificadas, enmascara/revela la key bajo
-  acción explícita y muestra `flag > entorno > SQLite > defecto`. Los campos
-  fijados por flag son de solo lectura. **Restablecer hace `unset`**, no escribe
-  defaults. Una cadena vacía también equivale a `unset`.
+## Usar Jev desde un agente (MCP)
 
-Cada pantalla genera su tira **CLI equivalente** con comillas POSIX. La paleta
-`⌘K`/`Ctrl+K`, referencia CLI, toasts, modales con foco atrapado, estados
-loading/empty/error/success y los breakpoints del prototipo están incluidos. No
-se guardan secretos ni borradores en `localStorage`; solo se usan URLs para
-filtros/acciones. Las rutas permanecen en español por paridad con la UI.
-
-### Seguridad local
-
-La URL impresa contiene un bootstrap aleatorio en el **fragmento**, que no viaja
-en peticiones HTTP. El navegador lo intercambia una sola vez por una cookie
-`HttpOnly; SameSite=Strict` y un token CSRF en memoria. Las mutaciones exigen
-cookie, `X-Jev-Console-Token` y validación de `Origin`/`Host`; la API vuelve a
-exigir sesión en cada handler. `/api/health` es la única lectura pública y no
-incluye secretos.
-
-La key nunca aparece en HTML inicial, listados, logs, URLs ni `localStorage`.
-Solo `POST /api/config/api_key/reveal`, con CSRF y `Cache-Control: no-store`, la
-devuelve. Se aplican CSP con nonce/`strict-dynamic`, `frame-ancestors 'none'`,
-`nosniff`, `Referrer-Policy: no-referrer`, límites de body/contextos y consultas
-SQLite parametrizadas. Fuentes, iconos, CSS y ejemplos se sirven localmente, sin
-CDN ni llamadas externas salvo Jev.
-
-`--allow-remote` no añade cuentas ni autorización multiusuario: expone una consola
-de administración local a clientes que tengan la URL inicial. Úsalo solo en redes
-de confianza.
-
-### Arquitectura y empaquetado
-
-`src/service.ts` concentra `ask`, `demo` y `batch`; CLI y web comparten cliente,
-configuración, validadores, migraciones y repositorios. Next mantiene una única
-conexión SQLite perezosa por proceso y sus Server Components cargan DTOs sin
-secretos; los Client Components no importan `node:*` ni `better-sqlite3`.
-
-El paquete npm incluye el **standalone compilado** en `dist/web-console` (sin
-checkout), sus assets y el servidor CommonJS. Las dependencias trazadas se
-resuelven desde las dependencias npm normales (`next`, `react`, `react-dom` y
-`better-sqlite3`), evitando incluir `node_modules` dentro del tarball. Se eligió
-esta opción en lugar de un paquete opcional para conservar la UX de un único
-comando. El umbral acordado es **25 MiB comprimidos**; `npm run test:package`
-comprueba tamaño, instalación con `npm pack`, arranque, health, HTML, assets y
-cierre limpio.
-
-Para desarrollo:
+El servidor MCP permite que un agente descubra plantillas, rellene contextos y
+ejecute peticiones sin que tú traduzcas la CLI.
 
 ```sh
-npm install
-npm run build:web                 # tsc + next build + standalone
-node dist/src/bin.js web-console --dev --no-open
-# JEV_CONSOLE_DIR puede sustituir la ubicación del build/directorio web
+jev mcp                          # servidor por stdio
+jev-mcp                          # alias
+jev mcp --read-only              # solo lectura
+jev mcp --no-execute             # sin ejecutar contra Jev
+jev mcp --allow-destructive      # permite borrar plantillas
 ```
 
-El contrato visual original está versionado en `design/` (`jev-web-console.html`,
-handoff y manifest). Los tokens se extrajeron en `web/styles/tokens.css`; no se
-usa un tema de framework ni recursos remotos.
-
-## Servidor MCP (`jev mcp`)
-
-Además de la CLI, la TUI y la consola web, `jev-client` expone la misma lógica
-como **servidor MCP** (Model Context Protocol) por stdio. Un agente (OpenCode,
-Claude Desktop…) puede descubrir plantillas, leer sus macros, generar contextos,
-renderizar y ejecutar sin que un humano traduzca la CLI.
-
-```sh
-jev mcp                          # arranca el servidor por stdio
-jev-mcp                          # alias (binario)
-jev mcp --read-only              # sin crear/editar/borrar plantillas
-jev mcp --no-execute             # sin jev_ask/jev_batch ni tools de plantilla
-jev mcp --allow-destructive      # habilita jev_template_delete
-```
-
-El servidor hereda la configuración de la CLI (`--db`, `--key`, `--url`,
-`--model`, `--timeout`, `--retries` y las variables de entorno). Si falta la API
-key arranca igualmente: las tools de lectura funcionan y las de ejecución
-devuelven un error estructurado. Nada se escribe en stdout salvo JSON-RPC; los
-logs van a stderr.
-
-### Tools
-
-Hay un catálogo fijo (prefijo `jev_`) y, además, **una tool MCP por cada
-plantilla guardada**: el nombre de la tool es el nombre de la plantilla, su
-descripción es la descripción de la plantilla y cada macro es un parámetro de
-entrada con su descripción y su JSON Schema (`string` por defecto). Una
-plantilla llamada `pedido-soporte` se invoca directamente como tool
-`pedido-soporte` con sus macros como argumentos.
-
-| Tool | Tipo | Descripción |
-| --- | --- | --- |
-| `jev_overview` | lectura | versión, esquema, ruta de BD, contadores, API key (booleano) y tools |
-| `jev_docs` | lectura | documentación de la app (`overview`, `tools`, `mcp`, `examples`) o de una tool |
-| `jev_template_list` / `jev_template_get` | lectura | descubrir plantillas, body, macros, schemas y `toolName` |
-| `jev_template_starters` / `jev_template_validate` | lectura | starters (`noul`, `choice`, `score`) y validación sin llamar a Jev |
-| `jev_template_render` | lectura | dry-run: resuelve macros sin llamar a Jev |
-| `jev_template_create` / `jev_template_update` | mutación | crear/editar plantillas |
-| `jev_template_delete` | destructiva | borrar (exige `confirm: true`; solo con `--allow-destructive`) |
-| `jev_ask` / `jev_batch` | ejecución | ejecutar contra Jev; **siempre** se guarda en el historial |
-| `jev_history_list` / `jev_history_get` | lectura | historial con filtros y detalle |
-| `jev_config_get` | lectura | configuración efectiva con la API key enmascarada |
-
-**Toda ejecución hecha por MCP se persiste en SQLite** con `source = 'mcp'`
-(y `template_name`/`batch_id` cuando aplica). No se guardan las lecturas.
-
-### Resources y prompt
-
-- `jev://docs/overview`, `jev://docs/tools`, `jev://docs/examples`,
-  `jev://docs/mcp` — documentación machine-readable.
-- `jev://templates` y `jev://templates/{name}` — plantillas como resources.
-- Prompt `generar-contextos` — guía para producir un array de contextos JSON.
-
-### Configuración en OpenCode
-
-En el `opencode.json` del proyecto (o la config global):
+Configuración en `opencode.json`:
 
 ```jsonc
 {
@@ -743,7 +590,7 @@ En el `opencode.json` del proyecto (o la config global):
 }
 ```
 
-Con el paquete publicado en npm se puede arrancar con `npx` sin instalarlo:
+Con el paquete de npm:
 
 ```jsonc
 {
@@ -755,54 +602,62 @@ Con el paquete publicado en npm se puede arrancar con `npx` sin instalarlo:
 }
 ```
 
-Si el paquete **no está en npm** pero sí en GitHub, `npx` lo instala desde el repo
-(ejecuta `prepare`, que compila `dist/`). Fíjate en el `-p` para elegir el binario:
+Además del catálogo fijo (`jev_ask`, `jev_batch`, `jev_template_*`,
+`jev_history_*`, etc.), **cada plantilla guardada se expone como una tool** con
+sus macros como parámetros. Catálogo completo, resources y permisos en
+[`docs/mcp.md`](docs/mcp.md).
+
+## Analizar imágenes
+
+La API acepta imágenes en un campo `assets`, referenciadas desde el `state`.
+Desde la CLI:
 
 ```sh
-npx -y -p github:USUARIO/jev-client jev-mcp          # servidor MCP directo
-npx -y -p github:USUARIO/jev-client jev mcp          # vía la CLI
+jev ask --state '{"foto":"gato"}' \
+  --asset gato=foto.jpg \
+  --choice 'animal=¿Qué animal aparece en `foto`?' \
+  --option 'animal.GATO=Felino doméstico' \
+  --option 'animal.PERRO=Canino doméstico'
 ```
 
-```jsonc
-{
-  "mcp": {
-    "servers": {
-      "jev": { "type": "local", "command": ["npx", "-y", "-p", "github:USUARIO/jev-client", "jev-mcp"] }
-    }
-  }
-}
+- `--asset [<ref>=]<ruta>` se puede repetir; sin `<ref>` se genera un UUID.
+- `--assets-file <ruta>` lee un mapa `assets` completo en JSON.
+- Formatos: PNG/JPEG estático, hasta 16 MiB, lados de 280–1568 px.
+
+La imagen debe estar referenciada en `state`, `instructions` o `criteria`, y la
+API no redimensiona ni aplica la orientación EXIF. Límites, trampas y el detalle
+del protocolo en [`docs/imagenes.md`](docs/imagenes.md).
+
+## Problemas frecuentes
+
+**`NODE_MODULE_VERSION` al arrancar.** El binario nativo de `better-sqlite3` se
+instaló con otra versión de Node. Recompílalo:
+
+```sh
+npm rebuild better-sqlite3
 ```
 
-### Endpoints de documentación (consola web)
+**La base usa un esquema más nuevo.** Otra versión de `jev` escribió en la misma
+base. Usa una base temporal:
 
-La consola publica el mismo catálogo que usa MCP (requieren sesión de consola):
+```sh
+jev ask --db "$(mktemp -d)/jev.db" --state "hola" --noul 'q=¿Saludo?'
+```
 
-- `GET /api/docs` — documento de la app.
-- `GET /api/docs/tools` y `GET /api/docs/tools/[name]` — catálogo de tools.
-- `GET /api/docs/mcp` — configuración del servidor.
-- `GET /api/docs/examples` — ejemplos end-to-end.
+**`429 FreeUsageLimitError`.** `jev-1.13-free` está limitado fuera de OpenCode o
+al agotar la cuota. Para pruebas usa `jev-1.13`.
 
-## Tipos de pregunta
+**`401` / `api_key_expired`.** Revisa la key con
+`jev config get api_key --reveal` o vuelve a exportar `OPENCODE_API_KEY`.
 
-| `type` | Campos | Devuelve |
-| --- | --- | --- |
-| `noul` | `instructions` (y `criteria` opcional) | `noul`: probabilidad de "sí" (0–1) |
-| `choice` | `instructions`, `criteria` (objeto) | `choice`, `confidence`, `probabilities` |
-| `score` | `instructions`, `criteria` (array ordenado) | `score`, `legend`, `probabilities` |
+**`422`.** La pregunta está mal formada: `choice` usa un objeto en `criteria` y
+`score` usa un array ordenado.
 
-En `score`, la posición en el array es la nota: `0` el primero, `1` el segundo…
-El `score` devuelto es la media ponderada y puede ser decimal; cuando cae entre
-dos niveles se muestra con `≈`.
+**La consola web no arranca.** Comprueba el puerto (`--port 0` elige uno libre) y
+que exista el build (`npm run build:web`). Más casos en
+[`docs/solucion-problemas.md`](docs/solucion-problemas.md).
 
-Un request comparte un único `state` entre todas sus preguntas, y la **clave**
-de `questions` (`"urgency"`) solo identifica la respuesta en `answers`: **no se
-envía al modelo**. El modelo solo ve `state` + `instructions` + `criteria` de
-cada pregunta. Al evaluar varios elementos en un mismo request, nómbralos en
-cada `instructions` o referéncialos desde `state`; si el referente vive solo en
-la clave, todas las respuestas tienden al mismo valor. Ver
-[`skills/jev-cli/references/anatomia-pregunta.md`](skills/jev-cli/references/anatomia-pregunta.md).
-
-## Códigos de salida
+### Códigos de salida
 
 | Código | Significado |
 | --- | --- |
@@ -814,172 +669,11 @@ Los errores de autenticación (`401` / `api_key_expired`), cuota
 (`FreeUsageLimitError`) y preguntas mal formadas (`422`) añaden una línea
 `pista:` con la acción recomendada.
 
-## Uso como librería
+## Documentación técnica
 
-```ts
-import { JevClient, type Question } from "./dist/src/index.js";
+El README es una guía de uso. El detalle de implementación vive en
+[`docs/`](docs/README.md): arquitectura, persistencia, configuración, tipos de
+pregunta, consola web, MCP, imágenes, uso como librería y desarrollo.
 
-const client = new JevClient({ apiKey: process.env.OPENCODE_API_KEY! });
-
-const questions: Record<string, Question> = {
-  refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
-  team: {
-    type: "choice",
-    instructions: "¿Qué equipo debe atenderlo?",
-    criteria: {
-      billing: "Cobros y facturas",
-      legal: "Reclamaciones legales",
-    },
-  },
-  urgency: {
-    type: "score",
-    instructions: "¿Cómo de urgente es?",
-    criteria: ["Puede esperar", "Esta semana", "Hoy"],
-  },
-};
-
-const response = await client.systemOne(
-  { ticket: "Me han cobrado dos veces", plan: "pro" },
-  questions,
-);
-
-console.log(response.answers.refund?.noul);      // number | undefined
-console.log(response.answers.team?.choice);      // string | undefined
-console.log(response.answers.team?.probabilities); // Record<string, number>
-console.log(response.usage.cost);                 // number | undefined
-```
-
-Opciones del cliente:
-
-```ts
-new JevClient({
-  apiKey,
-  endpoint,        // default: OpenCode
-  model,           // default: jev-1.13
-  timeoutMs,       // default: 30000
-  maxRetries,      // default: 2
-  backoffMs,       // default: 500
-  maxRetryDelayMs, // default: 10000 (tope del Retry-After)
-});
-```
-
-`run()` acepta un request completo (`{ model, state, questions }`) y `raw`
-contiene el cuerpo original de la API.
-
-Para plantillas, `resolveTemplateBody` resuelve un body con macros y lo valida:
-
-```ts
-import { resolveTemplateBody } from "./dist/src/index.js";
-
-const request = resolveTemplateBody(
-  '{"model":"jev-1.13","state":"{{estado}}","questions":{"q":{"type":"noul"}}}',
-  { estado: { pedido: 42 } },
-);
-```
-
-## Tests
-
-```sh
-npm test                 # unidad/contrato de CLI, dominio y route handlers
-npm run typecheck        # TypeScript estricto de src, test y web
-npm run build:web        # build de producción Next + standalone
-npm run test:e2e         # Playwright: flujos, axe y matriz responsive
-npm run test:package     # npm pack + instalación + smoke del paquete
-```
-
-Los tests no hacen red contra la API: usan un `fetch` inyectado y servidores HTTP
-locales para comprobar cabeceras, cuerpo, reintentos, errores, formato, CLI, API
-web y streaming de lotes. Las bases SQLite se crean en directorios temporales.
-Playwright recorre las seis rutas, inferencia con provider mockeado, CRUD,
-render, lote, historial/export, configuración, paleta, modales y axe; la matriz
-360–1920 px verifica overflow, tokens, breakpoints, activos locales y una
-regresión de geometría/tipografía calculada directamente contra el HTML exportado.
-Para instalar Chromium en el checkout sin tocar la caché global:
-
-```sh
-PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
-```
-
-### CI
-
-Hay un workflow de GitHub Actions (`.github/workflows/ci.yml`) que, en cada push
-a `main` y en cada pull request, ejecuta sobre Node 20 y 22 el typecheck, tests
-unitarios/de rutas, build de Next, E2E con axe y smoke del paquete instalado. La
-suite no necesita una API key real ni secretos de CI.
-
-## Imágenes (experimental)
-
-La API System One soporta imágenes, pero **no** en formato multimodal tipo
-OpenAI: un `image_url` o un data-URI dentro de `state` se tokeniza como texto
-(≈18.5k tokens por un JPEG de 19 KB) y el modelo no ve nada. El formato correcto
-es un campo `assets` (imágenes por referencia) más el header obligatorio
-`TypeSafe-Danger-Zone-Images: true`.
-
-```jsonc
-{
-  "model": "jev-1.13",
-  "state": { "foto": "<uuid>" },                 // la referencia se escribe donde iría texto
-  "assets": {
-    "<uuid>": { "type": "image", "format": "jpg", "data_base64": "<sin prefijo data:, sin saltos>" }
-  },
-  "questions": {
-    "animal": {
-      "type": "choice",
-      "instructions": "¿Qué animal aparece en `foto`?",
-      "criteria": { "GATO": "Felino doméstico", "PERRO": "Canino doméstico", "VACA": "Bovino" }
-    }
-  }
-}
-```
-
-El header lo añade automáticamente el cliente cuando hay `assets`
-(`--no-images-header` lo omite para comprobar el `400`). Las imágenes son
-**experimentales**: el formato y los límites pueden cambiar.
-
-### CLI
-
-```sh
-jev ask --state '{"foto":"<ref>"}' --asset <ref>=canva-MAHA8XxHPJk.jpg \
-    --choice 'animal=¿Qué animal aparece en `foto`?' \
-    --option 'animal.GATO=Felino doméstico' --option 'animal.PERRO=Canino doméstico'
-```
-
-- `--asset [<ref>=]<ruta>` (repetible): carga la imagen, detecta el formato por
-  *magic bytes* y valida límites. Sin `<ref>` se genera un UUID.
-- `--assets-file <ruta>`: mapa `assets` completo en JSON
-  (`{ "<ref>": { "path": "…" } }` o `{ "<ref>": { "data_base64": "…", "format": "jpg" } }`).
-- `--no-images-header`: omite el header (solo para depurar el `400`).
-
-### Límites (la API rechaza, no redimensiona)
-
-| Límite | Valor |
-| --- | --- |
-| Formato | PNG/JPEG estático (APNG rechazado) |
-| Tamaño por fichero | 16 MiB |
-| Lados | 280–1568 px |
-| Total de píxeles | 78.400–2.458.624 |
-
-### Trampas
-
-- `data:` en el `state` **no** funciona: usa `assets` + referencia.
-- Toda entrada de `assets` debe estar referenciada en `state`/`instructions`/
-  `criteria` (si no, la API devuelve `400`); el cliente lo valida en local.
-- El base64 debe ser el alfabeto estándar **sin** prefijo `data:` ni saltos.
-- Rota los píxeles antes de enviar: la API descarta EXIF y no aplica orientación.
-- El historial **nunca** guarda `data_base64`: se redacta a
-  `{ format, bytes, sha256 }`.
-
-En MCP, `jev_ask`/`jev_batch` aceptan `assets` y `jev_image_check` valida una
-imagen (formato, dimensiones, límites) sin gastar llamada. En la consola web,
-*Evaluar* admite adjuntar una imagen (miniatura + tamaño) y el historial muestra
-solo el resumen. Ver [`skills/jev-cli/references/templates.md`](skills/jev-cli/references/templates.md)
-para el patrón "comparar contra una imagen conocida".
-
-## Notas
-
-- `jev-1.13-free` está limitado: devuelve `429 FreeUsageLimitError` fuera de
-  OpenCode o al agotar la cuota. Para pruebas usa `jev-1.13`.
-- El `Retry-After` del servidor se capa a 10 s para no bloquear el proceso.
-- Jev está entrenado principalmente en inglés; acepta español con algo menos de
-  precisión.
-- Documentación de las preguntas: <https://docs.typesafe.ai/primitives>
+Para scripting por casos de uso, consulta también la skill
+[`skills/jev-cli/`](skills/jev-cli/SKILL.md).
