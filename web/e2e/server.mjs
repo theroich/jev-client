@@ -70,7 +70,7 @@ db.close();
 let stdout = "";
 let stderr = "";
 const childEnv = { ...process.env, CI: "1" };
-for (const key of ["OPENCODE_API_KEY", "JEV_API_KEY", "JEV_URL", "JEV_MODEL"]) delete childEnv[key];
+for (const key of ["JEV_API_KEY", "JEV_URL", "JEV_MODEL"]) delete childEnv[key];
 const child = spawn(process.execPath, [path.join(root, "dist", "src", "bin.js"), "web-console", "--port", String(consolePort), "--no-open", "--db", dbPath], {
   cwd: root,
   env: childEnv,

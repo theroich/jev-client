@@ -68,7 +68,7 @@ async function run(
   const dbPath = options.dbPath ?? join(temporaryDir as string, "jev.db");
   const env = options.env
     ? { JEV_DB: dbPath, ...options.env }
-    : { OPENCODE_API_KEY: "test-key", JEV_DB: dbPath };
+    : { JEV_API_KEY: "test-key", JEV_DB: dbPath };
 
   const io: CliIO = {
     stdout: (text) => {
@@ -592,7 +592,7 @@ test("ask without state is a usage error", async () => {
 test("uses the environment variables", async () => {
   const result = await run(["demo"], {
     env: {
-      OPENCODE_API_KEY: "env-key",
+      JEV_API_KEY: "env-key",
       JEV_URL: "https://env.test/systemone",
       JEV_MODEL: "jev-1.13-free",
     },
@@ -610,7 +610,7 @@ test("uses the environment variables", async () => {
 test("flags win over the environment variables", async () => {
   const result = await run(
     ["demo", "--key", "flag-key", "--url", "https://flag.test", "--model", "flag-model"],
-    { env: { OPENCODE_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" } },
+    { env: { JEV_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" } },
   );
 
   assert.equal(result.code, 0);
@@ -722,7 +722,7 @@ test("demo resolves key, URL and model from SQLite", async (t) => {
   const fromEnv = await run(["demo"], {
     dbPath,
     env: {
-      OPENCODE_API_KEY: "env-key",
+      JEV_API_KEY: "env-key",
       JEV_URL: "https://env.test/systemone",
       JEV_MODEL: "env-model",
     },
@@ -738,7 +738,7 @@ test("demo resolves key, URL and model from SQLite", async (t) => {
     {
       dbPath,
       env: {
-        OPENCODE_API_KEY: "env-key",
+        JEV_API_KEY: "env-key",
         JEV_URL: "https://env.test/systemone",
         JEV_MODEL: "env-model",
       },

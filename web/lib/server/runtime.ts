@@ -148,7 +148,7 @@ function flagSource(runtime: ConsoleRuntime, key: ConfigKey): boolean {
 
 function envSource(runtime: ConsoleRuntime, key: ConfigKey): boolean {
   if (key === "api_url") return Boolean(runtime.env.JEV_URL);
-  if (key === "api_key") return Boolean(runtime.env.OPENCODE_API_KEY || runtime.env.JEV_API_KEY);
+  if (key === "api_key") return Boolean(runtime.env.JEV_API_KEY);
   if (key === "model") return Boolean(runtime.env.JEV_MODEL);
   return false;
 }

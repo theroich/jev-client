@@ -56,7 +56,6 @@ export function resolveConfig(
   return {
     apiKey: firstNonEmpty(
       flags.key,
-      env.OPENCODE_API_KEY,
       env.JEV_API_KEY,
       stored.api_key,
     ),

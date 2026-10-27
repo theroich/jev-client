@@ -422,7 +422,7 @@ export class JevService {
     const config = resolveConfig(this.flags, this.env, stored);
     if (!config.apiKey) {
       throw new Error(
-        "missing API key: use --key, set OPENCODE_API_KEY (or JEV_API_KEY) " +
+        "missing API key: use --key, set JEV_API_KEY " +
           "or save api_key with 'jev config set'",
       );
     }

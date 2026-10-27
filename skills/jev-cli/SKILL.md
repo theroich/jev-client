@@ -30,7 +30,7 @@ details of each operation live in `references/*.md`. It does not duplicate the
 cd jev-client
 npm install
 npm run build
-export OPENCODE_API_KEY="sk-..."   # or JEV_API_KEY
+export JEV_API_KEY="sk-..."
 
 npm link        # optional: makes `jev` available on the PATH
 jev demo        # built-in end-to-end example
@@ -51,7 +51,7 @@ Empty strings count as undefined.
 
 | What | Flag | Variable | SQLite key | Default |
 | --- | --- | --- | --- | --- |
-| API key | `--key` | `OPENCODE_API_KEY` or `JEV_API_KEY` | `api_key` | — (required) |
+| API key | `--key` | `JEV_API_KEY` | `api_key` | — (required) |
 | Endpoint | `--url` | `JEV_URL` | `api_url` | `https://opencode.ai/inference/systemone/v1/systemone` |
 | Model | `--model` | `JEV_MODEL` | `model` | `jev-1.13` |
 | Timeout (s) | `--timeout` | — | `timeout` | `30` |
@@ -60,7 +60,7 @@ Empty strings count as undefined.
 
 `--url` expects the **full endpoint**. The API key stored with
 `jev config set api_key` stays in plain text in SQLite; to avoid persisting it,
-use `--key` or the environment variables.
+use `--key` or the `JEV_API_KEY` environment variable.
 
 ## Summary table of the three question types
 

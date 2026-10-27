@@ -3,7 +3,7 @@
 ```ts
 import { JevClient, type Question } from "jev-client";
 
-const client = new JevClient({ apiKey: process.env.OPENCODE_API_KEY! });
+const client = new JevClient({ apiKey: process.env.JEV_API_KEY! });
 
 const questions: Record<string, Question> = {
   refund: { type: "noul", instructions: "Is the customer asking for a refund?" },

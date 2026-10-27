@@ -46,7 +46,7 @@ async function run(
     },
     readStdin: async () => "",
     fetch: fetchImpl,
-    env: { OPENCODE_API_KEY: "test-key", JEV_DB: dbPath },
+    env: { JEV_API_KEY: "test-key", JEV_DB: dbPath },
   };
 
   const code = await runCli(argv, io);

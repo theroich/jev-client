@@ -8,7 +8,7 @@
 //
 //   node scripts/vision-smoke.mjs <path/to/kitten.jpg>
 //
-//   OPENCODE_API_KEY=sk-... node scripts/vision-smoke.mjs photo.jpg
+//   JEV_API_KEY=sk-... node scripts/vision-smoke.mjs photo.jpg
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
@@ -19,9 +19,9 @@ if (!imagePath) {
   console.error("usage: node scripts/vision-smoke.mjs <path/to/kitten.jpg>");
   process.exit(2);
 }
-const apiKey = process.env.OPENCODE_API_KEY ?? process.env.JEV_API_KEY ?? "";
+const apiKey = process.env.JEV_API_KEY ?? "";
 if (!apiKey) {
-  console.error("missing OPENCODE_API_KEY (or JEV_API_KEY)");
+  console.error("missing JEV_API_KEY");
   process.exit(2);
 }
 

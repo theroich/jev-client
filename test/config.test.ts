@@ -14,7 +14,7 @@ import { validateConfigValue } from "../src/config-repository.js";
 test("flags win over environment variables", () => {
   const config = resolveConfig(
     { key: "flag-key", url: "https://flag.test", model: "flag-model" },
-    { OPENCODE_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" },
+    { JEV_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" },
   );
 
   assert.deepEqual(config, {
@@ -28,7 +28,7 @@ test("flags win over environment variables", () => {
 
 test("uses environment variables", () => {
   const config = resolveConfig({}, {
-    OPENCODE_API_KEY: "env-key",
+    JEV_API_KEY: "env-key",
     JEV_URL: "https://env.test",
     JEV_MODEL: "env-model",
   });
@@ -42,17 +42,15 @@ test("uses environment variables", () => {
   });
 });
 
-test("JEV_API_KEY works as an alternative", () => {
-  const config = resolveConfig({}, { JEV_API_KEY: "alt-key" });
-  assert.equal(config.apiKey, "alt-key");
-});
-
-test("OPENCODE_API_KEY takes precedence over JEV_API_KEY", () => {
+test("OPENCODE_API_KEY is ignored", () => {
   const config = resolveConfig({}, {
     OPENCODE_API_KEY: "primary",
     JEV_API_KEY: "alt",
   });
-  assert.equal(config.apiKey, "primary");
+  assert.equal(config.apiKey, "alt");
+
+  const opencodeOnly = resolveConfig({}, { OPENCODE_API_KEY: "primary" });
+  assert.equal(opencodeOnly.apiKey, "");
 });
 
 test("default values", () => {
@@ -67,7 +65,7 @@ test("default values", () => {
 });
 
 test("empty strings count as undefined", () => {
-  const config = resolveConfig({ key: "" }, { OPENCODE_API_KEY: "env-key" });
+  const config = resolveConfig({ key: "" }, { JEV_API_KEY: "env-key" });
   assert.equal(config.apiKey, "env-key");
 });
 
@@ -107,7 +105,7 @@ test("flags and environment win over the saved configuration", () => {
     retries: "5",
   };
   const fromEnv = resolveConfig({}, {
-    OPENCODE_API_KEY: "env-key",
+    JEV_API_KEY: "env-key",
     JEV_URL: "https://env.test",
     JEV_MODEL: "env-model",
   }, stored);
@@ -122,7 +120,7 @@ test("flags and environment win over the saved configuration", () => {
     timeoutMs: 2_000,
     retries: 0,
   }, {
-    OPENCODE_API_KEY: "env-key",
+    JEV_API_KEY: "env-key",
     JEV_URL: "https://env.test",
     JEV_MODEL: "env-model",
   }, stored);

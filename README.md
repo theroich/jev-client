@@ -74,7 +74,7 @@ jev --help
 The fastest way is to pass it through an environment variable:
 
 ```sh
-export OPENCODE_API_KEY="sk-..."
+export JEV_API_KEY="sk-..."
 ```
 
 or store it so you don't have to repeat it:
@@ -84,8 +84,7 @@ jev config set api_key "sk-..."
 ```
 
 > The key stored with `jev config set` stays in clear text in your local
-> database. If you don't want to persist it, use `OPENCODE_API_KEY`,
-> `JEV_API_KEY` or `--key`.
+> database. If you don't want to persist it, use `JEV_API_KEY` or `--key`.
 
 Check what is configured:
 
@@ -667,7 +666,7 @@ jev ask --db "$(mktemp -d)/jev.db" --state "hello" --noul 'q=Is it a greeting?'
 once the quota runs out. Use `jev-1.13` for tests.
 
 **`401` / `api_key_expired`.** Check the key with
-`jev config get api_key --reveal` or export `OPENCODE_API_KEY` again.
+`jev config get api_key --reveal` or export `JEV_API_KEY` again.
 
 **`422`.** The question is malformed: `choice` uses an object in `criteria` and
 `score` uses an ordered array.

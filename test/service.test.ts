@@ -38,7 +38,7 @@ function serviceFor(
   t: test.TestContext,
   dbPath: string,
   fetch: FetchLike,
-  env: NodeJS.ProcessEnv = { OPENCODE_API_KEY: "test-key" },
+  env: NodeJS.ProcessEnv = { JEV_API_KEY: "test-key" },
 ): JevService {
   const service = new JevService({ dbPath, env, fetch });
   t.after(() => service.close());

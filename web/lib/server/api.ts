@@ -91,7 +91,7 @@ export function errorResponse(error: unknown): NextResponse {
       code: missingKey ? "api_key_missing" : "console_error",
       message,
       hint: missingKey
-        ? "Configure api_key, use --key or set OPENCODE_API_KEY/JEV_API_KEY."
+        ? "Configure api_key, use --key or set JEV_API_KEY."
         : undefined,
     },
   }, missingKey ? 400 : 500);

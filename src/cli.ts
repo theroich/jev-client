@@ -99,7 +99,7 @@ Usage:
   jev-client help             shows this help
 
 Environment variables:
-  OPENCODE_API_KEY (or JEV_API_KEY)  API key
+  JEV_API_KEY                       API key
   JEV_URL                           endpoint
   JEV_MODEL                         model
   JEV_DB                            SQLite database path
@@ -138,7 +138,7 @@ Flags:
   --asset [<ref>=]<path>                  image (PNG/JPEG); without <ref> a UUID is generated (repeatable)
   --assets-file <path>                    full assets map as JSON
   --no-images-header                      omits the images header (to test the 400)
-  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --key <key>              API key (env: JEV_API_KEY)
   --url <endpoint>         full endpoint (env: JEV_URL)
   --model <model>          e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
   --db <path>              SQLite database (env: JEV_DB)
@@ -170,7 +170,7 @@ Examples:
 const DEMO_USAGE = `Usage: jev-client demo [flags]
 
 Flags:
-  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --key <key>              API key (env: JEV_API_KEY)
   --url <endpoint>         full endpoint (env: JEV_URL)
   --model <model>          e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
   --db <path>              SQLite database (env: JEV_DB)
@@ -194,7 +194,7 @@ Keys: api_url, api_key, model, timeout (seconds), retries.
 'config path' prints the database path in use.
 
 The API key is stored in plain text. To avoid persisting it, use --key or
-OPENCODE_API_KEY/JEV_API_KEY on every run.
+JEV_API_KEY on every run.
 `;
 
 const HISTORY_USAGE = `Usage:
@@ -253,7 +253,7 @@ Flags:
   --concurrency <n>          concurrent requests (default 1, max 10)
   --continue-on-error        continues with the rest on errors (default)
   --fail-fast                stops the run at the first error
-  --key <key>                API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --key <key>                API key (env: JEV_API_KEY)
   --url <endpoint>           full endpoint (env: JEV_URL)
   --model <model>            e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
   --db <path>                SQLite database (env: JEV_DB)
@@ -767,7 +767,7 @@ function runConfig(args: string[], io: CliIO): number {
         if (key === "api_key") {
           io.stderr(
             `warning: the API key is stored in plain text in ${path}. ` +
-              "To avoid persisting it, use --key or OPENCODE_API_KEY/JEV_API_KEY.\n",
+              "To avoid persisting it, use --key or JEV_API_KEY.\n",
           );
         }
         return 0;

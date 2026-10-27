@@ -744,7 +744,7 @@
                   </div>
                   <div class="callout" style="margin-top:4px">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4.5l8 14H4l8-14z"/><path d="M12 10v3.5M12 16.2v.1"/></svg>
-                    <span>The key is stored <strong>in plain text</strong> in SQLite. To avoid persisting it, pass it with <code>--key</code> or <code>OPENCODE_API_KEY</code>.</span>
+                    <span>The key is stored <strong>in plain text</strong> in SQLite. To avoid persisting it, pass it with <code>--key</code> or <code>JEV_API_KEY</code>.</span>
                   </div>
                 </div>
                 <div class="inline-fields">
@@ -2139,7 +2139,7 @@
     $("#cfgRetries").value = state.config.retries;
     $("#precedenceList").innerHTML = [
       ["api_url", "SQLite", state.config.api_url],
-      ["api_key", "environment · OPENCODE_API_KEY", maskKey(state.config.api_key)],
+      ["api_key", "environment · JEV_API_KEY", maskKey(state.config.api_key)],
       ["model", "SQLite", state.config.model],
       ["timeout", "default", state.config.timeout + " s"],
       ["retries", "default", String(state.config.retries)]

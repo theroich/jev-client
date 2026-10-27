@@ -101,7 +101,7 @@ export function mcpConfigDoc(): string {
     "```",
     "",
     "- `--db` / `JEV_DB` — SQLite database path (shared with the CLI and the console).",
-    "- `--key` / `OPENCODE_API_KEY` / `JEV_API_KEY` — API key.",
+    "- `--key` / `JEV_API_KEY` — API key.",
     "- `--read-only` — disables creating/editing/deleting templates.",
     "- `--no-execute` — disables `jev_ask`/`jev_batch` and hides the template tools.",
     "- `--allow-destructive` — enables `jev_template_delete`.",

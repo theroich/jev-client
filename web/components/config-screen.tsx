@@ -144,7 +144,7 @@ export function ConfigScreen({ initialSnapshot }: { initialSnapshot: ConfigSnaps
                 <label htmlFor="config-api_key">api_key</label>
                 <div className="row" style={{ gap: 8 }}><input id="config-api_key" className="input mono" spellCheck={false} autoComplete="off" value={values.api_key} readOnly={readOnly("api_key")} onChange={(event) => update("api_key", event.target.value)} /><Button size="sm" onClick={() => void reveal()} disabled={saving || dirty.has("api_key")} title={dirty.has("api_key") ? "Save or discard the new key before revealing" : "Explicit reveal with Cache-Control: no-store"}>{revealed ? "Hide" : "Reveal"}</Button></div>
                 <p className="hint">source: {sourceLabel(source("api_key"))}{readOnly("api_key") ? " · read-only from flag" : ""}</p>
-                <Callout>The key is stored <strong>in clear text</strong> in SQLite. To avoid persisting it, use <code>--key</code> or <code>OPENCODE_API_KEY</code>/<code>JEV_API_KEY</code>. localStorage is never used.</Callout>
+                <Callout>The key is stored <strong>in clear text</strong> in SQLite. To avoid persisting it, use <code>--key</code> or <code>JEV_API_KEY</code>. localStorage is never used.</Callout>
               </div>
               <div className="inline-fields">
                 <ConfigField label="model · free value" keyName="model" value={values.model} source={source("model")} readOnly={readOnly("model")} onChange={update} />

@@ -77,7 +77,7 @@ beforeEach(async () => {
     JEV_CONSOLE_PORT: "7411",
     JEV_CONSOLE_TOKEN: TOKEN,
     JEV_CONSOLE_ALLOW_REMOTE: "0",
-    OPENCODE_API_KEY: "env-test-key",
+    JEV_API_KEY: "env-test-key",
   };
   Object.assign(process.env, env);
   runtime = createConsoleRuntime({ env, fetch: fetchImpl });

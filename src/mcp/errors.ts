@@ -43,7 +43,7 @@ export function errorHintOf(error: unknown): string | undefined {
   if (message.includes("missing API key")) {
     return (
       "Configure the API key with 'jev config set api_key', --key or the " +
-      "OPENCODE_API_KEY/JEV_API_KEY variable. Without it, read tools keep working."
+      "JEV_API_KEY variable. Without it, read tools keep working."
     );
   }
   return undefined;

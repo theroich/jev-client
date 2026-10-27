@@ -11,7 +11,7 @@ Starts the MCP server over stdio (JSON-RPC on stdout, logs on stderr).
 
 Flags:
   --db <path>              SQLite database (env: JEV_DB)
-  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --key <key>              API key (env: JEV_API_KEY)
   --url <endpoint>         full endpoint (env: JEV_URL)
   --model <model>          model (env: JEV_MODEL)
   --timeout <seconds>      timeout per HTTP attempt (default 30)

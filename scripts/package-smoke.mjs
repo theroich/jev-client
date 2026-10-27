@@ -30,7 +30,7 @@ try {
 
   child = spawn(process.execPath, [path.join(packageRoot, "dist", "src", "bin.js"), "web-console", "--port", "0", "--no-open", "--db", path.join(temp, "installed.db")], {
     cwd: temp,
-    env: { ...process.env, CI: "1", OPENCODE_API_KEY: "", JEV_API_KEY: "" },
+    env: { ...process.env, CI: "1", JEV_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let stdout = "";

@@ -179,7 +179,7 @@ Script notes:
 
 - **`401` / `api_key_expired`** — invalid or expired key. The CLI adds a
   `hint:` with the recommended action (create a new one at
-  https://opencode.ai/console and export it as `OPENCODE_API_KEY`).
+  https://opencode.ai/console and export it as `JEV_API_KEY`).
 - **`429 FreeUsageLimitError`** — free model quota exhausted or usage outside
   OpenCode. Try `--model jev-1.13`.
 - **`422`** — malformed question or upstream failure; check
@@ -192,7 +192,7 @@ Script notes:
   the model and `state` is shared (see
   [`question-anatomy.md`](question-anatomy.md)).
 - **Missing API key** — `error: missing API key` (code `1`). Use `--key`,
-  `OPENCODE_API_KEY`/`JEV_API_KEY`, or `jev config set api_key`.
+  `JEV_API_KEY`, or `jev config set api_key`.
 - **Timeouts and retries** — each attempt has `--timeout` (default 30 s) and
   `--retries` (default 2) on 429/5xx and network errors; `Retry-After` is
   capped at 10 s.

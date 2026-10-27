@@ -49,7 +49,7 @@ echo "" | jev tui   # error: the interactive mode (tui) requires a terminal (TTY
 - `429 FreeUsageLimitError`: `jev-1.13-free` is limited outside OpenCode or once
   the quota runs out. Use `jev-1.13` for tests.
 - `401` / `api_key_expired`: check the key (`jev config get api_key --reveal`,
-  `OPENCODE_API_KEY` or `--key`).
+  `JEV_API_KEY` or `--key`).
 - `422`: the question is malformed; check `criteria` (`choice` uses an object,
   `score` uses an ordered array).
 - The server `Retry-After` is capped at 10 s so the process is not blocked.

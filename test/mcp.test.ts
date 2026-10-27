@@ -58,7 +58,7 @@ interface Connected {
 
 async function connect(
   options: McpServerOptions = {},
-  env: NodeJS.ProcessEnv = { OPENCODE_API_KEY: "test-key" },
+  env: NodeJS.ProcessEnv = { JEV_API_KEY: "test-key" },
 ): Promise<Connected> {
   const service = new JevService({ dbPath: ":memory:", env, fetch: fakeFetch() });
   const ctx = createMcpContext(service, {}, options, env);

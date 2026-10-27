@@ -17,7 +17,7 @@ export function jevErrorHint(error: JevApiError): string | undefined {
   if (error.statusCode === 401 || error.code === "api_key_expired") {
     return (
       "the API key is not valid or has expired. Create a new one at " +
-      "https://opencode.ai/console and export it as OPENCODE_API_KEY."
+      "https://opencode.ai/console and export it as JEV_API_KEY."
     );
   }
   if (error.code === "FreeUsageLimitError" || error.statusCode === 429) {
