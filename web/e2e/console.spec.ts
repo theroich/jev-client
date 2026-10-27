@@ -31,11 +31,14 @@ test.describe.serial("real console with a mocked provider", () => {
 
   test("evaluates, runs the demo and blocks invalid JSON", async ({ page }) => {
     await goto(page, "/evaluate");
+    await expect(page.getByLabel("Model · free value allowed")).toHaveValue("e2e-configured-model");
     await page.getByRole("button", { name: "Load the ticket example" }).click();
+    await expect(page.getByLabel("Model · free value allowed")).toHaveValue("e2e-configured-model");
     await page.getByRole("button", { name: "Evaluate", exact: true }).click();
     await expect(page.locator(".answer-name").filter({ hasText: "refund" })).toBeVisible();
     await expect(page.locator(".answer-name").filter({ hasText: "tone" })).toBeVisible();
     await expect(page.locator(".result-meta")).toContainText("200");
+    await expect(page.locator(".result-meta")).toContainText("e2e-configured-model");
     await page.getByRole("tab", { name: "Raw JSON" }).click();
     await expect(page.locator("pre.json")).toContainText("answers");
     await page.getByRole("button", { name: "Run demo" }).click();

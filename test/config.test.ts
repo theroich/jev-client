@@ -71,11 +71,11 @@ test("empty strings count as undefined", () => {
   assert.equal(config.apiKey, "env-key");
 });
 
-test("resolveModel: flag > environment > request > database > default", () => {
-  assert.equal(resolveModel("flag", "request", { JEV_MODEL: "env" }), "flag");
-  assert.equal(resolveModel(undefined, "request", { JEV_MODEL: "env" }), "env");
+test("resolveModel: flag > environment > database > request > default", () => {
+  assert.equal(resolveModel("flag", "request", { JEV_MODEL: "env" }, "stored"), "flag");
+  assert.equal(resolveModel(undefined, "request", { JEV_MODEL: "env" }, "stored"), "env");
+  assert.equal(resolveModel(undefined, "request", {}, "stored"), "stored");
   assert.equal(resolveModel(undefined, "request", {}), "request");
-  assert.equal(resolveModel(undefined, "request", {}, "stored"), "request");
   assert.equal(resolveModel(undefined, undefined, {}, "stored"), "stored");
   assert.equal(resolveModel(undefined, undefined, {}), DEFAULT_MODEL);
 });

@@ -41,7 +41,9 @@ to the web checkout.
 - **Evaluate**: `noul`, `choice` and `score`, strict text/JSON state, real demo,
   `--no-save`, cancellation, probability report and safe raw JSON. Responses
   follow the order of the questions in the request. The selector accepts the
-  effective model, the two known models and a free value.
+  effective model, the two known models and a free value. Loading the ticket
+  example keeps the configured model: the `model` in the example is only a
+  fallback.
 - **Templates**: search, create/edit/validate/render/rename/delete, nested and
   escaped macros, unsaved changes, transactional rename and a **Macros** tab with
   an optional description and JSON Schema per macro. Each row offers a basic type

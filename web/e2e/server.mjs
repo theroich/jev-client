@@ -57,7 +57,7 @@ const { TemplateRepository } = await import(path.join(root, "dist", "src", "temp
 const db = openDatabase(dbPath);
 new ConfigRepository(db).set("api_url", `http://127.0.0.1:${providerPort}/systemone`);
 new ConfigRepository(db).set("api_key", "e2e-secret-key");
-new ConfigRepository(db).set("model", "jev-1.13");
+new ConfigRepository(db).set("model", "e2e-configured-model");
 new ConfigRepository(db).set("timeout", "2");
 new ConfigRepository(db).set("retries", "0");
 new TemplateRepository(db).save("order", "E2E order", JSON.stringify({

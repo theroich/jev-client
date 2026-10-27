@@ -70,8 +70,12 @@ export function resolveConfig(
 }
 
 /**
- * Precedence: flag > environment > request model > database > default.
- * The explicit request model is preserved for compatibility.
+ * Precedence: flag > environment > database > request model > default.
+ *
+ * A model saved with `jev config set model` (or the TUI) is a user-level
+ * setting, so it must win over a model embedded in a complete request or
+ * template. Otherwise changing the configured model would silently have no
+ * effect on those paths. `--model` and `JEV_MODEL` remain per-run overrides.
  */
 export function resolveModel(
   flagModel: string | undefined,
@@ -80,7 +84,7 @@ export function resolveModel(
   storedModel?: string,
 ): string {
   return (
-    firstNonEmpty(flagModel, env.JEV_MODEL, requestModel, storedModel) ||
+    firstNonEmpty(flagModel, env.JEV_MODEL, storedModel, requestModel) ||
     DEFAULT_MODEL
   );
 }

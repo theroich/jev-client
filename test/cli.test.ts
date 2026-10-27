@@ -210,6 +210,46 @@ test("ask with a full request-file", async () => {
   assert.equal(sent.model, "jev-1.13-free");
 });
 
+test("the saved model wins over the request-file model", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-client-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const dbPath = join(dir, "jev.db");
+  const requestPath = join(dir, "request.json");
+  await writeFile(
+    requestPath,
+    JSON.stringify({
+      model: "jev-1.13-free",
+      state: { ticket: "hello" },
+      questions: { q: { type: "noul", instructions: "?" } },
+    }),
+    "utf8",
+  );
+
+  const saved = await run(["config", "set", "model", "jev-1.14.0"], {
+    dbPath,
+    env: {},
+  });
+  assert.equal(saved.code, 0);
+
+  const result = await run(["ask", "--request-file", requestPath], {
+    dbPath,
+    env: { JEV_API_KEY: "test-key" },
+  });
+  assert.equal(result.code, 0);
+  const sent = JSON.parse(String(result.calls[0]?.init.body)) as { model: string };
+  assert.equal(sent.model, "jev-1.14.0");
+
+  const overridden = await run(
+    ["ask", "--request-file", requestPath, "--model", "flag-model"],
+    { dbPath, env: { JEV_API_KEY: "test-key" } },
+  );
+  assert.equal(overridden.code, 0);
+  const overriddenSent = JSON.parse(
+    String(overridden.calls[0]?.init.body),
+  ) as { model: string };
+  assert.equal(overriddenSent.model, "flag-model");
+});
+
 test("ask rejects unsupported question types", async () => {
   const result = await run([
     "ask",

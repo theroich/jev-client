@@ -123,6 +123,34 @@ test("ask/demo use the SQLite configuration and return requestId", async (t) => 
   inspect.close();
 });
 
+test("the saved model wins over the model embedded in the request", async (t) => {
+  const dbPath = await databasePath(t);
+  const db = openDatabase(dbPath);
+  const config = new ConfigRepository(db);
+  config.set("api_key", "stored-key");
+  config.set("model", "stored-model");
+  db.close();
+
+  const calls: RequestInit[] = [];
+  const fetch: FetchLike = async (_input, init = {}) => {
+    calls.push(init);
+    return new Response(responseBody("stored-model"), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const service = serviceFor(t, dbPath, fetch, {});
+
+  const result = await service.ask({
+    model: "request-model",
+    state: "hello",
+    questions: { q: { type: "noul" } },
+  });
+
+  assert.equal(sentBody(calls[0] ?? {}).model, "stored-model");
+  assert.equal(result.request.model, "stored-model");
+});
+
 test("demoQuestions returns a modifiable copy", () => {
   const first = demoQuestions();
   const second = demoQuestions();

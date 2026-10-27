@@ -246,6 +246,9 @@ jev ask --request-file examples/request.json
 
 It also accepts inline JSON with `--request '{"..."}'`.
 
+The `model` in the payload is only a fallback: the model saved with
+`jev config set model` (or the TUI) wins, as do `--model` and `JEV_MODEL`.
+
 ### Choose model, endpoint and timeout
 
 ```sh
@@ -271,6 +274,9 @@ Useful flags in `ask`, `demo` and `batch`:
 
 A **template** is a Jev request with blanks (`{{key}}`) that are filled in with a
 context. It saves you from repeating the same JSON every time.
+
+The `model` in the body is a fallback: the model saved with
+`jev config set model` (or the TUI) wins, as do `--model` and `JEV_MODEL`.
 
 ### Create a template
 

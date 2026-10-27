@@ -216,7 +216,8 @@ export function EvaluateScreen({ defaultModel }: { defaultModel: string }) {
       const example = await response.json() as JevRequest;
       setStateText(JSON.stringify(example.state, null, 2));
       setDrafts(draftsFromQuestions(example.questions));
-      if (example.model) setModel(example.model);
+      // The example's model is only a fallback: keep the configured model
+      // selected, matching the CLI/service precedence.
       setResult(null);
       setError(null);
       notify("Real example from examples/request.json loaded");
