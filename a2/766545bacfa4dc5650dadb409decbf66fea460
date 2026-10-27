@@ -1,0 +1,14 @@
+package-lock.json
+  h_34a594f8693459 1128,1162,1786,2131,2227,2236,2637
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2766545bacfa4dc5650dadb409decbf66fea460",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
