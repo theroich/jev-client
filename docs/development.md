@@ -25,9 +25,10 @@ PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
 ## CI
 
 There is a GitHub Actions workflow (`.github/workflows/ci.yml`) that, on every
-push to `main` and on every pull request, runs on Node 20 and 22 the typecheck,
-the unit/route tests, the Next build, the E2E with axe and a smoke test of the
-installed package. The suite does not need a real API key or CI secrets.
+push to `main` and on every pull request, runs on Node 22, 24 and 26 the
+typecheck, the unit/route tests, the Next build, the E2E with axe and a smoke
+test of the installed package. The suite does not need a real API key or CI
+secrets.
 
 ## Manual TUI checklist
 

@@ -7,7 +7,6 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.resolve(appDir, ".."),
-  serverExternalPackages: ["better-sqlite3"],
   reactStrictMode: true,
   poweredByHeader: false,
 };

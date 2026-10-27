@@ -1,11 +1,13 @@
-import Database from "better-sqlite3";
 import { chmodSync, closeSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-export const SCHEMA_VERSION = 6;
+import { openSqlite } from "./sqlite.js";
+import type { SqliteDatabase } from "./sqlite.js";
 
-export type SqliteDatabase = Database.Database;
+export type { SqliteDatabase } from "./sqlite.js";
+
+export const SCHEMA_VERSION = 6;
 
 interface Migration {
   version: number;
@@ -158,7 +160,7 @@ export function openDatabase(path: string): SqliteDatabase {
     chmodSync(path, 0o600);
   }
 
-  const db = new Database(path);
+  const db = openSqlite(path);
   try {
     db.pragma("foreign_keys = ON");
     migrateDatabase(db);

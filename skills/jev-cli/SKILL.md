@@ -23,7 +23,7 @@ details of each operation live in `references/*.md`. It does not duplicate the
 
 ## Requirements and quick start
 
-- Node.js 20.9+ (or 22+).
+- Node.js 22.13+ (22 LTS, 24 LTS or 26 LTS).
 - An API key from [OpenCode Console](https://opencode.ai/console).
 
 ```sh
