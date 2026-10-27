@@ -11,7 +11,7 @@ import {
 } from "../src/config.js";
 import { validateConfigValue } from "../src/config-repository.js";
 
-test("los flags ganan a las variables de entorno", () => {
+test("flags win over environment variables", () => {
   const config = resolveConfig(
     { key: "flag-key", url: "https://flag.test", model: "flag-model" },
     { OPENCODE_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" },
@@ -26,7 +26,7 @@ test("los flags ganan a las variables de entorno", () => {
   });
 });
 
-test("usa las variables de entorno", () => {
+test("uses environment variables", () => {
   const config = resolveConfig({}, {
     OPENCODE_API_KEY: "env-key",
     JEV_URL: "https://env.test",
@@ -42,12 +42,12 @@ test("usa las variables de entorno", () => {
   });
 });
 
-test("JEV_API_KEY funciona como alternativa", () => {
+test("JEV_API_KEY works as an alternative", () => {
   const config = resolveConfig({}, { JEV_API_KEY: "alt-key" });
   assert.equal(config.apiKey, "alt-key");
 });
 
-test("OPENCODE_API_KEY tiene prioridad sobre JEV_API_KEY", () => {
+test("OPENCODE_API_KEY takes precedence over JEV_API_KEY", () => {
   const config = resolveConfig({}, {
     OPENCODE_API_KEY: "primary",
     JEV_API_KEY: "alt",
@@ -55,7 +55,7 @@ test("OPENCODE_API_KEY tiene prioridad sobre JEV_API_KEY", () => {
   assert.equal(config.apiKey, "primary");
 });
 
-test("valores por defecto", () => {
+test("default values", () => {
   const config = resolveConfig({}, {});
   assert.deepEqual(config, {
     apiKey: "",
@@ -66,12 +66,12 @@ test("valores por defecto", () => {
   });
 });
 
-test("las cadenas vacías cuentan como no definidas", () => {
+test("empty strings count as undefined", () => {
   const config = resolveConfig({ key: "" }, { OPENCODE_API_KEY: "env-key" });
   assert.equal(config.apiKey, "env-key");
 });
 
-test("resolveModel: flag > entorno > request > base de datos > default", () => {
+test("resolveModel: flag > environment > request > database > default", () => {
   assert.equal(resolveModel("flag", "request", { JEV_MODEL: "env" }), "flag");
   assert.equal(resolveModel(undefined, "request", { JEV_MODEL: "env" }), "env");
   assert.equal(resolveModel(undefined, "request", {}), "request");
@@ -80,7 +80,7 @@ test("resolveModel: flag > entorno > request > base de datos > default", () => {
   assert.equal(resolveModel(undefined, undefined, {}), DEFAULT_MODEL);
 });
 
-test("la base de datos se usa cuando no hay flags ni entorno", () => {
+test("the database is used when there are no flags or environment values", () => {
   const config = resolveConfig({}, {}, {
     api_key: "stored-key",
     api_url: "https://stored.test",
@@ -98,7 +98,7 @@ test("la base de datos se usa cuando no hay flags ni entorno", () => {
   });
 });
 
-test("flags y entorno ganan a la configuración guardada", () => {
+test("flags and environment win over the saved configuration", () => {
   const stored = {
     api_key: "stored-key",
     api_url: "https://stored.test",
@@ -133,12 +133,12 @@ test("flags y entorno ganan a la configuración guardada", () => {
   assert.equal(fromFlags.retries, 0);
 });
 
-test("la configuración numérica guardada se valida", () => {
+test("the saved numeric configuration is validated", () => {
   assert.throws(() => resolveConfig({}, {}, { timeout: "0" }), /timeout/);
   assert.throws(() => resolveConfig({}, {}, { retries: "1.5" }), /retries/);
 });
 
-test("validateConfigValue exige una api_url http(s) completa", () => {
+test("validateConfigValue requires a complete http(s) api_url", () => {
   assert.doesNotThrow(() =>
     validateConfigValue("api_url", "https://example.test/systemone"),
   );
@@ -156,7 +156,7 @@ test("validateConfigValue exige una api_url http(s) completa", () => {
   }
 });
 
-test("validateConfigValue rechaza un model vacío", () => {
+test("validateConfigValue rejects an empty model", () => {
   assert.throws(() => validateConfigValue("model", ""), /model/);
   assert.throws(() => validateConfigValue("model", "   "), /model/);
   assert.doesNotThrow(() => validateConfigValue("model", "jev-1.13"));

@@ -1,87 +1,88 @@
-# Operación `noul`
+# `noul` operation
 
-## 1. Qué es y qué devuelve
+## 1. What it is and what it returns
 
-`noul` es la pregunta de **sí/no**: dada una instrucción («¿trata de
-facturación?», «¿es urgente?», «¿pide reembolso?»), el modelo devuelve la
-probabilidad de que la respuesta sea «sí».
+`noul` is the **yes/no** question: given an instruction ("does it deal with
+billing?", "is it urgent?", "does it ask for a refund?"), the model returns the
+probability that the answer is "yes".
 
-Forma exacta de la respuesta (por pregunta):
+Exact shape of the response (per question):
 
 ```json
 { "type": "noul", "noul": 0.99 }
 ```
 
-- `noul`: número en `[0, 1]` — probabilidad de «sí».
-- No lleva `confidence` ni `probabilities` (eso es de `choice`/`score`).
+- `noul`: number in `[0, 1]` — probability of "yes".
+- It carries no `confidence` or `probabilities` (those belong to
+  `choice`/`score`).
 
-En el informe legible de la CLI se imprime una línea:
+In the CLI's readable report one line is printed:
 
 ```text
   billing: noul=0.99
 ```
 
-## 2. Forma del JSON de la pregunta
+## 2. Shape of the question JSON
 
-Mínima (solo `instructions`):
+Minimal (only `instructions`):
 
 ```json
 {
-  "billing": { "type": "noul", "instructions": "¿El mensaje trata de facturación o pagos?" }
+  "billing": { "type": "noul", "instructions": "Does the message deal with billing or payments?" }
 }
 ```
 
-Con `criteria` opcional (un string que ayuda al modelo a definir el criterio):
+With optional `criteria` (a string that helps the model define the criterion):
 
 ```json
 {
   "urgent": {
     "type": "noul",
-    "instructions": "¿El mensaje transmite urgencia?",
-    "criteria": "Se considera urgente si menciona caídas, pérdidas o plazos."
+    "instructions": "Does the message convey urgency?",
+    "criteria": "It counts as urgent if it mentions outages, losses or deadlines."
   }
 }
 ```
 
-## 3. Ejemplos de consola
+## 3. Console examples
 
-### Inline con `--state` y `--noul`
+### Inline with `--state` and `--noul`
 
 ```sh
 jev ask \
-  --state "Me han cobrado dos veces este mes." \
-  --noul 'billing=¿Es de facturación?'
+  --state "I was charged twice this month." \
+  --noul 'billing=Is it about billing?'
 ```
 
 ```text
-modelo: jev-1.13
+model: jev-1.13
   billing: noul=0.99
-tokens: 12 in / 3 out, cost=1.5e-6      ← va a stderr
+tokens: 12 in / 3 out, cost=1.5e-6      ← goes to stderr
 ```
 
-> Los valores numéricos son ilustrativos; el **formato** es el que imprime la
-> CLI. La línea `tokens:` va a stderr, no a stdout.
+> The numeric values are illustrative; the **format** is what the CLI prints.
+> The `tokens:` line goes to stderr, not stdout.
 
-### Desde ficheros (`--state-file`, `--questions-file`)
+### From files (`--state-file`, `--questions-file`)
 
 ```sh
 jev ask --state-file examples/state.json --questions-file examples/questions.json
 ```
 
-`examples/questions.json` mezcla los tres tipos; la parte `noul` es `billing`.
+`examples/questions.json` mixes the three types; the `noul` part is `billing`.
 
-### Por stdin (`--state -`)
+### From stdin (`--state -`)
 
 ```sh
-echo "El checkout está caído" | jev ask --state - \
-  --noul 'urgent=¿Es urgente?'
+echo "The checkout is down" | jev ask --state - \
+  --noul 'urgent=Is it urgent?'
 ```
 
-### Con `--json` para consumo por máquina
+### With `--json` for machine consumption
 
 ```sh
-jev ask --state "Me han cobrado dos veces este mes." \
-  --noul 'billing=¿Es de facturación?' \
+jev ask --state "I was charged twice this month." \
+  --noul 'billing=Is it about billing?' \
   --json 2>/dev/null
 ```
 
@@ -95,17 +96,17 @@ jev ask --state "Me han cobrado dos veces este mes." \
 }
 ```
 
-`--json` imprime la respuesta cruda de la API a stdout; el resumen de tokens va
-a stderr, por eso `2>/dev/null` lo descarta al redirigir a un fichero.
+`--json` prints the raw API response to stdout; the token summary goes to
+stderr, which is why `2>/dev/null` discards it when redirecting to a file.
 
-### Mezclando varios tipos en un mismo request
+### Mixing several types in the same request
 
 ```sh
 jev ask --request-file examples/request.json --json 2>/dev/null
 ```
 
-`examples/request.json` combina `refund` (`noul`) y `tone` (`choice`) en un solo
-request. La respuesta devuelve una entrada por pregunta:
+`examples/request.json` combines `refund` (`noul`) and `tone` (`choice`) in a
+single request. The response returns one entry per question:
 
 ```json
 {
@@ -118,19 +119,19 @@ request. La respuesta devuelve una entrada por pregunta:
 }
 ```
 
-## 4. Ejemplo en script bash
+## 4. Bash script example
 
-Función reutilizable, lectura con `jq`, umbral sobre la respuesta y manejo de
-códigos de salida:
+Reusable function, reading with `jq`, a threshold on the answer and exit-code
+handling:
 
 ```bash
 #!/usr/bin/env bash
 
-# Base aislada: no toca la del usuario y se borra al salir.
+# Isolated database: does not touch the user's and is removed on exit.
 DB="$(mktemp -d)/jev.db"
 trap 'rm -rf "$(dirname "$DB")"' EXIT
 
-# Evalúa una pregunta noul y devuelve la probabilidad de "sí" (0-1).
+# Evaluate a noul question and return the probability of "yes" (0-1).
 ask_noul() {
   local state="$1" instructions="$2"
 
@@ -140,65 +141,65 @@ ask_noul() {
   code=$?
 
   if [ "$code" -ne 0 ]; then
-    echo "error: jev ask salió con código $code" >&2
+    echo "error: jev ask exited with code $code" >&2
     return "$code"
   fi
 
   jq -r '.answers.q.noul' <<<"$out"
 }
 
-ticket="Me han cobrado dos veces este mes."
+ticket="I was charged twice this month."
 
-result=$(ask_noul "$ticket" "¿Trata de facturación o pagos?") || exit $?
+result=$(ask_noul "$ticket" "Does it deal with billing or payments?") || exit $?
 
-echo "probabilidad de facturación: $result"
+echo "billing probability: $result"
 
-# Umbral: >= 0.5 se trata como "sí".
+# Threshold: >= 0.5 is treated as "yes".
 if awk "BEGIN{exit !($result >= 0.5)}"; then
-  echo "→ derivar a facturación"
+  echo "→ route to billing"
 else
-  echo "→ no es facturación"
+  echo "→ not billing"
 fi
 ```
 
 ```text
-probabilidad de facturación: 0.99
-→ derivar a facturación
+billing probability: 0.99
+→ route to billing
 ```
 
-Notas del script:
+Script notes:
 
-- `--no-save` evita registrar la ejecución en el historial; `--db "$DB"` aísla
-  la base en un directorio temporal.
-- `--json` + `2>/dev/null` deja solo el JSON en stdout para `jq`.
-- El código de salida de `jev ask` se captura y se propaga: `0` ok, `1` error de
-  API/configuración, `2` uso incorrecto.
+- `--no-save` prevents recording the run in the history; `--db "$DB"` isolates
+  the database in a temporary directory.
+- `--json` + `2>/dev/null` leaves only the JSON on stdout for `jq`.
+- The exit code of `jev ask` is captured and propagated: `0` ok, `1` API or
+  configuration error, `2` incorrect usage.
 
-## 5. Errores típicos y pistas
+## 5. Typical errors and hints
 
-- **`401` / `api_key_expired`** — key inválida o caducada. La CLI añade
-  `pista:` con la acción recomendada (crear una nueva en
-  https://opencode.ai/console y exportarla como `OPENCODE_API_KEY`).
-- **`429 FreeUsageLimitError`** — cuota del modelo gratuito agotada o uso fuera
-  de OpenCode. Prueba con `--model jev-1.13`.
-- **`422`** — pregunta mal formada o fallo del upstream; revisa
+- **`401` / `api_key_expired`** — invalid or expired key. The CLI adds a
+  `hint:` with the recommended action (create a new one at
+  https://opencode.ai/console and export it as `OPENCODE_API_KEY`).
+- **`429 FreeUsageLimitError`** — free model quota exhausted or usage outside
+  OpenCode. Try `--model jev-1.13`.
+- **`422`** — malformed question or upstream failure; check
   https://docs.typesafe.ai/primitives.
-- **`criteria` con la forma equivocada** — en `noul`, `criteria` es un string
-  opcional, no un objeto ni un array. Un objeto/array aquí es para
+- **`criteria` with the wrong shape** — in `noul`, `criteria` is an optional
+  string, not an object or an array. An object/array here is for
   `choice`/`score`.
-- **Todas las preguntas dan la misma probabilidad** — si evalúas varios
-  elementos en un solo request, nómbralos en cada `instructions`: la clave no
-  se envía al modelo y `state` es compartido (ver
-  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
-- **Falta la API key** — `error: falta la API key` (código `1`). Usa `--key`,
-  `OPENCODE_API_KEY`/`JEV_API_KEY`, o `jev config set api_key`.
-- **Timeouts y reintentos** — cada intento tiene `--timeout` (default 30 s) y
-  `--retries` (default 2) ante 429/5xx y errores de red; el `Retry-After` se
-  capa a 10 s.
+- **All questions return the same probability** — if you evaluate several items
+  in a single request, name them in each `instructions`: the key is not sent to
+  the model and `state` is shared (see
+  [`question-anatomy.md`](question-anatomy.md)).
+- **Missing API key** — `error: missing API key` (code `1`). Use `--key`,
+  `OPENCODE_API_KEY`/`JEV_API_KEY`, or `jev config set api_key`.
+- **Timeouts and retries** — each attempt has `--timeout` (default 30 s) and
+  `--retries` (default 2) on 429/5xx and network errors; `Retry-After` is
+  capped at 10 s.
 
-## 6. Notas de precisión
+## 6. Precision notes
 
-El modelo está entrenado sobre todo en inglés; acepta español con algo menos de
-precisión. Para mitigarlo, formula `instructions` de forma explícita y pon el
-criterio dentro de la instrucción (o usa `criteria` como string): «¿El mensaje
-trata de facturación o pagos?» es más fiable que «¿facturación?».
+The model is trained mostly in English; it accepts other languages with
+somewhat less precision. To mitigate that, phrase `instructions` explicitly and
+put the criterion inside the instruction (or use `criteria` as a string):
+"Is the message about billing or payments?" is more reliable than "billing?".

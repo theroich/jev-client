@@ -44,10 +44,10 @@ function validateHostAndOrigin(request: NextRequest, mutation: boolean): NextRes
   try {
     hostUrl = new URL(`http://${host}`);
   } catch {
-    return denied("invalid_host", "Host de la consola no válido.", 403);
+    return denied("invalid_host", "Invalid console host.", 403);
   }
   if (!host || hostUrl.username || hostUrl.password || hostUrl.pathname !== "/") {
-    return denied("invalid_host", "Host de la consola no válido.", 403);
+    return denied("invalid_host", "Invalid console host.", 403);
   }
 
   const allowRemote = process.env.JEV_CONSOLE_ALLOW_REMOTE === "1";
@@ -59,25 +59,25 @@ function validateHostAndOrigin(request: NextRequest, mutation: boolean): NextRes
     ? wildcard.has(configured) || hostname === configured || loopback.has(hostname)
     : loopback.has(hostname);
   if (!hostAllowed) {
-    return denied("invalid_host", "La consola solo acepta su Host local configurado.", 403);
+    return denied("invalid_host", "The console only accepts its configured local host.", 403);
   }
 
   const expectedPort = process.env.JEV_CONSOLE_PORT;
   if (expectedPort && hostUrl.port !== expectedPort && !(hostUrl.port === "" && expectedPort === "80")) {
-    return denied("invalid_host", "El puerto del Host no coincide con esta consola.", 403);
+    return denied("invalid_host", "The Host port does not match this console.", 403);
   }
 
   if (request.headers.get("sec-fetch-site") === "cross-site") {
-    return denied("cross_site", "Se rechazó una petición de otro origen.", 403);
+    return denied("cross_site", "A cross-origin request was rejected.", 403);
   }
   if (mutation) {
     const origin = request.headers.get("origin");
-    if (!origin) return denied("origin_required", "La mutación necesita una cabecera Origin.", 403);
+    if (!origin) return denied("origin_required", "Mutations require an Origin header.", 403);
     try {
       const parsed = new URL(origin);
-      if (parsed.host !== host || !["http:", "https:"].includes(parsed.protocol)) throw new Error("origen");
+      if (parsed.host !== host || !["http:", "https:"].includes(parsed.protocol)) throw new Error("origin");
     } catch {
-      return denied("invalid_origin", "Origin no coincide con la consola.", 403);
+      return denied("invalid_origin", "Origin does not match the console.", 403);
     }
   }
   return null;
@@ -90,7 +90,7 @@ export function exchangeSession(request: NextRequest): NextResponse {
   const supplied = request.headers.get("x-jev-console-token") ?? "";
   const current = session();
   if (!expected || !supplied || !equalSecret(supplied, expected) || current.bootstrapUsed) {
-    return denied("invalid_session", "El enlace de sesión no es válido o ya se utilizó. Reinicia `jev web-console`.");
+    return denied("invalid_session", "The session link is invalid or was already used. Restart `jev web-console`.");
   }
 
   current.bootstrapUsed = true;
@@ -116,7 +116,7 @@ export function currentSession(request: NextRequest): NextResponse {
   if (invalid) return invalid;
   const current = session();
   if (!current.bootstrapUsed || request.cookies.get(COOKIE_NAME)?.value !== current.id) {
-    return denied("invalid_session", "La sesión no está autenticada. Abre la URL impresa por `jev web-console`.");
+    return denied("invalid_session", "The session is not authenticated. Open the URL printed by `jev web-console`.");
   }
   return NextResponse.json(
     { ok: true, csrfToken: current.csrfToken },
@@ -129,12 +129,12 @@ export function guardApi(request: NextRequest, mutation: boolean): NextResponse 
   if (invalid) return invalid;
   const current = session();
   if (!current.bootstrapUsed || request.cookies.get(COOKIE_NAME)?.value !== current.id) {
-    return denied("invalid_session", "Sesión de consola no válida.", 401);
+    return denied("invalid_session", "Invalid console session.", 401);
   }
   if (mutation) {
     const csrf = request.headers.get("x-jev-console-token") ?? "";
     if (!csrf || !equalSecret(csrf, current.csrfToken)) {
-      return denied("invalid_csrf", "Falta el token de mutación o no coincide con la sesión.", 403);
+      return denied("invalid_csrf", "The mutation token is missing or does not match the session.", 403);
     }
   }
   return null;

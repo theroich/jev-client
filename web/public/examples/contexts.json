@@ -1,14 +1,14 @@
 [
   {
-    "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
-    "cliente": { "nombre": "Ana", "plan": "pro" }
+    "order_state": "I was charged twice and I want a refund.",
+    "customer": { "name": "Ana", "plan": "pro" }
   },
   {
-    "estado_de_pedido": "El checkout se queda colgado al pagar.",
-    "cliente": { "nombre": "Luis", "plan": "free" }
+    "order_state": "The checkout hangs when I try to pay.",
+    "customer": { "name": "Luis", "plan": "free" }
   },
   {
-    "estado_de_pedido": "No me llega la factura de este mes.",
-    "cliente": { "nombre": "Marta", "plan": "pro" }
+    "order_state": "I never received this month's invoice.",
+    "customer": { "name": "Marta", "plan": "pro" }
   }
 ]

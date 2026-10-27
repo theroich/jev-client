@@ -4,7 +4,7 @@ import { HistoryScreen } from "@/components/history-screen";
 import { parseHistoryFilters } from "@/lib/server/history";
 import { getHistoryDetail, getHistoryPage } from "@/lib/server/runtime";
 
-export const metadata: Metadata = { title: "Historial" };
+export const metadata: Metadata = { title: "History" };
 export const dynamic = "force-dynamic";
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

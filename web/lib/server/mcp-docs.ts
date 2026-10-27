@@ -13,8 +13,8 @@ import { ConsoleError } from "./api";
 import { getConsoleRuntime } from "./runtime";
 
 /**
- * Contexto MCP construido sobre el runtime de la consola, para que los
- * endpoints de documentación compartan el mismo registry que el servidor MCP.
+ * MCP context built on the console runtime, so the documentation
+ * endpoints share the same registry as the MCP server.
  */
 function mcpContext() {
   const runtime = getConsoleRuntime();
@@ -43,7 +43,7 @@ export function docsTools() {
 export function docsTool(name: string) {
   const tool = toolDoc(mcpContext(), name);
   if (tool === undefined) {
-    throw new ConsoleError(404, "tool_not_found", `tool no encontrada: ${name}`);
+    throw new ConsoleError(404, "tool_not_found", `tool not found: ${name}`);
   }
   return tool;
 }

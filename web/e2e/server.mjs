@@ -22,12 +22,12 @@ const provider = createServer((req, res) => {
       const answers = {};
       for (const [name, question] of Object.entries(request.questions ?? {})) {
         if (question.type === "choice") {
-          const keys = Object.keys(question.criteria ?? { yes: "Sí", no: "No" });
+          const keys = Object.keys(question.criteria ?? { yes: "Yes", no: "No" });
           const selected = keys.includes("infra") ? "infra" : keys[0];
           const probabilities = Object.fromEntries(keys.map((key, index) => [key, key === selected ? 0.78 : 0.22 / Math.max(1, keys.length - 1)]));
           answers[name] = { type: "choice", choice: selected, confidence: 0.78, probabilities };
         } else if (question.type === "score") {
-          const levels = question.criteria ?? ["Bajo", "Medio", "Alto"];
+          const levels = question.criteria ?? ["Low", "Medium", "High"];
           const legend = Object.fromEntries(levels.map((level, index) => [String(index), level]));
           const probabilities = Object.fromEntries(levels.map((_, index) => [String(index), index === 2 ? 0.6 : index === 1 ? 0.3 : 0.1]));
           answers[name] = { type: "score", score: 1.4, legend, confidence: 0.82, probabilities };
@@ -60,10 +60,10 @@ new ConfigRepository(db).set("api_key", "e2e-secret-key");
 new ConfigRepository(db).set("model", "jev-1.13");
 new ConfigRepository(db).set("timeout", "2");
 new ConfigRepository(db).set("retries", "0");
-new TemplateRepository(db).save("pedido", "Pedido para E2E", JSON.stringify({
+new TemplateRepository(db).save("order", "E2E order", JSON.stringify({
   model: "jev-1.13",
-  state: { ticket: "{{estado_de_pedido}}", cliente: "{{cliente.nombre}}" },
-  questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  state: { ticket: "{{order_state}}", customer: "{{customer.name}}" },
+  questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
 }));
 db.close();
 
@@ -100,15 +100,15 @@ process.on("SIGTERM", () => { void cleanup().then(() => process.exit(0)); });
 process.on("SIGINT", () => { void cleanup().then(() => process.exit(0)); });
 child.once("exit", (code) => {
   if (!closing && code !== 0) {
-    console.error(`Consola E2E terminó ${code}\n${stdout}\n${stderr}`);
+    console.error(`E2E console exited ${code}\n${stdout}\n${stderr}`);
     void cleanup().then(() => process.exit(1));
   }
 });
 
 const deadline = Date.now() + 60000;
-while (!stdout.includes("Pulsa Ctrl-C")) {
+while (!stdout.includes("Press Ctrl-C")) {
   if (Date.now() > deadline || child.exitCode !== null) {
-    console.error(`No arrancó la consola E2E\n${stdout}\n${stderr}`);
+    console.error(`The E2E console did not start\n${stdout}\n${stderr}`);
     await cleanup();
     process.exit(1);
   }
@@ -121,7 +121,7 @@ const exchange = await fetch(`${printedUrl.origin}/api/session`, {
   headers: { "X-Jev-Console-Token": token, Origin: printedUrl.origin, "Content-Type": "application/json" },
   body: "{}",
 });
-if (!exchange.ok) throw new Error(`Sesión E2E: ${exchange.status} ${await exchange.text()}`);
+if (!exchange.ok) throw new Error(`E2E session: ${exchange.status} ${await exchange.text()}`);
 const setCookie = exchange.headers.get("set-cookie");
 const cookieValue = setCookie.match(/jev_console_session=([^;]+)/)[1];
 const storageState = {

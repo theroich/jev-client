@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>jev · Consola web</title>
+<title>jev · Web console</title>
 <style>
-  /* ── tokens (dirección: tech / utility) ───────────────────────────── */
+  /* ── tokens (direction: tech / utility) ───────────────────────────── */
   :root{
     --bg: oklch(98% 0.005 250);
     --surface: oklch(100% 0 0);
     --fg: oklch(22% 0.02 240);
-    /* 46% en lugar del 50% de la dirección: asegura 4.5:1 sobre --bg y --surface */
+    /* 46% instead of the direction's 50%: ensures 4.5:1 over --bg and --surface */
     --muted: oklch(46% 0.018 240);
     --border: oklch(90% 0.008 240);
     --accent: oklch(58% 0.16 145);
@@ -19,7 +19,7 @@
     --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
 
-    /* derivados del acento y de los estados */
+    /* derived from the accent and the states */
     --accent-fill: color-mix(in oklch, var(--accent) 76%, black);
     --accent-fill-hover: color-mix(in oklch, var(--accent) 64%, black);
     --accent-text: color-mix(in oklch, var(--accent) 60%, black);
@@ -367,59 +367,59 @@
 <body>
 <div class="shell">
   <aside class="sidebar" data-od-id="sidebar">
-    <div class="brand"><span class="brand-mark">jev</span><span class="brand-sub">consola web</span></div>
-    <nav class="nav" aria-label="Secciones">
-      <p class="nav-label">Trabajo</p>
-      <button class="nav-item" data-nav="resumen" aria-label="Resumen" aria-current="page">
+    <div class="brand"><span class="brand-mark">jev</span><span class="brand-sub">web console</span></div>
+    <nav class="nav" aria-label="Sections">
+      <p class="nav-label">Work</p>
+      <button class="nav-item" data-nav="resumen" aria-label="Overview" aria-current="page">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
-        <span class="nav-text">Resumen</span>
+        <span class="nav-text">Overview</span>
       </button>
-      <button class="nav-item" data-nav="evaluar" aria-label="Evaluar">
+      <button class="nav-item" data-nav="evaluar" aria-label="Evaluate">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg>
-        <span class="nav-text">Evaluar</span>
+        <span class="nav-text">Evaluate</span>
       </button>
-      <button class="nav-item" data-nav="lotes" aria-label="Lotes">
+      <button class="nav-item" data-nav="lotes" aria-label="Batches">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3.5l8 4.2-8 4.2-8-4.2 8-4.2z"/><path d="M4 12.5l8 4.2 8-4.2"/><path d="M4 16.8l8 4.2 8-4.2"/></svg>
-        <span class="nav-text">Lotes</span>
+        <span class="nav-text">Batches</span>
       </button>
-      <p class="nav-label">Biblioteca</p>
-      <button class="nav-item" data-nav="plantillas" aria-label="Plantillas">
+      <p class="nav-label">Library</p>
+      <button class="nav-item" data-nav="plantillas" aria-label="Templates">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3.5H7.5A2.5 2.5 0 0 0 5 6v3.2A1.8 1.8 0 0 1 3.2 11 1.8 1.8 0 0 1 5 12.8V18a2.5 2.5 0 0 0 2.5 2.5H9"/><path d="M15 3.5h1.5A2.5 2.5 0 0 1 19 6v3.2A1.8 1.8 0 0 0 20.8 11 1.8 1.8 0 0 0 19 12.8V18a2.5 2.5 0 0 1-2.5 2.5H15"/></svg>
-        <span class="nav-text">Plantillas</span>
+        <span class="nav-text">Templates</span>
         <span class="count" id="navTplCount">4</span>
       </button>
-      <button class="nav-item" data-nav="historial" aria-label="Historial">
+      <button class="nav-item" data-nav="historial" aria-label="History">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>
-        <span class="nav-text">Historial</span>
+        <span class="nav-text">History</span>
         <span class="count" id="navHistCount">14</span>
       </button>
-      <p class="nav-label">Sistema</p>
-      <button class="nav-item" data-nav="configuracion" aria-label="Configuración">
+      <p class="nav-label">System</p>
+      <button class="nav-item" data-nav="configuracion" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h9M18.5 8H20M4 16h3M12 16h8"/><circle cx="15.2" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/></svg>
-        <span class="nav-text">Configuración</span>
+        <span class="nav-text">Settings</span>
       </button>
     </nav>
     <div class="sidebar-foot">
-      <button class="db-chip" id="dbChip" title="Copiar la ruta de la base SQLite">
-        <span>Base SQLite</span>
+      <button class="db-chip" id="dbChip" title="Copy the SQLite database path">
+        <span>SQLite database</span>
         <span id="dbPath">~/.jev-client/db/jev.db</span>
       </button>
-      <div class="sidebar-meta"><span>v1.0.0</span><span>esquema 3</span></div>
+      <div class="sidebar-meta"><span>v1.0.0</span><span>schema 3</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar" data-od-id="topbar">
-      <div class="crumb"><span>jev</span><span class="sep">/</span><strong id="crumbCurrent">Resumen</strong><span class="sep">·</span><span class="mono" style="font-size:11px">127.0.0.1:7411</span></div>
+      <div class="crumb"><span>jev</span><span class="sep">/</span><strong id="crumbCurrent">Overview</strong><span class="sep">·</span><span class="mono" style="font-size:11px">127.0.0.1:7411</span></div>
       <div class="topbar-right">
         <span class="provider"><span class="dot" id="providerDot"></span><span id="providerModel">jev-1.13</span></span>
-        <button class="btn btn-ghost btn-sm" id="openCliRef" title="Referencia de comandos CLI">
+        <button class="btn btn-ghost btn-sm" id="openCliRef" title="CLI command reference">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9.5 8.5L6 12l3.5 3.5M14.5 8.5L18 12l-3.5 3.5"/></svg>
-          Referencia CLI
+          CLI reference
         </button>
         <button class="btn btn-outline btn-sm" id="openPalette" aria-keyshortcuts="Meta+K Control+K">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></svg>
-          Buscar
+          Search
           <span class="kbd">⌘K</span>
         </button>
       </div>
@@ -427,18 +427,18 @@
 
     <main class="content">
 
-      <!-- ═══ RESUMEN ═══════════════════════════════════════════════════ -->
+      <!-- ═══ OVERVIEW ══════════════════════════════════════════════════ -->
       <section class="screen" id="screen-resumen" data-screen="resumen" data-od-id="resumen">
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Sesión local · iniciada con jev --web-console</p>
-            <h1>Resumen</h1>
-            <p class="sub">Estado del provider, actividad reciente y accesos directos. Todo lo que ves aquí se guarda en la misma base SQLite que usa la CLI.</p>
+            <p class="eyebrow">Local session · started with jev --web-console</p>
+            <h1>Overview</h1>
+            <p class="sub">Provider status, recent activity, and shortcuts. Everything you see here is stored in the same SQLite database the CLI uses.</p>
           </div>
           <div class="head-actions">
             <button class="btn btn-primary" data-nav="evaluar">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-              Nueva evaluación
+              New evaluation
             </button>
           </div>
         </div>
@@ -449,19 +449,19 @@
           <div class="stack">
             <div class="panel" data-od-id="recent-requests">
               <div class="panel-head">
-                <span class="panel-title">Últimas peticiones</span>
-                <button class="btn btn-ghost btn-sm" data-nav="historial">Ver historial completo →</button>
+                <span class="panel-title">Latest requests</span>
+                <button class="btn btn-ghost btn-sm" data-nav="historial">View full history →</button>
               </div>
               <div class="table-wrap">
-                <table class="dt" aria-label="Últimas peticiones">
-                  <thead><tr><th>Hora</th><th>Estado</th><th>Modelo</th><th>Plantilla</th><th class="num">Tokens</th><th class="num">Coste</th><th class="num">Duración</th></tr></thead>
+                <table class="dt" aria-label="Latest requests">
+                  <thead><tr><th>Time</th><th>Status</th><th>Model</th><th>Template</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Duration</th></tr></thead>
                   <tbody id="recentRows"></tbody>
                 </table>
               </div>
             </div>
 
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Atajos equivalentes</span><span class="mono" style="font-size:10.5px;color:var(--muted)">CLI</span></div>
+              <div class="panel-head"><span class="panel-title">Equivalent shortcuts</span><span class="mono" style="font-size:10.5px;color:var(--muted)">CLI</span></div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:8px" id="shortcutList"></div>
             </div>
           </div>
@@ -470,53 +470,53 @@
             <div class="panel" data-od-id="provider-status">
               <div class="panel-head">
                 <span class="panel-title">Provider</span>
-                <span class="pill pill-ok" id="providerState">conectado</span>
+                <span class="pill pill-ok" id="providerState">connected</span>
               </div>
               <div class="panel-body">
                 <dl class="kv">
                   <dt>endpoint</dt><dd class="mono" style="font-size:11.5px">opencode.ai/inference/systemone/v1</dd>
-                  <dt>modelo</dt><dd class="mono" id="cfgModelView" style="font-size:11.5px">jev-1.13</dd>
-                  <dt>api_key</dt><dd class="mono" id="cfgKeyView" style="font-size:11.5px">sk-a…d36 · entorno</dd>
+                  <dt>model</dt><dd class="mono" id="cfgModelView" style="font-size:11.5px">jev-1.13</dd>
+                  <dt>api_key</dt><dd class="mono" id="cfgKeyView" style="font-size:11.5px">sk-a…d36 · environment</dd>
                   <dt>timeout</dt><dd class="mono" id="cfgTimeoutView" style="font-size:11.5px">30 s</dd>
-                  <dt>reintentos</dt><dd class="mono" id="cfgRetriesView" style="font-size:11.5px">2</dd>
+                  <dt>retries</dt><dd class="mono" id="cfgRetriesView" style="font-size:11.5px">2</dd>
                 </dl>
                 <hr class="rule" style="border:0;border-top:1px solid var(--border);margin:12px 0" />
                 <div class="row-between">
-                  <button class="btn btn-outline btn-sm" id="checkProvider">Probar conexión</button>
-                  <span class="mono" style="font-size:11px;color:var(--muted)" id="checkResult">sin comprobar</span>
+                  <button class="btn btn-outline btn-sm" id="checkProvider">Test connection</button>
+                  <span class="mono" style="font-size:11px;color:var(--muted)" id="checkResult">not checked</span>
                 </div>
               </div>
             </div>
 
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Esta sesión</span></div>
+              <div class="panel-head"><span class="panel-title">This session</span></div>
               <div class="panel-body">
                 <dl class="kv">
-                  <dt>lanzada por</dt><dd class="mono" style="font-size:11.5px">jev --web-console</dd>
-                  <dt>escucha en</dt><dd class="mono" style="font-size:11.5px">127.0.0.1:7411</dd>
-                  <dt>base</dt><dd class="mono" style="font-size:11.5px;overflow-wrap:anywhere">~/.jev-client/db/jev.db</dd>
-                  <dt>historial</dt><dd style="font-size:12.5px">se guarda salvo con <code>--no-save</code></dd>
+                  <dt>launched by</dt><dd class="mono" style="font-size:11.5px">jev --web-console</dd>
+                  <dt>listening on</dt><dd class="mono" style="font-size:11.5px">127.0.0.1:7411</dd>
+                  <dt>database</dt><dd class="mono" style="font-size:11.5px;overflow-wrap:anywhere">~/.jev-client/db/jev.db</dd>
+                  <dt>history</dt><dd style="font-size:12.5px">saved unless <code>--no-save</code></dd>
                 </dl>
               </div>
             </div>
 
-            <button class="btn btn-outline" id="openCliRef2" style="width:100%">Ver todos los comandos y flags</button>
+            <button class="btn btn-outline" id="openCliRef2" style="width:100%">View all commands and flags</button>
           </div>
         </div>
 
-        <div class="cli-bar"><span class="cli-label">CLI</span><code><span class="prompt">$</span>jev history list --limit 5</code><button class="icon-btn" data-copy="jev history list --limit 5" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar"><span class="cli-label">CLI</span><code><span class="prompt">$</span>jev history list --limit 5</code><button class="icon-btn" data-copy="jev history list --limit 5" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
-      <!-- ═══ EVALUAR ═══════════════════════════════════════════════════ -->
+      <!-- ═══ EVALUATE ══════════════════════════════════════════════════ -->
       <section class="screen" id="screen-evaluar" data-screen="evaluar" data-od-id="evaluar" hidden>
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Inferencia · jev ask</p>
-            <h1>Evaluar</h1>
-            <p class="sub">Un <code>state</code> y una o más preguntas tipadas. Jev devuelve una respuesta por pregunta con sus probabilidades.</p>
+            <p class="eyebrow">Inference · jev ask</p>
+            <h1>Evaluate</h1>
+            <p class="sub">One <code>state</code> and one or more typed questions. Jev returns one answer per question with its probabilities.</p>
           </div>
           <div class="head-actions">
-            <button class="btn btn-ghost btn-sm" id="loadExample">Cargar ejemplo del ticket</button>
+            <button class="btn btn-ghost btn-sm" id="loadExample">Load ticket example</button>
           </div>
         </div>
 
@@ -525,73 +525,73 @@
             <div class="panel">
               <div class="panel-head">
                 <span class="panel-title">State</span>
-                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="stateKind">texto</span>
+                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="stateKind">text</span>
               </div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:7px">
-                <textarea class="textarea" id="stateInput" rows="4" spellcheck="false" aria-label="Contenido a evaluar"></textarea>
-                <p class="hint" id="stateHint">Si empieza por <code>{</code> o <code>[</code> se envía como JSON; si no, como string.</p>
+                <textarea class="textarea" id="stateInput" rows="4" spellcheck="false" aria-label="Content to evaluate"></textarea>
+                <p class="hint" id="stateHint">If it starts with <code>{</code> or <code>[</code> it is sent as JSON; otherwise as a string.</p>
               </div>
             </div>
 
             <div class="panel">
               <div class="panel-head">
-                <span class="panel-title">Preguntas</span>
-                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="qCount">3 preguntas</span>
+                <span class="panel-title">Questions</span>
+                <span class="mono" style="font-size:10.5px;color:var(--muted)" id="qCount">3 questions</span>
               </div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
                 <div id="questionList" style="display:flex;flex-direction:column;gap:10px"></div>
                 <button class="add-dashed" id="addQuestion">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
-                  Añadir pregunta
+                  Add question
                 </button>
               </div>
             </div>
 
             <div class="run-bar">
               <div class="field" style="flex:0 0 150px">
-                <label for="askModel">Modelo</label>
+                <label for="askModel">Model</label>
                 <select class="select mono" id="askModel">
                   <option value="jev-1.13">jev-1.13</option>
                   <option value="jev-1.13-free">jev-1.13-free</option>
                 </select>
               </div>
               <label class="check" style="margin-bottom:1px">
-                <input type="checkbox" id="saveRun" checked /><span class="switch"></span> Guardar en historial
+                <input type="checkbox" id="saveRun" checked /><span class="switch"></span> Save to history
               </label>
               <div class="row push" style="gap:8px">
-                <button class="btn btn-outline" id="runDemo">Ejecutar demo</button>
-                <button class="btn btn-primary" id="runAsk">Evaluar</button>
+                <button class="btn btn-outline" id="runDemo">Run demo</button>
+                <button class="btn btn-primary" id="runAsk">Evaluate</button>
               </div>
             </div>
           </div>
 
           <div class="panel" data-od-id="ask-result" style="min-height:420px">
             <div class="panel-head">
-              <span class="panel-title">Resultado</span>
+              <span class="panel-title">Result</span>
               <div class="row" id="resultTabs" hidden>
-                <button class="btn btn-sm btn-ghost" data-res-tab="report" aria-pressed="true">Informe</button>
-                <button class="btn btn-sm btn-ghost" data-res-tab="json" aria-pressed="false">JSON crudo</button>
+                <button class="btn btn-sm btn-ghost" data-res-tab="report" aria-pressed="true">Report</button>
+                <button class="btn btn-sm btn-ghost" data-res-tab="json" aria-pressed="false">Raw JSON</button>
               </div>
             </div>
             <div id="resultBody" style="padding:14px"></div>
           </div>
         </div>
 
-        <div class="cli-bar" id="askCliBar"><span class="cli-label">CLI</span><code id="askCli"><span class="prompt">$</span>jev ask --state "…" --questions '{…}'</code><button class="icon-btn" data-copy-target="askCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar" id="askCliBar"><span class="cli-label">CLI</span><code id="askCli"><span class="prompt">$</span>jev ask --state "…" --questions '{…}'</code><button class="icon-btn" data-copy-target="askCli" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
-      <!-- ═══ PLANTILLAS ════════════════════════════════════════════════ -->
+      <!-- ═══ TEMPLATES ═════════════════════════════════════════════════ -->
       <section class="screen" id="screen-plantillas" data-screen="plantillas" data-od-id="plantillas" hidden>
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Biblioteca · jev template</p>
-            <h1>Plantillas</h1>
-            <p class="sub">Requests de Jev con huecos <code>{{clave}}</code>. Las mismas que resuelve <code>jev batch</code>, guardadas en la tabla <code>templates</code>.</p>
+            <p class="eyebrow">Library · jev template</p>
+            <h1>Templates</h1>
+            <p class="sub">Jev requests with <code>{{key}}</code> slots. The same ones <code>jev batch</code> resolves, stored in the <code>templates</code> table.</p>
           </div>
           <div class="head-actions">
             <button class="btn btn-outline" id="newTemplate">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
-              Nueva plantilla
+              New template
             </button>
           </div>
         </div>
@@ -600,108 +600,108 @@
           <div class="panel" data-od-id="template-list">
             <div class="search-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l4.5 4.5"/></svg>
-              <input class="input" id="tplSearch" placeholder="Buscar plantilla…" aria-label="Buscar plantilla" />
+              <input class="input" id="tplSearch" placeholder="Search templates…" aria-label="Search templates" />
             </div>
-            <div class="tpl-list" id="tplList" role="listbox" aria-label="Plantillas"></div>
-            <div class="panel-foot"><span id="tplCount">4 plantillas</span><span class="mono" style="font-size:10.5px">templates</span></div>
+            <div class="tpl-list" id="tplList" role="listbox" aria-label="Templates"></div>
+            <div class="panel-foot"><span id="tplCount">4 templates</span><span class="mono" style="font-size:10.5px">templates</span></div>
           </div>
 
           <div class="panel" id="tplDetail" data-od-id="template-detail"></div>
         </div>
 
-        <div class="cli-bar"><span class="cli-label">CLI</span><code id="tplCli"><span class="prompt">$</span>jev template show pedido</code><button class="icon-btn" data-copy-target="tplCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="tplCli"><span class="prompt">$</span>jev template show order</code><button class="icon-btn" data-copy-target="tplCli" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
-      <!-- ═══ LOTES ═════════════════════════════════════════════════════ -->
+      <!-- ═══ BATCHES ═══════════════════════════════════════════════════ -->
       <section class="screen" id="screen-lotes" data-screen="lotes" data-od-id="lotes" hidden>
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Biblioteca · jev batch</p>
-            <h1>Lotes</h1>
-            <p class="sub">Una plantilla, un array de contextos: una petición por mapa, todas con el mismo <code>batch_id</code> en el historial.</p>
+            <p class="eyebrow">Library · jev batch</p>
+            <h1>Batches</h1>
+            <p class="sub">One template, an array of contexts: one request per map, all with the same <code>batch_id</code> in the history.</p>
           </div>
         </div>
 
         <div class="grid grid-batch">
           <div class="panel">
-            <div class="panel-head"><span class="panel-title">Configuración del lote</span></div>
+            <div class="panel-head"><span class="panel-title">Batch settings</span></div>
             <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
               <div class="field">
-                <label for="batchTemplate">Plantilla</label>
+                <label for="batchTemplate">Template</label>
                 <select class="select mono" id="batchTemplate"></select>
               </div>
               <div class="field">
-                <label for="batchContexts">Contextos (array JSON)</label>
-                <textarea class="textarea" id="batchContexts" rows="11" spellcheck="false" aria-label="Contextos del lote"></textarea>
+                <label for="batchContexts">Contexts (JSON array)</label>
+                <textarea class="textarea" id="batchContexts" rows="11" spellcheck="false" aria-label="Batch contexts"></textarea>
                 <p class="hint" id="contextsHint"></p>
               </div>
               <div class="inline-fields">
                 <div class="field">
-                  <label id="concurrencyLabel">Concurrencia</label>
+                  <label id="concurrencyLabel">Concurrency</label>
                   <div class="stepper" aria-labelledby="concurrencyLabel">
-                    <button type="button" id="concDown" aria-label="Reducir concurrencia">−</button>
+                    <button type="button" id="concDown" aria-label="Decrease concurrency">−</button>
                     <output id="concValue">1</output>
-                    <button type="button" id="concUp" aria-label="Aumentar concurrencia">+</button>
+                    <button type="button" id="concUp" aria-label="Increase concurrency">+</button>
                   </div>
                 </div>
                 <div class="field" style="flex:1 1 190px">
-                  <label>Ante el primer error</label>
+                  <label>On first error</label>
                   <label class="check" style="height:32px">
-                    <input type="checkbox" id="failFast" /><span class="switch"></span> Detenerse (fail-fast)
+                    <input type="checkbox" id="failFast" /><span class="switch"></span> Stop (fail-fast)
                   </label>
                 </div>
               </div>
               <div class="row">
-                <span class="hint">Por defecto <code>--continue-on-error</code>: sigue con el resto y sale con código 1.</span>
+                <span class="hint">By default <code>--continue-on-error</code>: continues with the rest and exits with code 1.</span>
               </div>
-              <button class="btn btn-primary" id="runBatch" style="width:100%">Ejecutar lote</button>
+              <button class="btn btn-primary" id="runBatch" style="width:100%">Run batch</button>
             </div>
           </div>
 
           <div class="panel" data-od-id="batch-result" style="min-height:420px">
             <div class="panel-head">
-              <span class="panel-title">Ejecución</span>
-              <span class="mono" style="font-size:10.5px;color:var(--muted)" id="batchIdView">sin batch</span>
+              <span class="panel-title">Execution</span>
+              <span class="mono" style="font-size:10.5px;color:var(--muted)" id="batchIdView">no batch</span>
             </div>
             <div id="batchBody" style="padding:14px"></div>
           </div>
         </div>
 
-        <div class="cli-bar"><span class="cli-label">CLI</span><code id="batchCli"><span class="prompt">$</span>jev batch pedido --contexts examples/contexts.json --concurrency 1</code><button class="icon-btn" data-copy-target="batchCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="batchCli"><span class="prompt">$</span>jev batch order --contexts examples/contexts.json --concurrency 1</code><button class="icon-btn" data-copy-target="batchCli" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
-      <!-- ═══ HISTORIAL ═════════════════════════════════════════════════ -->
+      <!-- ═══ HISTORY ═══════════════════════════════════════════════════ -->
       <section class="screen" id="screen-historial" data-screen="historial" data-od-id="historial" hidden>
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Biblioteca · jev history</p>
-            <h1>Historial</h1>
-            <p class="sub">Una fila por ejecución de <code>ask</code>, <code>demo</code> o por cada petición de un <code>batch</code>. No se guardan cabeceras ni la API key.</p>
+            <p class="eyebrow">Library · jev history</p>
+            <h1>History</h1>
+            <p class="sub">One row per <code>ask</code> or <code>demo</code> run, or per each request of a <code>batch</code>. Neither headers nor the API key are stored.</p>
           </div>
           <div class="head-actions">
             <button class="btn btn-outline" id="exportHistory">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 4v10M8 10.5l4 4 4-4"/><path d="M5 18.5h14"/></svg>
-              Exportar JSONL
+              Export JSONL
             </button>
           </div>
         </div>
 
         <div class="panel" data-od-id="history-filters" style="margin-bottom:14px">
           <div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-            <div class="field" style="flex:1 1 150px"><label for="fSince">Desde</label><input class="input mono" type="date" id="fSince" /></div>
-            <div class="field" style="flex:1 1 120px"><label for="fStatus">Estado</label><select class="select mono" id="fStatus"><option value="">todos</option><option>200</option><option>401</option><option>422</option><option>429</option></select></div>
-            <div class="field" style="flex:1 1 140px"><label for="fModel">Modelo</label><select class="select mono" id="fModel"><option value="">todos</option><option>jev-1.13</option><option>jev-1.13-free</option></select></div>
-            <div class="field" style="flex:1 1 140px"><label for="fTemplate">Plantilla</label><select class="select mono" id="fTemplate"><option value="">todas</option></select></div>
-            <div class="field" style="flex:0 0 92px"><label for="fLimit">Límite</label><input class="input mono" type="number" id="fLimit" min="1" max="200" value="50" /></div>
-            <button class="btn btn-ghost btn-sm" id="clearFilters" style="margin-bottom:2px">Limpiar</button>
+            <div class="field" style="flex:1 1 150px"><label for="fSince">Since</label><input class="input mono" type="date" id="fSince" /></div>
+            <div class="field" style="flex:1 1 120px"><label for="fStatus">Status</label><select class="select mono" id="fStatus"><option value="">all</option><option>200</option><option>401</option><option>422</option><option>429</option></select></div>
+            <div class="field" style="flex:1 1 140px"><label for="fModel">Model</label><select class="select mono" id="fModel"><option value="">all</option><option>jev-1.13</option><option>jev-1.13-free</option></select></div>
+            <div class="field" style="flex:1 1 140px"><label for="fTemplate">Template</label><select class="select mono" id="fTemplate"><option value="">all</option></select></div>
+            <div class="field" style="flex:0 0 92px"><label for="fLimit">Limit</label><input class="input mono" type="number" id="fLimit" min="1" max="200" value="50" /></div>
+            <button class="btn btn-ghost btn-sm" id="clearFilters" style="margin-bottom:2px">Clear</button>
           </div>
         </div>
 
         <div class="grid grid-hist">
           <div class="panel" data-od-id="history-table">
             <div class="table-wrap">
-              <table class="dt" aria-label="Historial de peticiones">
-                <thead><tr><th>Fecha</th><th>Estado</th><th>Modelo</th><th>Plantilla</th><th>Origen</th><th class="num">Tokens</th><th class="num">Coste</th><th class="num">ms</th></tr></thead>
+              <table class="dt" aria-label="Request history">
+                <thead><tr><th>Date</th><th>Status</th><th>Model</th><th>Template</th><th>Source</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">ms</th></tr></thead>
                 <tbody id="historyRows"></tbody>
               </table>
             </div>
@@ -711,40 +711,40 @@
           <div id="historyDetail" data-od-id="history-detail"></div>
         </div>
 
-        <div class="cli-bar"><span class="cli-label">CLI</span><code id="histCli"><span class="prompt">$</span>jev history list --limit 50</code><button class="icon-btn" data-copy-target="histCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="histCli"><span class="prompt">$</span>jev history list --limit 50</code><button class="icon-btn" data-copy-target="histCli" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
-      <!-- ═══ CONFIGURACIÓN ═════════════════════════════════════════════ -->
+      <!-- ═══ SETTINGS ══════════════════════════════════════════════════ -->
       <section class="screen" id="screen-configuracion" data-screen="configuracion" data-od-id="configuracion" hidden>
         <div class="screen-head">
           <div>
-            <p class="eyebrow">Sistema · jev config</p>
-            <h1>Configuración</h1>
-            <p class="sub">Precedencia de resolución: <strong>flag &gt; variable de entorno &gt; base SQLite &gt; valor por defecto</strong>. Las cadenas vacías cuentan como no definidas.</p>
+            <p class="eyebrow">System · jev config</p>
+            <h1>Settings</h1>
+            <p class="sub">Resolution precedence: <strong>flag &gt; environment variable &gt; SQLite database &gt; default value</strong>. Empty strings count as undefined.</p>
           </div>
           <div class="head-actions">
-            <button class="btn btn-primary" id="saveConfig">Guardar cambios</button>
+            <button class="btn btn-primary" id="saveConfig">Save changes</button>
           </div>
         </div>
 
         <div class="grid grid-config">
           <div class="stack">
             <div class="panel" data-od-id="config-provider">
-              <div class="panel-head"><span class="panel-title">Provider</span><span class="mono" style="font-size:10.5px;color:var(--muted)">tabla config</span></div>
+              <div class="panel-head"><span class="panel-title">Provider</span><span class="mono" style="font-size:10.5px;color:var(--muted)">config table</span></div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
                 <div class="field">
-                  <label for="cfgUrl">api_url · endpoint completo</label>
+                  <label for="cfgUrl">api_url · full endpoint</label>
                   <input class="input mono" id="cfgUrl" spellcheck="false" />
                 </div>
                 <div class="field">
                   <label for="cfgApiKey">api_key</label>
                   <div class="row" style="gap:8px">
                     <input class="input mono" id="cfgApiKey" spellcheck="false" autocomplete="off" />
-                    <button class="btn btn-outline btn-sm" id="revealKey">Revelar</button>
+                    <button class="btn btn-outline btn-sm" id="revealKey">Reveal</button>
                   </div>
                   <div class="callout" style="margin-top:4px">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4.5l8 14H4l8-14z"/><path d="M12 10v3.5M12 16.2v.1"/></svg>
-                    <span>La key se guarda <strong>en claro</strong> en SQLite. Para no persistirla, pásala con <code>--key</code> o <code>OPENCODE_API_KEY</code>.</span>
+                    <span>The key is stored <strong>in plain text</strong> in SQLite. To avoid persisting it, pass it with <code>--key</code> or <code>OPENCODE_API_KEY</code>.</span>
                   </div>
                 </div>
                 <div class="inline-fields">
@@ -760,29 +760,29 @@
                     <input class="input mono" type="number" id="cfgTimeout" min="1" step="1" />
                   </div>
                   <div class="field" style="flex:0 0 118px">
-                    <label for="cfgRetries">reintentos</label>
+                    <label for="cfgRetries">retries</label>
                     <input class="input mono" type="number" id="cfgRetries" min="0" step="1" />
                   </div>
                 </div>
                 <div class="row-between">
-                  <span class="hint" id="configValidation">Valores válidos.</span>
-                  <button class="btn btn-ghost btn-sm" id="resetConfig">Restablecer por defecto</button>
+                  <span class="hint" id="configValidation">Valid values.</span>
+                  <button class="btn btn-ghost btn-sm" id="resetConfig">Reset to defaults</button>
                 </div>
               </div>
             </div>
 
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Petición HTTP</span></div>
+              <div class="panel-head"><span class="panel-title">HTTP request</span></div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
                 <dl class="kv">
-                  <dt>reintenta en</dt><dd style="font-size:12.5px">429, 5xx y errores de red</dd>
+                  <dt>retries on</dt><dd style="font-size:12.5px">429, 5xx and network errors</dd>
                   <dt>backoffMs</dt><dd class="mono" style="font-size:11.5px">500 ms</dd>
-                  <dt>tope Retry-After</dt><dd class="mono" style="font-size:11.5px">10 s</dd>
-                  <dt>401</dt><dd style="font-size:12.5px">no se reintenta</dd>
+                  <dt>Retry-After cap</dt><dd class="mono" style="font-size:11.5px">10 s</dd>
+                  <dt>401</dt><dd style="font-size:12.5px">not retried</dd>
                 </dl>
                 <div class="callout info">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg>
-                  <span>El <code>Retry-After</code> se capa a 10 s para no bloquear el proceso. Los reintentos se cuentan por intento HTTP, no por pregunta.</span>
+                  <span><code>Retry-After</code> is capped at 10 s so the process isn't blocked. Retries are counted per HTTP attempt, not per question.</span>
                 </div>
               </div>
             </div>
@@ -790,41 +790,41 @@
 
           <div class="stack">
             <div class="panel" data-od-id="config-precedence">
-              <div class="panel-head"><span class="panel-title">Precedencia resuelta</span></div>
+              <div class="panel-head"><span class="panel-title">Resolved precedence</span></div>
               <div id="precedenceList" style="padding:0"></div>
             </div>
 
             <div class="panel">
               <div class="panel-head">
-                <span class="panel-title">Base de datos</span>
-                <span class="pill pill-info">esquema 3</span>
+                <span class="panel-title">Database</span>
+                <span class="pill pill-info">schema 3</span>
               </div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
                 <div class="row" style="gap:6px">
                   <code class="mono" style="font-size:11.5px;overflow-wrap:anywhere;flex:1">~/.jev-client/db/jev.db</code>
-                  <button class="icon-btn" id="copyDbPath" aria-label="Copiar ruta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button>
+                  <button class="icon-btn" id="copyDbPath" aria-label="Copy path"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button>
                 </div>
                 <dl class="kv">
-                  <dt>permisos</dt><dd class="mono" style="font-size:11.5px">0700 / 0600</dd>
-                  <dt>migraciones</dt><dd class="mono" style="font-size:11.5px">PRAGMA user_version</dd>
-                  <dt>tablas</dt><dd class="mono" style="font-size:11.5px">config · templates · requests</dd>
+                  <dt>permissions</dt><dd class="mono" style="font-size:11.5px">0700 / 0600</dd>
+                  <dt>migrations</dt><dd class="mono" style="font-size:11.5px">PRAGMA user_version</dd>
+                  <dt>tables</dt><dd class="mono" style="font-size:11.5px">config · templates · requests</dd>
                 </dl>
-                <p class="hint">Se crea y migra sola en el primer uso de <code>ask</code>, <code>demo</code> o <code>config</code>.</p>
+                <p class="hint">It is created and migrated automatically on first use of <code>ask</code>, <code>demo</code>, or <code>config</code>.</p>
               </div>
             </div>
 
             <div class="panel">
-              <div class="panel-head"><span class="panel-title">Códigos de salida</span></div>
+              <div class="panel-head"><span class="panel-title">Exit codes</span></div>
               <div class="panel-body" style="display:flex;flex-direction:column;gap:7px;font-size:12.5px">
-                <div class="row-between"><span class="mono" style="font-size:11.5px">0</span><span style="color:var(--muted)">correcto</span></div>
-                <div class="row-between"><span class="mono" style="font-size:11.5px">1</span><span style="color:var(--muted)">error de API, red o configuración</span></div>
-                <div class="row-between"><span class="mono" style="font-size:11.5px">2</span><span style="color:var(--muted)">uso incorrecto</span></div>
+                <div class="row-between"><span class="mono" style="font-size:11.5px">0</span><span style="color:var(--muted)">success</span></div>
+                <div class="row-between"><span class="mono" style="font-size:11.5px">1</span><span style="color:var(--muted)">API, network, or configuration error</span></div>
+                <div class="row-between"><span class="mono" style="font-size:11.5px">2</span><span style="color:var(--muted)">invalid usage</span></div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="cli-bar"><span class="cli-label">CLI</span><code id="cfgCli"><span class="prompt">$</span>jev config list --json</code><button class="icon-btn" data-copy-target="cfgCli" aria-label="Copiar comando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
+        <div class="cli-bar"><span class="cli-label">CLI</span><code id="cfgCli"><span class="prompt">$</span>jev config list --json</code><button class="icon-btn" data-copy-target="cfgCli" aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>
       </section>
 
     </main>
@@ -840,7 +840,7 @@
 (function () {
   "use strict";
 
-  /* ── utilidades ──────────────────────────────────────────────────── */
+  /* ── utilities ───────────────────────────────────────────────────── */
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = function (v) {
@@ -854,11 +854,11 @@
   function relTime(ms) {
     var diff = Math.max(0, nowMs - ms);
     var m = Math.round(diff / 60000);
-    if (m < 1) return "ahora";
-    if (m < 60) return "hace " + m + " min";
+    if (m < 1) return "now";
+    if (m < 60) return m + " min ago";
     var h = Math.round(m / 60);
-    if (h < 24) return "hace " + h + " h";
-    return "hace " + Math.round(h / 24) + " d";
+    if (h < 24) return h + " h ago";
+    return Math.round(h / 24) + " d ago";
   }
   function shortDate(ms) {
     var d = new Date(ms);
@@ -889,7 +889,7 @@
   function copyText(text) {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { toast("Copiado al portapapeles"); }, fallback);
+        navigator.clipboard.writeText(text).then(function () { toast("Copied to clipboard"); }, fallback);
       } else { fallback(); }
     } catch (e) { fallback(); }
     function fallback() {
@@ -900,7 +900,7 @@
       ta.style.opacity = "0";
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand("copy"); toast("Copiado al portapapeles"); } catch (e) { toast("No se pudo copiar"); }
+      try { document.execCommand("copy"); toast("Copied to clipboard"); } catch (e) { toast("Could not copy"); }
       document.body.removeChild(ta);
     }
   }
@@ -915,7 +915,7 @@
     toastTimer.push(t);
   }
 
-  /* ── estado ──────────────────────────────────────────────────────── */
+  /* ── state ───────────────────────────────────────────────────────── */
   var DEFAULT_CONFIG = {
     api_url: "https://opencode.ai/inference/systemone/v1/systemone",
     api_key: "sk-demo-0f8a2c47b1e95d36",
@@ -926,110 +926,110 @@
 
   var TEMPLATES = [
     {
-      name: "pedido",
-      description: "Pedido con cliente",
+      name: "order",
+      description: "Order with customer",
       created: nowMs - 86400000 * 6,
       updated: nowMs - 3600000 * 5,
       body: {
         model: "jev-1.13",
-        state: { pedido: "{{estado_de_pedido}}", cliente: "{{cliente.nombre}}", plan: "{{cliente.plan}}" },
-        questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } }
+        state: { order: "{{order_state}}", customer: "{{customer.name}}", plan: "{{customer.plan}}" },
+        questions: { urgent: { type: "noul", instructions: "Is it urgent?" } }
       }
     },
     {
-      name: "triaje",
-      description: "Triaje de incidencias por equipo y urgencia",
+      name: "triage",
+      description: "Incident triage by team and urgency",
       created: nowMs - 86400000 * 4,
       updated: nowMs - 3600000 * 30,
       body: {
         model: "jev-1.13",
-        state: { ticket: "{{estado_de_pedido}}", plan: "{{cliente.plan}}" },
+        state: { ticket: "{{order_state}}", plan: "{{customer.plan}}" },
         questions: {
-          billing: { type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?" },
+          billing: { type: "noul", instructions: "Is the message about billing or payments?" },
           team: {
             type: "choice",
-            instructions: "¿Qué equipo debería gestionar la incidencia?",
+            instructions: "Which team should handle the incident?",
             criteria: {
-              billing: "Cobros, facturas o pagos",
-              infra: "Caídas, errores 500 o problemas de plataforma",
-              sales: "Precios o dudas comerciales"
+              billing: "Charges, invoices, or payments",
+              infra: "Outages, 500 errors, or platform issues",
+              sales: "Pricing or sales questions"
             }
           },
           urgency: {
             type: "score",
-            instructions: "¿Cómo de urgente es la incidencia?",
-            criteria: ["Puede esperar", "Esta semana", "Hoy mismo"]
+            instructions: "How urgent is the incident?",
+            criteria: ["Can wait", "This week", "Today"]
           }
         }
       }
     },
     {
-      name: "reembolso",
-      description: "Solicitud de reembolso con política del plan",
+      name: "refund",
+      description: "Refund request with plan policy",
       created: nowMs - 86400000 * 3,
       updated: nowMs - 3600000 * 9,
       body: {
         model: "jev-1.13",
         state: {
-          ticket: "{{estado_de_pedido}}",
-          importe_eur: "{{importe_eur}}",
-          historial: "{{historial}}",
-          politica: "{{politica}}"
+          ticket: "{{order_state}}",
+          amount_eur: "{{amount_eur}}",
+          history: "{{history}}",
+          policy: "{{policy}}"
         },
         questions: {
-          refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
+          refund: { type: "noul", instructions: "Is the customer requesting a refund?" },
           tone: {
             type: "choice",
-            instructions: "¿Cuál es el tono del mensaje?",
-            criteria: { calm: "Neutral o educado", angry: "Molesto o hostil" }
+            instructions: "What is the tone of the message?",
+            criteria: { calm: "Neutral or polite", angry: "Upset or hostile" }
           },
           urgency: {
             type: "score",
-            instructions: "¿Cómo de urgente es?",
-            criteria: ["Puede esperar", "Esta semana", "Hoy mismo"]
+            instructions: "How urgent is it?",
+            criteria: ["Can wait", "This week", "Today"]
           }
         }
       }
     },
     {
-      name: "resumen-diario",
-      description: "Riesgo de incumplimiento en el resumen del día",
+      name: "daily-summary",
+      description: "Compliance risk in the daily summary",
       created: nowMs - 86400000 * 2,
       updated: nowMs - 3600000 * 2,
       body: {
         model: "jev-1.13-free",
-        state: { resumen: "{{resumen_del_dia}}" },
-        questions: { riesgo: { type: "noul", instructions: "¿Hay riesgo de incumplimiento hoy?" } }
+        state: { summary: "{{daily_summary}}" },
+        questions: { risk: { type: "noul", instructions: "Is there a compliance risk today?" } }
       }
     }
   ];
 
-  var TICKET_STATE = "Me han cobrado dos veces este mes y quiero el reembolso.";
+  var TICKET_STATE = "I've been charged twice this month and I want a refund.";
   var REQUEST_EXAMPLE = {
-    state: { ticket: "Me han cobrado dos veces este mes. Quiero el reembolso.", plan: "pro" },
+    state: { ticket: "I've been charged twice this month. I want a refund.", plan: "pro" },
     questions: {
-      refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
-      tone: { type: "choice", instructions: "¿Cuál es el tono del mensaje?", criteria: { calm: "Neutral o educado", angry: "Molesto o hostil" } }
+      refund: { type: "noul", instructions: "Is the customer requesting a refund?" },
+      tone: { type: "choice", instructions: "What is the tone of the message?", criteria: { calm: "Neutral or polite", angry: "Upset or hostile" } }
     }
   };
 
   function makeHistory() {
     var t = nowMs;
     var rows = [
-      { id: 14, at: t - 12 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 449, outTok: 73, cost: 1.886e-5, dur: 812, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.98 } }, usage: { input_tokens: 449, output_tokens: 73, cost: 1.886e-5 } } },
-      { id: 13, at: t - 14 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 452, outTok: 71, cost: 1.884e-5, dur: 744, request: { model: "jev-1.13", state: "No me llega la factura de este mes.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.41 } }, usage: { input_tokens: 452, output_tokens: 71, cost: 1.884e-5 } } },
-      { id: 12, at: t - 17 * 60000, status: 200, model: "jev-1.13", template: "pedido", batchId: "4f3c9a12", inTok: 461, outTok: 74, cost: 1.926e-5, dur: 907, request: { model: "jev-1.13", state: "Me han cobrado dos veces y quiero el reembolso.", questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.87 } }, usage: { input_tokens: 461, output_tokens: 74, cost: 1.926e-5 } } },
-      { id: 11, at: t - 46 * 60000, status: 200, model: "jev-1.13", template: "triaje", batchId: null, inTok: 512, outTok: 118, cost: 2.268e-5, dur: 1180, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.12 }, team: { type: "choice", choice: "infra", confidence: 0.83, probabilities: { infra: 0.83, billing: 0.11, sales: 0.06 } }, urgency: { type: "score", score: 2, legend: { "0": "Puede esperar", "1": "Esta semana", "2": "Hoy mismo" } } }, usage: { input_tokens: 512, output_tokens: 118, cost: 2.268e-5 } } },
+      { id: 14, at: t - 12 * 60000, status: 200, model: "jev-1.13", template: "order", batchId: "4f3c9a12", inTok: 449, outTok: 73, cost: 1.886e-5, dur: 812, request: { model: "jev-1.13", state: "Checkout hangs when paying.", questions: { urgent: { type: "noul", instructions: "Is it urgent?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.98 } }, usage: { input_tokens: 449, output_tokens: 73, cost: 1.886e-5 } } },
+      { id: 13, at: t - 14 * 60000, status: 200, model: "jev-1.13", template: "order", batchId: "4f3c9a12", inTok: 452, outTok: 71, cost: 1.884e-5, dur: 744, request: { model: "jev-1.13", state: "I haven't received this month's invoice.", questions: { urgent: { type: "noul", instructions: "Is it urgent?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.41 } }, usage: { input_tokens: 452, output_tokens: 71, cost: 1.884e-5 } } },
+      { id: 12, at: t - 17 * 60000, status: 200, model: "jev-1.13", template: "order", batchId: "4f3c9a12", inTok: 461, outTok: 74, cost: 1.926e-5, dur: 907, request: { model: "jev-1.13", state: "I've been charged twice and I want a refund.", questions: { urgent: { type: "noul", instructions: "Is it urgent?" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.87 } }, usage: { input_tokens: 461, output_tokens: 74, cost: 1.926e-5 } } },
+      { id: 11, at: t - 46 * 60000, status: 200, model: "jev-1.13", template: "triage", batchId: null, inTok: 512, outTok: 118, cost: 2.268e-5, dur: 1180, request: { model: "jev-1.13", state: "Checkout hangs when paying.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.12 }, team: { type: "choice", choice: "infra", confidence: 0.83, probabilities: { infra: 0.83, billing: 0.11, sales: 0.06 } }, urgency: { type: "score", score: 2, legend: { "0": "Can wait", "1": "This week", "2": "Today" } } }, usage: { input_tokens: 512, output_tokens: 118, cost: 2.268e-5 } } },
       { id: 10, at: t - 2 * 3600000, status: 200, model: "jev-1.13", template: null, batchId: null, inTok: 198, outTok: 42, cost: 8.64e-6, dur: 640, request: { model: "jev-1.13", state: { ticket: REQUEST_EXAMPLE.state.ticket, plan: "pro" }, questions: REQUEST_EXAMPLE.questions }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.96 }, tone: { type: "choice", choice: "angry", confidence: 0.78 } }, usage: { input_tokens: 198, output_tokens: 42, cost: 8.64e-6 } } },
-      { id: 9, at: t - 3 * 3600000, status: 429, model: "jev-1.13-free", template: "resumen-diario", batchId: null, inTok: null, outTok: null, cost: null, dur: 210, errorCode: "FreeUsageLimitError", errorMessage: "Has agotado la cuota gratuita de jev-1.13-free.", request: { model: "jev-1.13-free", state: "Resumen del día: 42 tickets, 3 caídas.", questions: { riesgo: { type: "noul" } } }, response: { error: { type: "FreeUsageLimitError", message: "Has agotado la cuota gratuita de jev-1.13-free." } } },
-      { id: 8, at: t - 4 * 3600000, status: 401, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 132, errorCode: "api_key_expired", errorMessage: "La API key ha caducado. Genera una nueva en OpenCode Console.", request: { model: "jev-1.13", state: "hola", questions: { q: { type: "noul", instructions: "¿Saludo?" } } }, response: { error: { type: "api_key_expired", message: "La API key ha caducado." } } },
-      { id: 7, at: t - 5 * 3600000, status: 422, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 96, errorCode: "invalid_request", errorMessage: 'la pregunta "urgency" usa un tipo no soportado: "scoree" (usa noul, choice o score)', request: { model: "jev-1.13", state: "Ticket de prueba", questions: { urgency: { type: "scoree" } } }, response: { error: { type: "invalid_request", message: 'tipo de pregunta no soportado: "scoree"' } } },
-      { id: 6, at: t - 8 * 3600000, status: 200, model: "jev-1.13", template: "reembolso", batchId: null, inTok: 604, outTok: 96, cost: 2.52e-5, dur: 1042, request: { model: "jev-1.13", state: "Pedido duplicado, tercera vez este trimestre.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.94 }, tone: { type: "choice", choice: "angry", confidence: 0.71 }, urgency: { type: "score", score: 1.4 } }, usage: { input_tokens: 604, output_tokens: 96, cost: 2.52e-5 } } },
-      { id: 5, at: t - 26 * 3600000, status: 200, model: "jev-1.13", template: "triaje", batchId: null, inTok: 498, outTok: 104, cost: 2.16e-5, dur: 968, request: { model: "jev-1.13", state: "No me llega la factura de este mes.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.93 }, team: { type: "choice", choice: "billing", confidence: 0.88 }, urgency: { type: "score", score: 1 } }, usage: { input_tokens: 498, output_tokens: 104, cost: 2.16e-5 } } },
-      { id: 4, at: t - 28 * 3600000, status: 200, model: "jev-1.13", template: "pedido", batchId: "9b21c7de", inTok: 447, outTok: 68, cost: 1.854e-5, dur: 781, request: { model: "jev-1.13", state: "Me han cobrado dos veces y quiero el reembolso.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.9 } }, usage: { input_tokens: 447, output_tokens: 68, cost: 1.854e-5 } } },
-      { id: 3, at: t - 30 * 3600000, status: 200, model: "jev-1.13", template: "pedido", batchId: "9b21c7de", inTok: 450, outTok: 70, cost: 1.872e-5, dur: 833, request: { model: "jev-1.13", state: "El checkout se queda colgado al pagar.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 450, output_tokens: 70, cost: 1.872e-5 } } },
-      { id: 2, at: t - 3 * 86400000, status: 200, model: "jev-1.13", template: null, batchId: null, inTok: 176, outTok: 38, cost: 7.7e-6, dur: 588, request: { model: "jev-1.13", state: "hola", questions: { q: { type: "noul", instructions: "¿Saludo?" } } }, response: { model: "jev-1.13", answers: { q: { type: "noul", noul: 0.99 } }, usage: { input_tokens: 176, output_tokens: 38, cost: 7.7e-6 } } },
-      { id: 1, at: t - 4 * 86400000, status: 200, model: "jev-1.13", template: "reembolso", batchId: null, inTok: 611, outTok: 91, cost: 2.53e-5, dur: 1120, request: { model: "jev-1.13", state: "Reembolso de la última factura.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.91 }, tone: { type: "choice", choice: "calm", confidence: 0.66 }, urgency: { type: "score", score: 1.2 } }, usage: { input_tokens: 611, output_tokens: 91, cost: 2.53e-5 } } }
+      { id: 9, at: t - 3 * 3600000, status: 429, model: "jev-1.13-free", template: "daily-summary", batchId: null, inTok: null, outTok: null, cost: null, dur: 210, errorCode: "FreeUsageLimitError", errorMessage: "You have exhausted the free quota for jev-1.13-free.", request: { model: "jev-1.13-free", state: "Daily summary: 42 tickets, 3 outages.", questions: { risk: { type: "noul" } } }, response: { error: { type: "FreeUsageLimitError", message: "You have exhausted the free quota for jev-1.13-free." } } },
+      { id: 8, at: t - 4 * 3600000, status: 401, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 132, errorCode: "api_key_expired", errorMessage: "The API key has expired. Generate a new one in OpenCode Console.", request: { model: "jev-1.13", state: "hello", questions: { q: { type: "noul", instructions: "Is it a greeting?" } } }, response: { error: { type: "api_key_expired", message: "The API key has expired." } } },
+      { id: 7, at: t - 5 * 3600000, status: 422, model: "jev-1.13", template: null, batchId: null, inTok: null, outTok: null, cost: null, dur: 96, errorCode: "invalid_request", errorMessage: 'question "urgency" uses an unsupported type: "scoree" (use noul, choice or score)', request: { model: "jev-1.13", state: "Test ticket", questions: { urgency: { type: "scoree" } } }, response: { error: { type: "invalid_request", message: 'unsupported question type: "scoree"' } } },
+      { id: 6, at: t - 8 * 3600000, status: 200, model: "jev-1.13", template: "refund", batchId: null, inTok: 604, outTok: 96, cost: 2.52e-5, dur: 1042, request: { model: "jev-1.13", state: "Duplicate order, third time this quarter.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.94 }, tone: { type: "choice", choice: "angry", confidence: 0.71 }, urgency: { type: "score", score: 1.4 } }, usage: { input_tokens: 604, output_tokens: 96, cost: 2.52e-5 } } },
+      { id: 5, at: t - 26 * 3600000, status: 200, model: "jev-1.13", template: "triage", batchId: null, inTok: 498, outTok: 104, cost: 2.16e-5, dur: 968, request: { model: "jev-1.13", state: "I haven't received this month's invoice.", questions: { billing: { type: "noul" }, team: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { billing: { type: "noul", noul: 0.93 }, team: { type: "choice", choice: "billing", confidence: 0.88 }, urgency: { type: "score", score: 1 } }, usage: { input_tokens: 498, output_tokens: 104, cost: 2.16e-5 } } },
+      { id: 4, at: t - 28 * 3600000, status: 200, model: "jev-1.13", template: "order", batchId: "9b21c7de", inTok: 447, outTok: 68, cost: 1.854e-5, dur: 781, request: { model: "jev-1.13", state: "I've been charged twice and I want a refund.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.9 } }, usage: { input_tokens: 447, output_tokens: 68, cost: 1.854e-5 } } },
+      { id: 3, at: t - 30 * 3600000, status: 200, model: "jev-1.13", template: "order", batchId: "9b21c7de", inTok: 450, outTok: 70, cost: 1.872e-5, dur: 833, request: { model: "jev-1.13", state: "Checkout hangs when paying.", questions: { urgent: { type: "noul" } } }, response: { model: "jev-1.13", answers: { urgent: { type: "noul", noul: 0.97 } }, usage: { input_tokens: 450, output_tokens: 70, cost: 1.872e-5 } } },
+      { id: 2, at: t - 3 * 86400000, status: 200, model: "jev-1.13", template: null, batchId: null, inTok: 176, outTok: 38, cost: 7.7e-6, dur: 588, request: { model: "jev-1.13", state: "hello", questions: { q: { type: "noul", instructions: "Is it a greeting?" } } }, response: { model: "jev-1.13", answers: { q: { type: "noul", noul: 0.99 } }, usage: { input_tokens: 176, output_tokens: 38, cost: 7.7e-6 } } },
+      { id: 1, at: t - 4 * 86400000, status: 200, model: "jev-1.13", template: "refund", batchId: null, inTok: 611, outTok: 91, cost: 2.53e-5, dur: 1120, request: { model: "jev-1.13", state: "Refund for the last invoice.", questions: { refund: { type: "noul" }, tone: { type: "choice" }, urgency: { type: "score" } } }, response: { model: "jev-1.13", answers: { refund: { type: "noul", noul: 0.91 }, tone: { type: "choice", choice: "calm", confidence: 0.66 }, urgency: { type: "score", score: 1.2 } }, usage: { input_tokens: 611, output_tokens: 91, cost: 2.53e-5 } } }
     ];
     rows.forEach(function (r) { r.createdAt = iso(r.at); r.ok = r.status === 200; r.endpoint = DEFAULT_CONFIG.api_url; });
     return rows;
@@ -1041,7 +1041,7 @@
     keyRevealed: false,
     templates: TEMPLATES,
     history: makeHistory(),
-    selectedTemplate: "pedido",
+    selectedTemplate: "order",
     selectedHistory: 14,
     tplTab: "editor",
     tplDraft: null,
@@ -1062,23 +1062,23 @@
     error: null,
     demo: false,
     questions: [
-      { name: "billing", type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?", noulCriteria: "", criteria: [], levels: [] },
+      { name: "billing", type: "noul", instructions: "Is the message about billing or payments?", noulCriteria: "", criteria: [], levels: [] },
       {
-        name: "team", type: "choice", instructions: "¿Qué equipo debería gestionar la incidencia?", noulCriteria: "",
+        name: "team", type: "choice", instructions: "Which team should handle the incident?", noulCriteria: "",
         criteria: [
-          { k: "billing", v: "Cobros, facturas o pagos" },
-          { k: "infra", v: "Caídas, errores 500 o problemas de plataforma" },
-          { k: "sales", v: "Precios o dudas comerciales" }
+          { k: "billing", v: "Charges, invoices, or payments" },
+          { k: "infra", v: "Outages, 500 errors, or platform issues" },
+          { k: "sales", v: "Pricing or sales questions" }
         ], levels: []
       },
       {
-        name: "urgency", type: "score", instructions: "¿Cómo de urgente es la incidencia?", noulCriteria: "", criteria: [],
-        levels: ["Puede esperar", "Esta semana", "Hoy mismo"]
+        name: "urgency", type: "score", instructions: "How urgent is the incident?", noulCriteria: "", criteria: [],
+        levels: ["Can wait", "This week", "Today"]
       }
     ]
   };
 
-  /* persistencia ligera */
+  /* lightweight persistence */
   var LS_KEY = "jev-web-console-v1";
   function saveLocal() {
     try {
@@ -1090,7 +1090,7 @@
         askText: state.ask.text,
         askModel: state.ask.model
       }));
-    } catch (e) { /* almacenamiento no disponible */ }
+    } catch (e) { /* storage unavailable */ }
   }
   function loadLocal() {
     try {
@@ -1103,11 +1103,11 @@
       if (d.askText) state.ask.text = d.askText;
       if (d.askModel) { state.ask.model = d.askModel; }
       if (d.route) state.route = d.route;
-    } catch (e) { /* datos corruptos: se ignoran */ }
+    } catch (e) { /* corrupt data: ignored */ }
   }
 
-  /* ── navegación ──────────────────────────────────────────────────── */
-  var LABELS = { resumen: "Resumen", evaluar: "Evaluar", plantillas: "Plantillas", lotes: "Lotes", historial: "Historial", configuracion: "Configuración" };
+  /* ── navigation ──────────────────────────────────────────────────── */
+  var LABELS = { resumen: "Overview", evaluar: "Evaluate", plantillas: "Templates", lotes: "Batches", historial: "History", configuracion: "Settings" };
 
   function go(route) {
     if (!LABELS[route]) route = "resumen";
@@ -1140,7 +1140,7 @@
     }
   });
 
-  /* ── resumen ─────────────────────────────────────────────────────── */
+  /* ── overview ────────────────────────────────────────────────────── */
   function statsFrom(rows) {
     var ok = rows.filter(function (r) { return r.ok; }).length;
     var inTok = 0, outTok = 0, cost = 0;
@@ -1162,10 +1162,10 @@
     var rows = state.history.slice(0, 30);
     var s = statsFrom(rows);
     $("#statStrip").innerHTML =
-      '<div class="stat" data-od-id="stat-requests"><div class="stat-label">Peticiones en requests</div><div class="stat-value">' + state.history.length + '</div><div class="stat-note">' + s.total + " en las últimas 30 evaluadas</div></div>" +
-      '<div class="stat" data-od-id="stat-success"><div class="stat-label">Tasa de éxito</div><div class="stat-value">' + s.rate.toFixed(1) + '%</div><div class="stat-note">' + s.ok + ' ok · ' + (s.total - s.ok) + ' con error</div></div>' +
-      '<div class="stat" data-od-id="stat-tokens"><div class="stat-label">Tokens</div><div class="stat-value">' + (s.inTok / 1000).toFixed(1) + 'k<small>in</small></div><div class="stat-note">' + (s.outTok / 1000).toFixed(1) + "k out · informados por la API</div></div>" +
-      '<div class="stat" data-od-id="stat-cost"><div class="stat-label">Coste acumulado</div><div class="stat-value">' + fmtCost(s.cost) + '</div><div class="stat-note">solo peticiones con coste informado</div></div>';
+      '<div class="stat" data-od-id="stat-requests"><div class="stat-label">Requests in the requests table</div><div class="stat-value">' + state.history.length + '</div><div class="stat-note">' + s.total + " in the last 30 evaluated</div></div>" +
+      '<div class="stat" data-od-id="stat-success"><div class="stat-label">Success rate</div><div class="stat-value">' + s.rate.toFixed(1) + '%</div><div class="stat-note">' + s.ok + ' ok · ' + (s.total - s.ok) + ' with error</div></div>' +
+      '<div class="stat" data-od-id="stat-tokens"><div class="stat-label">Tokens</div><div class="stat-value">' + (s.inTok / 1000).toFixed(1) + 'k<small>in</small></div><div class="stat-note">' + (s.outTok / 1000).toFixed(1) + "k out · reported by the API</div></div>" +
+      '<div class="stat" data-od-id="stat-cost"><div class="stat-label">Accumulated cost</div><div class="stat-value">' + fmtCost(s.cost) + '</div><div class="stat-note">only requests with a reported cost</div></div>';
 
     $("#recentRows").innerHTML = state.history.slice(0, 6).map(function (r) {
       return '<tr class="clickable" data-open-history="' + r.id + '">' +
@@ -1179,18 +1179,18 @@
     }).join("");
 
     var shortcuts = [
-      { cmd: "jev demo", note: "ejemplo integrado" },
-      { cmd: "jev ask --state - --questions-file q.json", note: "state por stdin" },
-      { cmd: "jev batch pedido --contexts examples/contexts.json", note: "lote por contextos" }
+      { cmd: "jev demo", note: "built-in example" },
+      { cmd: "jev ask --state - --questions-file q.json", note: "state via stdin" },
+      { cmd: "jev batch order --contexts examples/contexts.json", note: "batch by contexts" }
     ];
     $("#shortcutList").innerHTML = shortcuts.map(function (s2) {
-      return '<div class="row" style="gap:8px;min-width:0"><code class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">' + esc(s2.cmd) + '</code><span class="hint" style="flex:none">' + esc(s2.note) + '</span><button class="icon-btn" data-copy="' + esc(s2.cmd) + '" aria-label="Copiar ' + esc(s2.cmd) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>';
+      return '<div class="row" style="gap:8px;min-width:0"><code class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">' + esc(s2.cmd) + '</code><span class="hint" style="flex:none">' + esc(s2.note) + '</span><button class="icon-btn" data-copy="' + esc(s2.cmd) + '" aria-label="Copy ' + esc(s2.cmd) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 6.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1.5"/></svg></button></div>';
     }).join("");
 
     $("#cfgModelView").textContent = state.config.model;
     $("#cfgTimeoutView").textContent = state.config.timeout + " s";
     $("#cfgRetriesView").textContent = state.config.retries;
-    $("#cfgKeyView").textContent = maskKey(state.config.api_key) + " · entorno";
+    $("#cfgKeyView").textContent = maskKey(state.config.api_key) + " · environment";
     $("#providerModel").textContent = state.config.model;
   }
 
@@ -1209,7 +1209,7 @@
     return k.slice(0, 4) + "…" + k.slice(-3);
   }
 
-  /* ── evaluar ─────────────────────────────────────────────────────── */
+  /* ── evaluate ────────────────────────────────────────────────────── */
   function buildQuestion(q) {
     var o = { type: q.type };
     if (q.instructions) o.instructions = q.instructions;
@@ -1229,9 +1229,9 @@
   function buildState() {
     var t = state.ask.text.trim();
     if (t.charAt(0) === "{" || t.charAt(0) === "[") {
-      try { return { value: JSON.parse(t), kind: "JSON", error: null }; } catch (err) { return { value: t, kind: "texto", error: "JSON inválido: se enviará como texto" }; }
+      try { return { value: JSON.parse(t), kind: "JSON", error: null }; } catch (err) { return { value: t, kind: "text", error: "Invalid JSON: it will be sent as text" }; }
     }
-    return { value: t, kind: t === "" ? "vacío" : "texto", error: null };
+    return { value: t, kind: t === "" ? "empty" : "text", error: null };
   }
 
   function buildRequest() {
@@ -1259,40 +1259,40 @@
       var crit = "";
       if (q.type === "choice") {
         crit = '<div class="crit-list">' + q.criteria.map(function (r, j) {
-          return '<div class="crit-row"><input class="input k" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="k" value="' + esc(r.k) + '" placeholder="clave" aria-label="Clave del criterio ' + (j + 1) + '" /><input class="input v" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="v" value="' + esc(r.v) + '" placeholder="descripción" aria-label="Descripción del criterio ' + (j + 1) + '" /><button class="icon-btn" data-critdel="' + i + "." + j + '" aria-label="Quitar criterio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
+          return '<div class="crit-row"><input class="input k" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="k" value="' + esc(r.k) + '" placeholder="key" aria-label="Criterion ' + (j + 1) + ' key" /><input class="input v" data-qi="' + i + '" data-qcrit="' + j + '" data-cfield="v" value="' + esc(r.v) + '" placeholder="description" aria-label="Criterion ' + (j + 1) + ' description" /><button class="icon-btn" data-critdel="' + i + "." + j + '" aria-label="Remove criterion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
         }).join("") + "</div>" +
-          '<button class="btn btn-ghost btn-sm" data-critadd="' + i + '" style="align-self:flex-start">+ criterio</button>';
+          '<button class="btn btn-ghost btn-sm" data-critadd="' + i + '" style="align-self:flex-start">+ criterion</button>';
       } else if (q.type === "score") {
         crit = '<div class="crit-list">' + q.levels.map(function (l, j) {
-          return '<div class="crit-row"><span class="crit-index">' + j + '</span><input class="input v" data-qi="' + i + '" data-lvl="' + j + '" value="' + esc(l) + '" placeholder="nivel ' + j + '" aria-label="Nivel ' + j + '" /><button class="icon-btn" data-lvldel="' + i + "." + j + '" aria-label="Quitar nivel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
+          return '<div class="crit-row"><span class="crit-index">' + j + '</span><input class="input v" data-qi="' + i + '" data-lvl="' + j + '" value="' + esc(l) + '" placeholder="level ' + j + '" aria-label="Level ' + j + '" /><button class="icon-btn" data-lvldel="' + i + "." + j + '" aria-label="Remove level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 12h12"/></svg></button></div>';
         }).join("") + "</div>" +
-          '<button class="btn btn-ghost btn-sm" data-lvladd="' + i + '" style="align-self:flex-start">+ nivel</button>';
+          '<button class="btn btn-ghost btn-sm" data-lvladd="' + i + '" style="align-self:flex-start">+ level</button>';
       } else {
-        crit = '<input class="input" data-qi="' + i + '" data-noulcrit="1" value="' + esc(q.noulCriteria) + '" placeholder="Criterio de decisión (opcional)" aria-label="Criterio" />';
+        crit = '<input class="input" data-qi="' + i + '" data-noulcrit="1" value="' + esc(q.noulCriteria) + '" placeholder="Decision criterion (optional)" aria-label="Criterion" />';
       }
       return '<div class="qcard">' +
         '<div class="qcard-head">' +
-        '<input class="input" data-qi="' + i + '" data-qname="1" value="' + esc(q.name) + '" aria-label="Nombre de la pregunta ' + (i + 1) + '" />' +
-        '<select class="select" data-qi="' + i + '" data-qtype="1" aria-label="Tipo de la pregunta ' + (i + 1) + '">' +
+        '<input class="input" data-qi="' + i + '" data-qname="1" value="' + esc(q.name) + '" aria-label="Question ' + (i + 1) + ' name" />' +
+        '<select class="select" data-qi="' + i + '" data-qtype="1" aria-label="Question ' + (i + 1) + ' type">' +
         ["noul", "choice", "score"].map(function (t) { return '<option value="' + t + '"' + (q.type === t ? " selected" : "") + ">" + t + "</option>"; }).join("") +
         "</select>" +
-        '<button class="icon-btn" data-qdel="' + i + '" aria-label="Eliminar pregunta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+        '<button class="icon-btn" data-qdel="' + i + '" aria-label="Delete question"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
         "</div>" +
-        '<textarea class="textarea" rows="2" data-qi="' + i + '" data-qinstr="1" placeholder="Instrucciones para el modelo">' + esc(q.instructions) + "</textarea>" +
+        '<textarea class="textarea" rows="2" data-qi="' + i + '" data-qinstr="1" placeholder="Instructions for the model">' + esc(q.instructions) + "</textarea>" +
         crit +
         "</div>";
     }).join("");
-    $("#qCount").textContent = state.ask.questions.length + (state.ask.questions.length === 1 ? " pregunta" : " preguntas");
+    $("#qCount").textContent = state.ask.questions.length + (state.ask.questions.length === 1 ? " question" : " questions");
   }
 
   function syncAskCli() {
     var el = $("#askCli");
     if (el) el.innerHTML = '<span class="prompt">$</span>' + esc(askCliLine());
     var kind = buildState();
-    $("#stateKind").textContent = kind.error ? "JSON inválido" : kind.kind;
+    $("#stateKind").textContent = kind.error ? "Invalid JSON" : kind.kind;
     $("#stateHint").innerHTML = kind.error
       ? '<span style="color:var(--danger-text)">' + esc(kind.error) + "</span>"
-      : "Si empieza por <code>{</code> o <code>[</code> se envía como JSON; si no, como string.";
+      : "If it starts with <code>{</code> or <code>[</code> it is sent as JSON; otherwise as a string.";
   }
 
   function renderEvaluate() {
@@ -1323,8 +1323,8 @@
     var i = Number(t.dataset.qi);
     var q = state.ask.questions[i];
     q.type = t.value;
-    if (q.type === "choice" && q.criteria.length === 0) q.criteria = [{ k: "opcion_a", v: "Primera opción" }, { k: "opcion_b", v: "Segunda opción" }];
-    if (q.type === "score" && q.levels.length === 0) q.levels = ["Bajo", "Medio", "Alto"];
+    if (q.type === "choice" && q.criteria.length === 0) q.criteria = [{ k: "option_a", v: "First option" }, { k: "option_b", v: "Second option" }];
+    if (q.type === "score" && q.levels.length === 0) q.levels = ["Low", "Medium", "High"];
     renderQuestions();
     syncAskCli();
   });
@@ -1332,7 +1332,7 @@
   $("#questionList").addEventListener("click", function (e) {
     var del = e.target.closest("[data-qdel]");
     if (del) {
-      if (state.ask.questions.length <= 1) { toast("Necesitas al menos una pregunta"); return; }
+      if (state.ask.questions.length <= 1) { toast("You need at least one question"); return; }
       state.ask.questions.splice(Number(del.dataset.qdel), 1);
       renderQuestions(); syncAskCli(); return;
     }
@@ -1356,7 +1356,7 @@
 
   $("#addQuestion").addEventListener("click", function () {
     var n = state.ask.questions.length + 1;
-    state.ask.questions.push({ name: "pregunta_" + n, type: "noul", instructions: "", noulCriteria: "", criteria: [], levels: [] });
+    state.ask.questions.push({ name: "question_" + n, type: "noul", instructions: "", noulCriteria: "", criteria: [], levels: [] });
     renderQuestions();
     syncAskCli();
     var cards = $$("#questionList .qcard");
@@ -1372,13 +1372,13 @@
     state.ask.text = TICKET_STATE;
     $("#stateInput").value = TICKET_STATE;
     state.ask.questions = [
-      { name: "billing", type: "noul", instructions: "¿El mensaje trata sobre facturación o pagos?", noulCriteria: "", criteria: [], levels: [] },
-      { name: "team", type: "choice", instructions: "¿Qué equipo debería gestionar la incidencia?", noulCriteria: "", criteria: [{ k: "billing", v: "Cobros, facturas o pagos" }, { k: "infra", v: "Caídas, errores 500 o problemas de plataforma" }, { k: "sales", v: "Precios o dudas comerciales" }], levels: [] },
-      { name: "urgency", type: "score", instructions: "¿Cómo de urgente es la incidencia?", noulCriteria: "", criteria: [], levels: ["Puede esperar", "Esta semana", "Hoy mismo"] }
+      { name: "billing", type: "noul", instructions: "Is the message about billing or payments?", noulCriteria: "", criteria: [], levels: [] },
+      { name: "team", type: "choice", instructions: "Which team should handle the incident?", noulCriteria: "", criteria: [{ k: "billing", v: "Charges, invoices, or payments" }, { k: "infra", v: "Outages, 500 errors, or platform issues" }, { k: "sales", v: "Pricing or sales questions" }], levels: [] },
+      { name: "urgency", type: "score", instructions: "How urgent is the incident?", noulCriteria: "", criteria: [], levels: ["Can wait", "This week", "Today"] }
     ];
     state.ask.result = null;
     renderQuestions(); syncAskCli(); renderResult();
-    toast("Ejemplo del ticket cargado");
+    toast("Ticket example loaded");
   });
 
   function simulate(req, ms) {
@@ -1400,7 +1400,7 @@
         keys.forEach(function (k) { if (probs[k] > probs[best]) best = k; });
         answers[name] = { type: "choice", choice: best, confidence: probs[best], probabilities: probs };
       } else {
-        var levels = q.criteria || ["Bajo", "Medio", "Alto"];
+        var levels = q.criteria || ["Low", "Medium", "High"];
         var lraw = levels.map(function (l, idx) { return 0.1 + hash(seed + name + l + idx) * 0.9; });
         var lsum = lraw.reduce(function (a, b) { return a + b; }, 0);
         var lp = {};
@@ -1427,7 +1427,7 @@
   var DEMO_RESULT = {
     model: "jev-1.13",
     answers: {
-      frustration: { type: "score", score: 1.99, legend: { "0": "Tranquilo", "1": "Molesto", "2": "Muy enfadado" }, confidence: 0.98, probabilities: { "0": 0, "1": 0.01, "2": 0.99 } },
+      frustration: { type: "score", score: 1.99, legend: { "0": "Calm", "1": "Annoyed", "2": "Very angry" }, confidence: 0.98, probabilities: { "0": 0, "1": 0.01, "2": 0.99 } },
       is_urgent: { type: "noul", noul: 0.99 },
       team: { type: "choice", choice: "infra", confidence: 0.59, probabilities: { infra: 0.73, billing: 0.27, sales: 0 } }
     },
@@ -1441,8 +1441,8 @@
     if (a.type === "noul") {
       var p = a.noul === undefined ? 0 : a.noul;
       return '<div class="answer">' + head + '<span class="answer-big">' + p.toFixed(2) + "</span></div>" + instr +
-        '<div class="bar lg" role="img" aria-label="Probabilidad de sí: ' + p.toFixed(2) + '"><span style="width:' + (p * 100).toFixed(1) + '%"></span></div>' +
-        '<div class="prob-row"><span class="p-label">sí</span><span></span><span class="p-val">' + p.toFixed(2) + "</span></div>" +
+        '<div class="bar lg" role="img" aria-label="Probability of yes: ' + p.toFixed(2) + '"><span style="width:' + (p * 100).toFixed(1) + '%"></span></div>' +
+        '<div class="prob-row"><span class="p-label">yes</span><span></span><span class="p-val">' + p.toFixed(2) + "</span></div>" +
         '<div class="prob-row"><span class="p-label cell-muted">no</span><span></span><span class="p-val">' + (1 - p).toFixed(2) + "</span></div>" +
         "</div>";
     }
@@ -1454,7 +1454,7 @@
         return '<div class="prob-row' + (k === a.choice ? " is-lead" : "") + '"><span class="p-label" title="' + esc(label) + '">' + esc(label) + '</span><span class="bar"><span style="width:' + (probs[k] * 100).toFixed(1) + '%"></span></span><span class="p-val">' + probs[k].toFixed(2) + "</span></div>";
       }).join("");
       return '<div class="answer">' + head + '<span class="answer-big" style="font-size:13px;font-family:var(--font-mono)">' + esc(a.choice || "—") + "</span></div>" + instr +
-        '<div class="legend-line">confianza <strong>' + (a.confidence === undefined ? "—" : a.confidence.toFixed(2)) + "</strong></div>" + rows + "</div>";
+        '<div class="legend-line">confidence <strong>' + (a.confidence === undefined ? "—" : a.confidence.toFixed(2)) + "</strong></div>" + rows + "</div>";
     }
     var legend = a.legend || {};
     var levels = Object.keys(legend).sort(function (x, y) { return Number(x) - Number(y); });
@@ -1465,7 +1465,7 @@
       return '<div class="prob-row"><span class="p-label" title="' + esc(legend[k]) + '">' + esc(legend[k]) + '</span><span class="bar"><span style="width:' + ((p || 0) * 100).toFixed(1) + '%"></span></span><span class="p-val">' + (p === undefined ? "—" : p.toFixed(2)) + "</span></div>";
     }).join("");
     return '<div class="answer">' + head + '<span class="answer-big">' + (a.score === undefined ? "?" : a.score.toFixed(2)) + "</span></div>" + instr +
-      '<div class="legend-line">nivel <strong>' + (exact ? "" : "≈ ") + esc(nearest) + "</strong>" + (a.confidence !== undefined ? " · confianza " + a.confidence.toFixed(2) : "") + "</div>" + lrows + "</div>";
+      '<div class="legend-line">level <strong>' + (exact ? "" : "≈ ") + esc(nearest) + "</strong>" + (a.confidence !== undefined ? " · confidence " + a.confidence.toFixed(2) : "") + "</div>" + lrows + "</div>";
   }
 
   function renderResult() {
@@ -1474,7 +1474,7 @@
     var r = state.ask.result;
     if (!r) {
       tabs.hidden = true;
-      body.innerHTML = '<div class="empty" style="border:0;padding-top:80px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg><strong>Sin resultados todavía</strong><span>Ejecuta una evaluación o el demo integrado para ver las probabilidades por pregunta.</span></div>';
+      body.innerHTML = '<div class="empty" style="border:0;padding-top:80px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12h3.5l2.5-6.5 4 13 2.5-6.5H21"/></svg><strong>No results yet</strong><span>Run an evaluation or the built-in demo to see the probabilities per question.</span></div>';
       return;
     }
     tabs.hidden = false;
@@ -1488,10 +1488,10 @@
       return;
     }
     var meta = '<div class="result-meta" style="margin-bottom:10px">' +
-      '<span>modelo <b>' + esc(r.model) + "</b></span>" +
-      '<span>estado <b>200</b></span>' +
+      '<span>model <b>' + esc(r.model) + "</b></span>" +
+      '<span>status <b>200</b></span>' +
       '<span><b>' + r.usage.input_tokens + "</b> in / <b>" + r.usage.output_tokens + "</b> out</span>" +
-      '<span>coste <b>' + fmtCost(r.usage.cost) + "</b></span>" +
+      '<span>cost <b>' + fmtCost(r.usage.cost) + "</b></span>" +
       '<span><b>' + r.duration + " ms</b></span>" +
       (state.ask.demo ? '<span class="chip chip-soft" style="height:18px">demo</span>' : "") +
       (!state.ask.save && !state.ask.demo ? '<span class="chip chip-soft" style="height:18px">--no-save</span>' : "") +
@@ -1512,12 +1512,12 @@
     var btn = demo ? $("#runDemo") : $("#runAsk");
     if ($("#runAsk").disabled) return;
     $("#runAsk").disabled = true;
-    btn.textContent = "Ejecutando…";
+    btn.textContent = "Running…";
     await sleep(520);
     var req = buildRequest();
     if (!demo && Object.keys(req.questions).length === 0) {
-      toast("Añade al menos una pregunta con nombre");
-      $("#runAsk").disabled = false; btn.textContent = demo ? "Ejecutar demo" : "Evaluar";
+      toast("Add at least one named question");
+      $("#runAsk").disabled = false; btn.textContent = demo ? "Run demo" : "Evaluate";
       return;
     }
     var res = demo ? JSON.parse(JSON.stringify(DEMO_RESULT)) : simulate(req, 600 + Math.round(Math.random() * 700));
@@ -1530,23 +1530,23 @@
         id: id, at: Date.now(), createdAt: iso(Date.now()), ok: true, status: 200,
         model: res.model, template: null, batchId: null,
         inTok: res.usage.input_tokens, outTok: res.usage.output_tokens, cost: res.usage.cost,
-        dur: res.duration, request: demo ? { model: "jev-1.13", state: "(demo integrado)", questions: {} } : req,
+        dur: res.duration, request: demo ? { model: "jev-1.13", state: "(built-in demo)", questions: {} } : req,
         response: { model: res.model, answers: res.answers, usage: res.usage },
         endpoint: state.config.api_url
       });
       $("#navHistCount").textContent = state.history.length;
     }
     $("#runAsk").disabled = false;
-    btn.textContent = demo ? "Ejecutar demo" : "Evaluar";
+    btn.textContent = demo ? "Run demo" : "Evaluate";
     renderResult();
-    toast(demo ? "Demo ejecutado" : "Evaluación completada");
-    if (!state.ask.save) toast("Esta ejecución no se ha guardado");
+    toast(demo ? "Demo executed" : "Evaluation complete");
+    if (!state.ask.save) toast("This run was not saved");
   }
 
   $("#runAsk").addEventListener("click", function () { run(false); });
   $("#runDemo").addEventListener("click", function () { run(true); });
 
-  /* ── plantillas ──────────────────────────────────────────────────── */
+  /* ── templates ───────────────────────────────────────────────────── */
   function detectMacros(body) {
     var keys = [];
     (function walk(v) {
@@ -1564,21 +1564,21 @@
   function validateBody(text) {
     try {
       var parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "la plantilla debe ser un objeto JSON", parsed: null };
-      if (parsed.model === undefined || typeof parsed.model !== "string" || parsed.model === "") return { ok: false, error: "la plantilla no tiene model", parsed: parsed };
-      if (parsed.state === undefined) return { ok: false, error: "la plantilla no tiene state", parsed: parsed };
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "the template must be a JSON object", parsed: null };
+      if (parsed.model === undefined || typeof parsed.model !== "string" || parsed.model === "") return { ok: false, error: "the template has no model", parsed: parsed };
+      if (parsed.state === undefined) return { ok: false, error: "the template has no state", parsed: parsed };
       var qs = parsed.questions;
-      if (!qs || typeof qs !== "object" || Array.isArray(qs)) return { ok: false, error: "las preguntas deben ser un objeto JSON", parsed: parsed };
-      if (Object.keys(qs).length === 0) return { ok: false, error: "se necesita al menos una pregunta", parsed: parsed };
+      if (!qs || typeof qs !== "object" || Array.isArray(qs)) return { ok: false, error: "the questions must be a JSON object", parsed: parsed };
+      if (Object.keys(qs).length === 0) return { ok: false, error: "at least one question is required", parsed: parsed };
       for (var i = 0; i < Object.keys(qs).length; i++) {
         var k = Object.keys(qs)[i];
         var q = qs[k];
-        if (!q || typeof q.type !== "string" || q.type === "") return { ok: false, error: 'la pregunta "' + k + '" no tiene type', parsed: parsed };
-        if (["noul", "choice", "score"].indexOf(q.type) < 0) return { ok: false, error: 'la pregunta "' + k + '" usa un tipo no soportado: "' + q.type + '" (usa noul, choice o score)', parsed: parsed };
+        if (!q || typeof q.type !== "string" || q.type === "") return { ok: false, error: 'question "' + k + '" has no type', parsed: parsed };
+        if (["noul", "choice", "score"].indexOf(q.type) < 0) return { ok: false, error: 'question "' + k + '" uses an unsupported type: "' + q.type + '" (use noul, choice or score)', parsed: parsed };
       }
       return { ok: true, error: null, parsed: parsed };
     } catch (e) {
-      return { ok: false, error: "JSON inválido en la plantilla: " + e.message, parsed: null };
+      return { ok: false, error: "Invalid JSON in template: " + e.message, parsed: null };
     }
   }
 
@@ -1629,12 +1629,12 @@
     $("#tplList").innerHTML = rows.length ? rows.map(function (t) {
       var macros = t.draft ? [] : detectMacros(JSON.parse(jsonPretty(t.body)));
       return '<button class="tpl-item" role="option" data-tpl="' + esc(t.name) + '" aria-selected="' + (t.name === state.selectedTemplate) + '">' +
-        '<span class="t-name">' + esc(t.name) + (t.isNew ? '<span class="pill pill-warn" style="height:18px">sin guardar</span>' : "") + "</span>" +
-        '<span class="t-desc">' + esc(t.description || "Sin descripción") + "</span>" +
+        '<span class="t-name">' + esc(t.name) + (t.isNew ? '<span class="pill pill-warn" style="height:18px">unsaved</span>' : "") + "</span>" +
+        '<span class="t-desc">' + esc(t.description || "No description") + "</span>" +
         '<span class="t-meta"><span>' + relTime(t.updated) + "</span><span>·</span><span>" + macros.length + " macros</span></span>" +
         "</button>";
-    }).join("") : '<div class="empty" style="border:0;margin:12px"><span>Ninguna plantilla coincide con «' + esc(state.tplSearch) + "».</span></div>";
-    $("#tplCount").textContent = state.templates.length + " plantillas";
+    }).join("") : '<div class="empty" style="border:0;margin:12px"><span>No template matches “' + esc(state.tplSearch) + "”.</span></div>";
+    $("#tplCount").textContent = state.templates.length + " templates";
     $("#navTplCount").textContent = state.templates.length;
   }
 
@@ -1643,7 +1643,7 @@
     renderTemplateList();
     var detail = $("#tplDetail");
     if (!t) {
-      detail.innerHTML = '<div class="empty">No hay plantillas. Crea la primera con <code>jev template create</code>.</div>';
+      detail.innerHTML = '<div class="empty">No templates. Create the first one with <code>jev template create</code>.</div>';
       return;
     }
     var bodyText = tplBodyText(t);
@@ -1651,47 +1651,47 @@
     var macros = v.parsed ? detectMacros(v.parsed) : [];
     var tab = state.tplTab;
     var tabsHtml = '<div class="tabs" role="tablist">' +
-      [["editor", "Editor"], ["render", "Renderizar"], ["macros", "Macros"]].map(function (x) {
+      [["editor", "Editor"], ["render", "Render"], ["macros", "Macros"]].map(function (x) {
         return '<button class="tab" role="tab" aria-selected="' + (tab === x[0]) + '" data-tpltab="' + x[0] + '">' + x[1] + "</button>";
       }).join("") + "</div>";
 
     var head = '<div class="panel-head" style="align-items:flex-start;padding:12px 14px">' +
       '<div style="min-width:0;display:flex;flex-direction:column;gap:6px;flex:1">' +
-      '<input class="input mono" id="tplName" value="' + esc(t.name) + '" aria-label="Nombre de la plantilla" style="height:30px;font-weight:600;font-size:13px" />' +
-      '<input class="input" id="tplDesc" value="' + esc(t.description || "") + '" placeholder="Descripción" aria-label="Descripción de la plantilla" style="height:28px;font-size:12.5px" />' +
+      '<input class="input mono" id="tplName" value="' + esc(t.name) + '" aria-label="Template name" style="height:30px;font-weight:600;font-size:13px" />' +
+      '<input class="input" id="tplDesc" value="' + esc(t.description || "") + '" placeholder="Description" aria-label="Template description" style="height:28px;font-size:12.5px" />' +
       "</div>" +
       '<div class="row" style="gap:6px;flex:none">' +
-      '<button class="btn btn-outline btn-sm" id="validateTpl">Validar</button>' +
-      '<button class="btn btn-ghost btn-sm" id="deleteTpl">Eliminar</button>' +
+      '<button class="btn btn-outline btn-sm" id="validateTpl">Validate</button>' +
+      '<button class="btn btn-ghost btn-sm" id="deleteTpl">Delete</button>' +
       "</div></div>";
 
     var meta = '<div class="panel-body" style="padding:9px 14px;border-bottom:1px solid var(--border)"><div class="result-meta">' +
-      "<span>creada <b>" + shortDate(t.created) + "</b></span>" +
-      "<span>actualizada <b>" + shortDate(t.updated) + "</b></span>" +
+      "<span>created <b>" + shortDate(t.created) + "</b></span>" +
+      "<span>updated <b>" + shortDate(t.updated) + "</b></span>" +
       "<span><b>" + macros.length + "</b> macros</span>" +
-      "<span>tabla <b>templates</b></span>" +
+      "<span>table <b>templates</b></span>" +
       "</div></div>";
     var shownText = t.bodyText !== undefined ? t.bodyText : bodyText;
 
     var content = "";
     if (tab === "editor") {
       content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:9px">' +
-        '<textarea class="textarea" id="tplBody" rows="15" spellcheck="false" aria-label="Body JSON de la plantilla">' + esc(shownText) + "</textarea>" +
-        '<div class="row-between"><span class="hint" id="tplValid">' + (v.ok ? '<span style="color:var(--ok-text)">JSON válido · ' + macros.length + " macros</span>" : '<span style="color:var(--danger-text)">' + esc(v.error) + "</span>") + "</span>" +
-        '<button class="btn btn-primary btn-sm" id="saveTpl">Guardar</button></div>' +
+        '<textarea class="textarea" id="tplBody" rows="15" spellcheck="false" aria-label="Template JSON body">' + esc(shownText) + "</textarea>" +
+        '<div class="row-between"><span class="hint" id="tplValid">' + (v.ok ? '<span style="color:var(--ok-text)">Valid JSON · ' + macros.length + " macros</span>" : '<span style="color:var(--danger-text)">' + esc(v.error) + "</span>") + "</span>" +
+        '<button class="btn btn-primary btn-sm" id="saveTpl">Save</button></div>' +
         "</div>";
     } else if (tab === "render") {
       content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:10px">' +
-        '<div class="field"><label for="renderCtx">Contexto (JSON)</label>' +
-        '<textarea class="textarea" id="renderCtx" rows="7" spellcheck="false" aria-label="Contexto para resolver las macros">' + esc(jsonPretty(EXAMPLE_CONTEXT)) + "</textarea></div>" +
-        '<div class="row-between"><span class="hint">Resuelve las macros y valida el request sin enviarlo.</span><button class="btn btn-outline btn-sm" id="doRender">Renderizar</button></div>' +
+        '<div class="field"><label for="renderCtx">Context (JSON)</label>' +
+        '<textarea class="textarea" id="renderCtx" rows="7" spellcheck="false" aria-label="Context to resolve the macros">' + esc(jsonPretty(EXAMPLE_CONTEXT)) + "</textarea></div>" +
+        '<div class="row-between"><span class="hint">Resolves the macros and validates the request without sending it.</span><button class="btn btn-outline btn-sm" id="doRender">Render</button></div>' +
         '<div id="renderOut"></div></div>';
     } else {
       content = '<div class="panel-body" style="display:flex;flex-direction:column;gap:12px">' +
-        '<p class="hint">Macros detectadas en el body. Cada una se resuelve con el mapa de contexto y admite rutas anidadas.</p>' +
-        '<div class="chip-row" id="macroChips">' + (macros.length ? macros.map(function (m) { return '<span class="chip mono">{{' + esc(m) + "}}</span>"; }).join("") : '<span class="hint">Sin macros.</span>') + "</div>" +
-        '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>Si falta una macro, el comando falla antes de llamar a la API y lista todas las claves ausentes.</span></div>' +
-        '<div class="field"><label>Fichero de referencia</label><code class="mono" style="font-size:11.5px">examples/context.json</code></div>' +
+        '<p class="hint">Macros detected in the body. Each one is resolved with the context map and supports nested paths.</p>' +
+        '<div class="chip-row" id="macroChips">' + (macros.length ? macros.map(function (m) { return '<span class="chip mono">{{' + esc(m) + "}}</span>"; }).join("") : '<span class="hint">No macros.</span>') + "</div>" +
+        '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>If a macro is missing, the command fails before calling the API and lists every missing key.</span></div>' +
+        '<div class="field"><label>Reference file</label><code class="mono" style="font-size:11.5px">examples/context.json</code></div>' +
         "</div>";
     }
 
@@ -1705,7 +1705,7 @@
         var v2 = validateBody(e.target.value);
         var out = $("#tplValid");
         out.innerHTML = v2.ok
-          ? '<span style="color:var(--ok-text)">JSON válido · ' + (v2.parsed ? detectMacros(v2.parsed).length : 0) + " macros</span>"
+          ? '<span style="color:var(--ok-text)">Valid JSON · ' + (v2.parsed ? detectMacros(v2.parsed).length : 0) + " macros</span>"
           : '<span style="color:var(--danger-text)">' + esc(v2.error) + "</span>";
         syncTplCli();
       });
@@ -1716,7 +1716,7 @@
     if (val) val.addEventListener("click", function () {
       commitTemplateIdentity(t);
       var v3 = validateBody(tplBodyText(t));
-      toast(v3.ok ? "Plantilla válida" : "Error: " + v3.error);
+      toast(v3.ok ? "Valid template" : "Error: " + v3.error);
       renderTemplates();
     });
     var del = $("#deleteTpl");
@@ -1737,7 +1737,7 @@
     syncTplCli();
   }
 
-  var EXAMPLE_CONTEXT = { estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.", cliente: { nombre: "Ana", plan: "pro" } };
+  var EXAMPLE_CONTEXT = { order_state: "I've been charged twice and I want a refund.", customer: { name: "Ana", plan: "pro" } };
 
   function commitTemplateIdentity(t) {
     if (!t) return;
@@ -1747,7 +1747,7 @@
     var pendingDesc = descInput ? descInput.value : undefined;
     if (pending && pending !== t.name) {
       if (state.templates.some(function (x) { return x !== t && x.name === pending; })) {
-        toast("Ya existe una plantilla con ese nombre");
+        toast("A template with that name already exists");
         if (nameInput) { nameInput.focus(); nameInput.select(); }
         return;
       }
@@ -1767,34 +1767,34 @@
     t.updated = Date.now();
     t.isNew = false;
     renderTemplates();
-    toast("Plantilla «" + t.name + "» guardada");
+    toast("Template “" + t.name + "” saved");
   }
 
   function doRenderTemplate(t) {
     var out = $("#renderOut");
     var ctxText = $("#renderCtx").value;
     var ctx;
-    try { ctx = JSON.parse(ctxText); } catch (e) { out.innerHTML = '<div class="callout danger"><span>Contexto inválido: ' + esc(e.message) + "</span></div>"; return; }
+    try { ctx = JSON.parse(ctxText); } catch (e) { out.innerHTML = '<div class="callout danger"><span>Invalid context: ' + esc(e.message) + "</span></div>"; return; }
     var v = validateBody(tplBodyText(t));
     if (!v.ok) { out.innerHTML = '<div class="callout danger"><span>' + esc(v.error) + "</span></div>"; return; }
     var missing = [];
     var resolved = resolveMacros(v.parsed, ctx, missing);
     if (missing.length) {
       var cmd = "jev template render " + t.name + " --context-file examples/context.json";
-      out.innerHTML = '<div class="callout danger" style="flex-direction:column;gap:4px"><span><strong>Faltan macros en el contexto:</strong> ' + esc(missing.join(", ")) + "</span><span>Comando: <code>" + esc(cmd) + "</code></span></div>";
+      out.innerHTML = '<div class="callout danger" style="flex-direction:column;gap:4px"><span><strong>Missing macros in the context:</strong> ' + esc(missing.join(", ")) + "</span><span>Command: <code>" + esc(cmd) + "</code></span></div>";
       return;
     }
-    out.innerHTML = '<div class="panel-title" style="margin-bottom:6px">Request resuelto</div>' + jsonBlock(resolved);
+    out.innerHTML = '<div class="panel-title" style="margin-bottom:6px">Resolved request</div>' + jsonBlock(resolved);
   }
 
   function confirmDeleteTemplate(t) {
-    openModal("Eliminar plantilla", '<p style="font-size:13px;color:var(--muted)">Se borrará <strong style="color:var(--fg)">' + esc(t.name) + "</strong> de la tabla <code>templates</code>. La CLI pediría confirmación; con <code>--yes</code> no lo haría.</p>",
-      [{ label: "Cancelar", cls: "btn-outline", act: closeModal }, {
-        label: "Eliminar", cls: "btn-danger", act: function () {
+    openModal("Delete template", '<p style="font-size:13px;color:var(--muted)">This will delete <strong style="color:var(--fg)">' + esc(t.name) + "</strong> from the <code>templates</code> table. The CLI would ask for confirmation; with <code>--yes</code> it would not.</p>",
+      [{ label: "Cancel", cls: "btn-outline", act: closeModal }, {
+        label: "Delete", cls: "btn-danger", act: function () {
           state.templates = state.templates.filter(function (x) { return x !== t; });
           state.selectedTemplate = state.templates[0] ? state.templates[0].name : null;
           closeModal(); renderTemplates();
-          toast("Plantilla eliminada");
+          toast("Template deleted");
         }
       }]);
   }
@@ -1814,12 +1814,12 @@
   $("#tplSearch").addEventListener("input", function (e) { state.tplSearch = e.target.value; renderTemplateList(); });
 
   $("#newTemplate").addEventListener("click", function () {
-    var n = 1, name = "nueva-plantilla";
-    while (state.templates.some(function (t) { return t.name === name; })) { n++; name = "nueva-plantilla-" + n; }
+    var n = 1, name = "new-template";
+    while (state.templates.some(function (t) { return t.name === name; })) { n++; name = "new-template-" + n; }
     state.templates.unshift({
       name: name, description: "", created: Date.now(), updated: Date.now(), isNew: true,
-      body: { model: "jev-1.13", state: "{{estado}}", questions: { q: { type: "noul", instructions: "¿…?" } } },
-      bodyText: '{\n  "model": "jev-1.13",\n  "state": "{{estado}}",\n  "questions": {\n    "q": { "type": "noul", "instructions": "¿…?" }\n  }\n}'
+      body: { model: "jev-1.13", state: "{{state}}", questions: { q: { type: "noul", instructions: "…?" } } },
+      bodyText: '{\n  "model": "jev-1.13",\n  "state": "{{state}}",\n  "questions": {\n    "q": { "type": "noul", "instructions": "…?" }\n  }\n}'
     });
     state.selectedTemplate = name;
     state.tplTab = "editor";
@@ -1828,15 +1828,15 @@
     renderTemplates();
     var nameInput = $("#tplName");
     if (nameInput) { nameInput.focus(); nameInput.select(); }
-    toast("Plantilla nueva sin guardar");
+    toast("New template not saved");
   });
 
-  /* ── lotes ───────────────────────────────────────────────────────── */
+  /* ── batches ─────────────────────────────────────────────────────── */
   var BATCH_CONTEXTS = [
-    { estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.", cliente: { nombre: "Ana", plan: "pro" } },
-    { estado_de_pedido: "El checkout se queda colgado al pagar.", cliente: { nombre: "Luis", plan: "free" } },
-    { estado_de_pedido: "No me llega la factura de este mes.", cliente: { nombre: "Marta", plan: "pro" } },
-    { estado_de_pedido: "Quiero cambiar el titular de la cuenta." }
+    { order_state: "I've been charged twice and I want a refund.", customer: { name: "Ana", plan: "pro" } },
+    { order_state: "Checkout hangs when paying.", customer: { name: "Luis", plan: "free" } },
+    { order_state: "I haven't received this month's invoice.", customer: { name: "Marta", plan: "pro" } },
+    { order_state: "I want to change the account holder." }
   ];
 
   function renderBatch() {
@@ -1857,20 +1857,20 @@
     var hint = $("#contextsHint");
     try {
       var arr = JSON.parse(txt);
-      if (!Array.isArray(arr)) { hint.innerHTML = '<span style="color:var(--danger-text)">Debe ser un array de mapas de contexto.</span>'; return null; }
+      if (!Array.isArray(arr)) { hint.innerHTML = '<span style="color:var(--danger-text)">It must be an array of context maps.</span>'; return null; }
       var bad = arr.filter(function (x) { return !x || typeof x !== "object" || Array.isArray(x); }).length;
       hint.innerHTML = bad
-        ? '<span style="color:var(--danger-text)">' + bad + " elementos no son objetos.</span>"
-        : arr.length + " contextos · <code>--contexts</code> espera un array de mapas";
+        ? '<span style="color:var(--danger-text)">' + bad + " items are not objects.</span>"
+        : arr.length + " contexts · <code>--contexts</code> expects an array of maps";
       return arr;
     } catch (e) {
-      hint.innerHTML = '<span style="color:var(--danger-text)">JSON inválido: ' + esc(e.message) + "</span>";
+      hint.innerHTML = '<span style="color:var(--danger-text)">Invalid JSON: ' + esc(e.message) + "</span>";
       return null;
     }
   }
 
   function syncBatchCli() {
-    var t = $("#batchTemplate").value || "plantilla";
+    var t = $("#batchTemplate").value || "template";
     var cmd = "jev batch " + t + " --contexts examples/contexts.json --concurrency " + state.batch.concurrency + (state.batch.failFast ? " --fail-fast" : "");
     $("#batchCli").innerHTML = '<span class="prompt">$</span>' + esc(cmd);
   }
@@ -1878,16 +1878,16 @@
   function renderBatchBody() {
     var body = $("#batchBody");
     if (!state.batch.items) {
-      body.innerHTML = '<div class="empty" style="border:0;padding-top:76px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3.5l8 4.2-8 4.2-8-4.2 8-4.2z"/><path d="M4 12.5l8 4.2 8-4.2"/></svg><strong>Sin ejecuciones</strong><span>Cada contexto del array produce una petición y una fila en el historial con el mismo <code>batch_id</code>.</span></div>';
-      $("#batchIdView").textContent = "sin batch";
+      body.innerHTML = '<div class="empty" style="border:0;padding-top:76px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3.5l8 4.2-8 4.2-8-4.2 8-4.2z"/><path d="M4 12.5l8 4.2 8-4.2"/></svg><strong>No runs</strong><span>Each context in the array produces one request and one history row with the same <code>batch_id</code>.</span></div>';
+      $("#batchIdView").textContent = "no batch";
       return;
     }
     var items = state.batch.items;
     var summary = state.batch.summary;
     var rows = items.map(function (it) {
-      var pill = it.state === "pending" ? '<span class="pill pill-neutral">en cola</span>'
-        : it.state === "running" ? '<span class="pill pill-info">ejecutando</span>'
-          : it.state === "skipped" ? '<span class="pill pill-neutral">omitido</span>'
+      var pill = it.state === "pending" ? '<span class="pill pill-neutral">queued</span>'
+        : it.state === "running" ? '<span class="pill pill-info">running</span>'
+          : it.state === "skipped" ? '<span class="pill pill-neutral">skipped</span>'
             : it.ok ? '<span class="pill pill-ok">ok</span>' : '<span class="pill pill-err">error</span>';
       var sub = it.state === "pending" || it.state === "running" ? "—"
         : it.ok ? (it.inTok + " in / " + it.outTok + " out") + (it.cost ? " · " + fmtCost(it.cost) : "")
@@ -1900,12 +1900,12 @@
     }).join("");
     var summaryHtml = summary ? '<div class="summary-grid">' +
       '<div><div class="k">ok</div><div class="v">' + summary.ok + "</div></div>" +
-      '<div><div class="k">errores</div><div class="v">' + summary.errors + "</div></div>" +
+      '<div><div class="k">errors</div><div class="v">' + summary.errors + "</div></div>" +
       '<div><div class="k">tokens</div><div class="v" style="font-size:13px">' + summary.inTok + " / " + summary.outTok + "</div></div>" +
-      '<div><div class="k">coste</div><div class="v" style="font-size:13px">' + fmtCost(summary.cost) + (summary.unknown ? ' <span style="color:var(--muted);font-size:10.5px">(' + summary.unknown + " s/informar)</span>" : "") + "</div></div>" +
+      '<div><div class="k">cost</div><div class="v" style="font-size:13px">' + fmtCost(summary.cost) + (summary.unknown ? ' <span style="color:var(--muted);font-size:10.5px">(' + summary.unknown + " unreported)</span>" : "") + "</div></div>" +
       "</div>" : "";
     body.innerHTML = '<div class="panel-body tight" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' + rows + "</div>" + summaryHtml;
-    $("#batchIdView").textContent = state.batch.batchId ? "batch " + state.batch.batchId : "sin batch";
+    $("#batchIdView").textContent = state.batch.batchId ? "batch " + state.batch.batchId : "no batch";
   }
 
   $("#concUp").addEventListener("click", function () {
@@ -1923,12 +1923,12 @@
   $("#runBatch").addEventListener("click", async function () {
     if (state.batch.running) return;
     var arr = validateContexts();
-    if (!arr) { toast("Corrige el JSON de contextos"); return; }
+    if (!arr) { toast("Fix the contexts JSON"); return; }
     var tplName = $("#batchTemplate").value;
     var tpl = state.templates.filter(function (t) { return t.name === tplName; })[0];
-    if (!tpl) { toast("Selecciona una plantilla"); return; }
+    if (!tpl) { toast("Select a template"); return; }
     var v = validateBody(tplBodyText(tpl));
-    if (!v.ok) { toast("La plantilla no es válida: " + v.error); return; }
+    if (!v.ok) { toast("The template is not valid: " + v.error); return; }
     var batchId = Math.random().toString(16).slice(2, 10);
     state.batch.running = true;
     state.batch.batchId = batchId;
@@ -1937,7 +1937,7 @@
       return { index: i, state: "pending", ok: false, error: null, model: null, inTok: 0, outTok: 0, cost: null, label: JSON.stringify(ctx).slice(0, 96) };
     });
     $("#runBatch").disabled = true;
-    $("#runBatch").textContent = "Ejecutando lote…";
+    $("#runBatch").textContent = "Running batch…";
     renderBatchBody();
     var halted = false;
     var conc = state.batch.concurrency;
@@ -1953,7 +1953,7 @@
         var missing = [];
         var resolved = resolveMacros(v.parsed, arr[it.index], missing);
         if (missing.length) {
-          it.state = "done"; it.ok = false; it.error = "faltan macros en el contexto: " + missing.join(", ");
+          it.state = "done"; it.ok = false; it.error = "missing macros in context: " + missing.join(", ");
           errCount++;
           if (state.batch.failFast) halted = true;
         } else {
@@ -1972,7 +1972,7 @@
     state.batch.summary = { ok: okCount, errors: errCount, inTok: inTok, outTok: outTok, cost: cost, unknown: unknown };
     state.batch.running = false;
     $("#runBatch").disabled = false;
-    $("#runBatch").textContent = "Ejecutar lote";
+    $("#runBatch").textContent = "Run batch";
     renderBatchBody();
     var idBase = Math.max.apply(null, state.history.map(function (h) { return h.id; }));
     state.batch.items.forEach(function (it, i) {
@@ -1986,11 +1986,11 @@
     });
     state.history.sort(function (a, b) { return b.at - a.at; });
     $("#navHistCount").textContent = state.history.length;
-    toast(errCount ? "Lote terminado con " + errCount + " error(es)" : "Lote completado: " + okCount + " ok");
-    if (errCount && state.batch.failFast) toast("Detenido por --fail-fast");
+    toast(errCount ? "Batch finished with " + errCount + " error(s)" : "Batch completed: " + okCount + " ok");
+    if (errCount && state.batch.failFast) toast("Stopped by --fail-fast");
   });
 
-  /* ── historial ───────────────────────────────────────────────────── */
+  /* ── history ─────────────────────────────────────────────────────── */
   function filteredHistory() {
     var f = state.filters;
     var rows = state.history.filter(function (r) {
@@ -2009,7 +2009,7 @@
   function renderHistory() {
     var tplSel = $("#fTemplate");
     var tpls = state.history.map(function (r) { return r.template; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
-    tplSel.innerHTML = '<option value="">todas</option>' + tpls.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
+    tplSel.innerHTML = '<option value="">all</option>' + tpls.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
     $("#fSince").value = state.filters.since;
     $("#fStatus").value = state.filters.status;
     $("#fModel").value = state.filters.model;
@@ -2027,8 +2027,8 @@
         '<td class="num">' + (r.inTok === null ? "—" : r.inTok + " / " + r.outTok) + "</td>" +
         '<td class="num">' + fmtCost(r.cost) + "</td>" +
         '<td class="num">' + r.dur + "</td></tr>";
-    }).join("") : '<tr><td colspan="8"><div class="empty" style="border:0">Ninguna petición cumple los filtros.</div></td></tr>';
-    $("#historyCount").textContent = rows.length + " de " + state.history.length + " peticiones";
+    }).join("") : '<tr><td colspan="8"><div class="empty" style="border:0">No request matches the filters.</div></td></tr>';
+    $("#historyCount").textContent = rows.length + " of " + state.history.length + " requests";
 
     var cli = "jev history list";
     if (state.filters.status) cli += " --status " + state.filters.status;
@@ -2044,21 +2044,21 @@
   function renderHistoryDetail() {
     var wrap = $("#historyDetail");
     var r = state.history.filter(function (x) { return x.id === state.selectedHistory; })[0];
-    if (!r) { wrap.innerHTML = '<div class="panel"><div class="empty" style="border:0">Selecciona una petición de la tabla.</div></div>'; return; }
+    if (!r) { wrap.innerHTML = '<div class="panel"><div class="empty" style="border:0">Select a request from the table.</div></div>'; return; }
     var tabs = '<div class="tabs" role="tablist">' +
-      [["report", "Petición"], ["response", "Respuesta"], ["error", "Error"]].map(function (x) {
+      [["report", "Request"], ["response", "Response"], ["error", "Error"]].map(function (x) {
         return '<button class="tab" role="tab" aria-selected="' + (state.histTab === x[0]) + '" data-histtab="' + x[0] + '">' + x[1] + "</button>";
       }).join("") + "</div>";
     var body = "";
     if (state.histTab === "response") body = '<div class="panel-body">' + jsonBlock(r.response) + "</div>";
     else if (state.histTab === "error") body = '<div class="panel-body">' + (r.errorCode
       ? '<div class="callout danger" style="flex-direction:column;gap:5px"><span><strong>' + esc(r.errorCode) + "</strong></span><span>" + esc(r.errorMessage) + "</span></div>" + '<div style="height:10px"></div>' + jsonBlock(r.response)
-      : '<div class="empty" style="border:0">Esta petición terminó con 200.</div>') + "</div>";
+      : '<div class="empty" style="border:0">This request finished with 200.</div>') + "</div>";
     else body = '<div class="panel-body">' + jsonBlock(r.request) + "</div>";
 
     var meta = '<div class="panel-body" style="border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px">' +
       '<div class="row-between"><div class="row" style="gap:8px">' + statusPill(r) + '<span class="mono" style="font-size:12px;font-weight:600">#' + r.id + "</span></div>" +
-      '<button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copiar JSON</button></div>' +
+      '<button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copy JSON</button></div>' +
       '<dl class="kv">' +
       "<dt>created_at</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.createdAt) + "</dd>" +
       "<dt>model</dt><dd class=\"mono\" style=\"font-size:11px\">" + esc(r.model) + "</dd>" +
@@ -2070,7 +2070,7 @@
       "</dl></div>";
 
     wrap.innerHTML = '<div class="panel">' + meta + tabs + body +
-      '<div class="panel-foot"><span class="mono" style="font-size:10.5px">requests.id ' + r.id + '</span><button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copiar JSONL</button></div></div>';
+      '<div class="panel-foot"><span class="mono" style="font-size:10.5px">requests.id ' + r.id + '</span><button class="btn btn-ghost btn-sm" data-copy-json="' + r.id + '">Copy JSONL</button></div></div>';
     $$("[data-histtab]").forEach(function (b) {
       b.addEventListener("click", function () { state.histTab = b.dataset.histtab; renderHistoryDetail(); });
     });
@@ -2098,7 +2098,7 @@
   $("#clearFilters").addEventListener("click", function () {
     state.filters = { since: "", status: "", model: "", template: "", limit: 50 };
     renderHistory();
-    toast("Filtros limpiados");
+    toast("Filters cleared");
   });
 
   $("#exportHistory").addEventListener("click", function () {
@@ -2122,29 +2122,29 @@
       a.click();
       document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-      toast("Exportadas " + rows.length + " peticiones");
+      toast("Exported " + rows.length + " requests");
     } catch (e) {
-      toast("No se pudo generar el fichero");
+      toast("Could not generate the file");
     }
   });
 
-  /* ── configuración ───────────────────────────────────────────────── */
+  /* ── settings ────────────────────────────────────────────────────── */
   function renderConfig() {
     $("#cfgUrl").value = state.config.api_url;
     $("#cfgApiKey").value = state.keyRevealed ? state.config.api_key : maskKey(state.config.api_key);
     $("#cfgApiKey").readOnly = !state.keyRevealed;
-    $("#revealKey").textContent = state.keyRevealed ? "Ocultar" : "Revelar";
+    $("#revealKey").textContent = state.keyRevealed ? "Hide" : "Reveal";
     $("#cfgModel").value = state.config.model;
     $("#cfgTimeout").value = state.config.timeout;
     $("#cfgRetries").value = state.config.retries;
     $("#precedenceList").innerHTML = [
       ["api_url", "SQLite", state.config.api_url],
-      ["api_key", "entorno · OPENCODE_API_KEY", maskKey(state.config.api_key)],
+      ["api_key", "environment · OPENCODE_API_KEY", maskKey(state.config.api_key)],
       ["model", "SQLite", state.config.model],
-      ["timeout", "por defecto", state.config.timeout + " s"],
-      ["retries", "por defecto", String(state.config.retries)]
+      ["timeout", "default", state.config.timeout + " s"],
+      ["retries", "default", String(state.config.retries)]
     ].map(function (p) {
-      var chip = p[1].indexOf("entorno") === 0 ? "pill-info" : p[1] === "SQLite" ? "pill-ok" : "pill-neutral";
+      var chip = p[1].indexOf("environment") === 0 ? "pill-info" : p[1] === "SQLite" ? "pill-ok" : "pill-neutral";
       return '<div class="prec-row"><span class="k">' + esc(p[0]) + '</span><span class="v" title="' + esc(p[2]) + '">' + esc(p[2]) + '</span><span class="pill ' + chip + '">' + esc(p[1]) + "</span></div>";
     }).join("");
     $("#cfgCli").innerHTML = '<span class="prompt">$</span>jev config set model ' + esc(state.config.model);
@@ -2155,11 +2155,11 @@
     var timeout = Number($("#cfgTimeout").value);
     var retries = Number($("#cfgRetries").value);
     var err = null;
-    if (!url || url.indexOf("http") !== 0) err = "api_url debe ser un endpoint completo (http…).";
-    else if (!(timeout > 0)) err = "timeout debe ser un número positivo en segundos.";
-    else if (!(retries >= 0) || !Number.isInteger(retries)) err = "retries debe ser un entero ≥ 0.";
+    if (!url || url.indexOf("http") !== 0) err = "api_url must be a full endpoint (http…).";
+    else if (!(timeout > 0)) err = "timeout must be a positive number of seconds.";
+    else if (!(retries >= 0) || !Number.isInteger(retries)) err = "retries must be an integer ≥ 0.";
     var el = $("#configValidation");
-    el.innerHTML = err ? '<span style="color:var(--danger-text)">' + esc(err) + "</span>" : "Valores válidos.";
+    el.innerHTML = err ? '<span style="color:var(--danger-text)">' + esc(err) + "</span>" : "Valid values.";
     return !err;
   }
 
@@ -2172,11 +2172,11 @@
     var input = $("#cfgApiKey");
     input.value = state.keyRevealed ? state.config.api_key : maskKey(state.config.api_key);
     input.readOnly = !state.keyRevealed;
-    $("#revealKey").textContent = state.keyRevealed ? "Ocultar" : "Revelar";
+    $("#revealKey").textContent = state.keyRevealed ? "Hide" : "Reveal";
   });
 
   $("#saveConfig").addEventListener("click", function () {
-    if (!validateConfig()) { toast("Revisa los valores marcados"); return; }
+    if (!validateConfig()) { toast("Check the highlighted values"); return; }
     state.config.api_url = $("#cfgUrl").value.trim();
     if (state.keyRevealed) state.config.api_key = $("#cfgApiKey").value.trim();
     state.config.model = $("#cfgModel").value;
@@ -2186,7 +2186,7 @@
     saveLocal();
     renderConfig();
     renderResumen();
-    toast("Configuración guardada en SQLite");
+    toast("Settings saved to SQLite");
   });
 
   $("#resetConfig").addEventListener("click", function () {
@@ -2195,7 +2195,7 @@
     saveLocal();
     renderConfig();
     renderResumen();
-    toast("Valores por defecto restablecidos");
+    toast("Default values restored");
   });
 
   $("#copyDbPath").addEventListener("click", function () { copyText("~/.jev-client/db/jev.db"); });
@@ -2203,24 +2203,24 @@
 
   $("#checkProvider").addEventListener("click", async function () {
     var el = $("#checkResult");
-    el.textContent = "comprobando…";
+    el.textContent = "checking…";
     $("#providerState").className = "pill pill-neutral";
-    $("#providerState").textContent = "comprobando";
+    $("#providerState").textContent = "checking";
     await sleep(640);
     var latency = 190 + Math.round(Math.random() * 220);
     el.textContent = "200 · " + latency + " ms";
     $("#providerState").className = "pill pill-ok";
-    $("#providerState").textContent = "conectado";
+    $("#providerState").textContent = "connected";
     $("#providerDot").className = "dot";
-    toast("Provider accesible · 200 en " + latency + " ms");
+    toast("Provider reachable · 200 in " + latency + " ms");
   });
 
-  /* ── modales y paleta ────────────────────────────────────────────── */
+  /* ── modals and palette ──────────────────────────────────────────── */
   function openModal(title, html, actions, extraClass) {
     var modal = $("#modal");
     modal.className = "modal" + (extraClass ? " " + extraClass : "");
     modal.innerHTML = '<div class="modal-head"><h2 id="modalTitle">' + esc(title) + "</h2>" +
-      '<button class="icon-btn" id="modalClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+      '<button class="icon-btn" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
       '<div class="modal-body">' + html + "</div>" +
       (actions && actions.length ? '<div class="modal-foot">' + actions.map(function (a, i) { return '<button class="btn ' + a.cls + '" data-modal-act="' + i + '">' + esc(a.label) + "</button>"; }).join("") + "</div>" : "");
     $("#overlay").hidden = false;
@@ -2234,45 +2234,45 @@
   function closeModal() { $("#overlay").hidden = true; $("#modal").innerHTML = ""; }
 
   var CLI_REF = [
-    ["ask", "Evalúa un state contra una o más preguntas", "--state, --state-file, --questions, --questions-file, --request, --request-file, --key, --url, --model, --db, --timeout, --retries, --no-save, --json"],
-    ["demo", "Ejecuta el ejemplo integrado (urgencia, equipo, frustración)", "mismos flags que ask"],
-    ["config list|get|set|unset|path", "Configuración persistente en SQLite", "--json, --reveal, --db"],
-    ["history list|show|export", "Historial de peticiones", "--since, --status, --model, --template, --limit, --db"],
-    ["template create|list|show|edit|validate|render|delete", "Plantillas JSON con macros", "--body, --file, --description, --context, --context-file, --json, --yes"],
-    ["batch", "Ejecuta una plantilla por cada contexto", "--contexts, --concurrency 1-10, --continue-on-error, --fail-fast"],
-    ["tui", "Modo interactivo en terminal (requiere TTY)", "--db"],
-    ["version | help", "Versión y ayuda", "-h"]
+    ["ask", "Evaluates a state against one or more questions", "--state, --state-file, --questions, --questions-file, --request, --request-file, --key, --url, --model, --db, --timeout, --retries, --no-save, --json"],
+    ["demo", "Runs the built-in example (urgency, team, frustration)", "same flags as ask"],
+    ["config list|get|set|unset|path", "Persistent configuration in SQLite", "--json, --reveal, --db"],
+    ["history list|show|export", "Request history", "--since, --status, --model, --template, --limit, --db"],
+    ["template create|list|show|edit|validate|render|delete", "JSON templates with macros", "--body, --file, --description, --context, --context-file, --json, --yes"],
+    ["batch", "Runs one template per context", "--contexts, --concurrency 1-10, --continue-on-error, --fail-fast"],
+    ["tui", "Interactive terminal mode (requires TTY)", "--db"],
+    ["version | help", "Version and help", "-h"]
   ];
 
   function openCliRef() {
     var rows = CLI_REF.map(function (r) {
       return "<tr><td>" + esc(r[0]) + "</td><td>" + esc(r[1]) + '</td><td class="mono" style="font-size:10.5px;color:var(--muted)">' + esc(r[2]) + "</td></tr>";
     }).join("");
-    openModal("Referencia de la CLI",
-      '<table class="cli-table"><thead><tr><th>Comando</th><th>Qué hace</th><th>Flags</th></tr></thead><tbody>' + rows + "</tbody></table>" +
-      '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>Esta consola se abre con <code>jev --web-console</code> y envuelve los mismos comandos sobre la misma base SQLite.</span></div>',
-      [{ label: "Cerrar", cls: "btn-outline", act: closeModal }]);
+    openModal("CLI reference",
+      '<table class="cli-table"><thead><tr><th>Command</th><th>What it does</th><th>Flags</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+      '<div class="callout info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.1"/></svg><span>This console opens with <code>jev --web-console</code> and wraps the same commands over the same SQLite database.</span></div>',
+      [{ label: "Close", cls: "btn-outline", act: closeModal }]);
   }
   $("#openCliRef").addEventListener("click", openCliRef);
   $("#openCliRef2").addEventListener("click", openCliRef);
 
   var PALETTE = [
-    { group: "Ir a", label: "Resumen", hint: "jev --web-console", act: function () { go("resumen"); } },
-    { group: "Ir a", label: "Evaluar", hint: "jev ask", act: function () { go("evaluar"); } },
-    { group: "Ir a", label: "Plantillas", hint: "jev template list", act: function () { go("plantillas"); } },
-    { group: "Ir a", label: "Lotes", hint: "jev batch", act: function () { go("lotes"); } },
-    { group: "Ir a", label: "Historial", hint: "jev history list", act: function () { go("historial"); } },
-    { group: "Ir a", label: "Configuración", hint: "jev config list", act: function () { go("configuracion"); } },
-    { group: "Acciones", label: "Ejecutar demo integrado", hint: "jev demo", act: function () { go("evaluar"); setTimeout(function () { run(true); }, 120); } },
-    { group: "Acciones", label: "Nueva plantilla", hint: "jev template create", act: function () { go("plantillas"); setTimeout(function () { $("#newTemplate").click(); }, 120); } },
-    { group: "Acciones", label: "Exportar historial JSONL", hint: "jev history export", act: function () { go("historial"); setTimeout(function () { $("#exportHistory").click(); }, 120); } },
-    { group: "Acciones", label: "Probar la conexión del provider", hint: "jev demo --json", act: function () { go("resumen"); setTimeout(function () { $("#checkProvider").click(); }, 120); } },
-    { group: "Acciones", label: "Referencia de la CLI", hint: "jev help", act: function () { openCliRef(); } }
+    { group: "Go to", label: "Overview", hint: "jev --web-console", act: function () { go("resumen"); } },
+    { group: "Go to", label: "Evaluate", hint: "jev ask", act: function () { go("evaluar"); } },
+    { group: "Go to", label: "Templates", hint: "jev template list", act: function () { go("plantillas"); } },
+    { group: "Go to", label: "Batches", hint: "jev batch", act: function () { go("lotes"); } },
+    { group: "Go to", label: "History", hint: "jev history list", act: function () { go("historial"); } },
+    { group: "Go to", label: "Settings", hint: "jev config list", act: function () { go("configuracion"); } },
+    { group: "Actions", label: "Run built-in demo", hint: "jev demo", act: function () { go("evaluar"); setTimeout(function () { run(true); }, 120); } },
+    { group: "Actions", label: "New template", hint: "jev template create", act: function () { go("plantillas"); setTimeout(function () { $("#newTemplate").click(); }, 120); } },
+    { group: "Actions", label: "Export history JSONL", hint: "jev history export", act: function () { go("historial"); setTimeout(function () { $("#exportHistory").click(); }, 120); } },
+    { group: "Actions", label: "Test the provider connection", hint: "jev demo --json", act: function () { go("resumen"); setTimeout(function () { $("#checkProvider").click(); }, 120); } },
+    { group: "Actions", label: "CLI reference", hint: "jev help", act: function () { openCliRef(); } }
   ];
 
   function openPalette() {
     state.paletteIndex = 0;
-    openModal("Buscar", '<input class="p-input input" id="pInput" placeholder="Buscar secciones, acciones o comandos…" aria-label="Buscar" /><div class="p-list" id="pList"></div>', [], "palette");
+    openModal("Search", '<input class="p-input input" id="pInput" placeholder="Search sections, actions, or commands…" aria-label="Search" /><div class="p-list" id="pList"></div>', [], "palette");
     $("#modalTitle").style.display = "none";
     $(".modal-head").style.padding = "0";
     $(".modal-head").style.borderBottom = "0";
@@ -2298,7 +2298,7 @@
     var filtered = PALETTE.filter(function (p) {
       return !q || (p.label + " " + p.hint).toLowerCase().indexOf(q.toLowerCase()) >= 0;
     });
-    if (!filtered.length) { list.innerHTML = '<div class="empty" style="border:0">Sin resultados para «' + esc(q) + "»</div>"; return; }
+    if (!filtered.length) { list.innerHTML = '<div class="empty" style="border:0">No results for “' + esc(q) + "”</div>"; return; }
     filtered.forEach(function (p, i) {
       if (p.group !== lastGroup) { out += '<div class="p-group">' + esc(p.group) + "</div>"; lastGroup = p.group; }
       out += '<button class="p-item" data-pal="' + PALETTE.indexOf(p) + '" aria-selected="' + (i === state.paletteIndex) + '"><span>' + esc(p.label) + '</span><span class="p-hint">' + esc(p.hint) + "</span></button>";
@@ -2337,7 +2337,7 @@
   });
   $("#overlay").addEventListener("click", function (e) { if (e.target === $("#overlay")) closeModal(); });
 
-  /* ── arranque ────────────────────────────────────────────────────── */
+  /* ── startup ─────────────────────────────────────────────────────── */
   loadLocal();
   $("#askModel").value = state.ask.model;
   $("#navHistCount").textContent = state.history.length;

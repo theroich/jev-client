@@ -17,7 +17,7 @@ export function parseHistoryFilters(params: URLSearchParams): ParsedHistoryFilte
       ? new Date(`${since}T00:00:00`).toISOString()
       : since;
     if (Number.isNaN(new Date(normalized).getTime())) {
-      throw new ConsoleError(400, "invalid_history_filter", "--since debe ser una fecha válida");
+      throw new ConsoleError(400, "invalid_history_filter", "--since must be a valid date");
     }
     repository.since = normalized;
   }
@@ -25,7 +25,7 @@ export function parseHistoryFilters(params: URLSearchParams): ParsedHistoryFilte
   if (status) {
     const code = Number(status);
     if (!Number.isInteger(code) || code < 100 || code > 599) {
-      throw new ConsoleError(400, "invalid_history_filter", "--status debe ser un código HTTP entre 100 y 599");
+      throw new ConsoleError(400, "invalid_history_filter", "--status must be an HTTP code between 100 and 599");
     }
     repository.status = code;
   }
@@ -38,7 +38,7 @@ export function parseHistoryFilters(params: URLSearchParams): ParsedHistoryFilte
   const rawLimit = params.get("limit");
   const limit = rawLimit === null ? 50 : Number(rawLimit);
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
-    throw new ConsoleError(400, "invalid_history_filter", "--limit debe ser un entero entre 1 y 200");
+    throw new ConsoleError(400, "invalid_history_filter", "--limit must be an integer between 1 and 200");
   }
   repository.limit = limit;
   return {

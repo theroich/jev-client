@@ -17,27 +17,27 @@ import { ConsoleProvider, useConsole } from "./console-context";
 import { Button, Callout, Icon, type IconName } from "./ui";
 
 const NAVIGATION: Array<{ group: string; items: Array<{ href: string; label: string; icon: IconName; count?: "templates" | "history" }> }> = [
-  { group: "Trabajo", items: [
-    { href: "/", label: "Resumen", icon: "overview" },
-    { href: "/evaluar", label: "Evaluar", icon: "evaluate" },
-    { href: "/lotes", label: "Lotes", icon: "batch" },
+  { group: "Work", items: [
+    { href: "/", label: "Overview", icon: "overview" },
+    { href: "/evaluate", label: "Evaluate", icon: "evaluate" },
+    { href: "/batches", label: "Batches", icon: "batch" },
   ] },
-  { group: "Biblioteca", items: [
-    { href: "/plantillas", label: "Plantillas", icon: "templates", count: "templates" },
-    { href: "/historial", label: "Historial", icon: "history", count: "history" },
+  { group: "Library", items: [
+    { href: "/templates", label: "Templates", icon: "templates", count: "templates" },
+    { href: "/history", label: "History", icon: "history", count: "history" },
   ] },
-  { group: "Sistema", items: [
-    { href: "/configuracion", label: "Configuración", icon: "config" },
+  { group: "System", items: [
+    { href: "/settings", label: "Settings", icon: "config" },
   ] },
 ];
 
 function currentSection(pathname: string): { href: string; label: string } {
-  if (pathname === "/") return { href: "/", label: "Resumen" };
+  if (pathname === "/") return { href: "/", label: "Overview" };
   for (const group of NAVIGATION) {
     const item = group.items.find((entry) => entry.href !== "/" && pathname.startsWith(entry.href));
     if (item) return item;
   }
-  return { href: "/", label: "Resumen" };
+  return { href: "/", label: "Overview" };
 }
 
 export function ConsoleShell({ data, children }: { data: ShellData; children: ReactNode }) {
@@ -68,25 +68,25 @@ function ShellInner({ data, children }: { data: ShellData; children: ReactNode }
   const actions = useMemo<PaletteAction[]>(() => [
     ...NAVIGATION.flatMap((group) => group.items.map((item) => ({
       id: `go-${item.label}`,
-      group: "Ir a",
+      group: "Go to",
       label: item.label,
       hint: item.href === "/" ? "jev web-console" : item.href,
       run: () => router.push(item.href),
     }))),
-    { id: "demo", group: "Acciones", label: "Ejecutar demo integrado", hint: "jev demo", run: () => router.push("/evaluar?run=demo") },
-    { id: "new-template", group: "Acciones", label: "Nueva plantilla", hint: "jev template create", run: () => router.push("/plantillas?new=1") },
-    { id: "export", group: "Acciones", label: "Exportar historial JSONL", hint: "jev history export", run: () => router.push("/historial?export=1") },
-    { id: "check", group: "Acciones", label: "Probar la conexión del provider", hint: "petición real · --no-save", run: () => router.push("/?check=1") },
-    { id: "reference", group: "Acciones", label: "Referencia de la CLI", hint: "jev help", run: () => setReferenceOpen(true) },
+    { id: "demo", group: "Actions", label: "Run built-in demo", hint: "jev demo", run: () => router.push("/evaluate?run=demo") },
+    { id: "new-template", group: "Actions", label: "New template", hint: "jev template create", run: () => router.push("/templates?new=1") },
+    { id: "export", group: "Actions", label: "Export history as JSONL", hint: "jev history export", run: () => router.push("/history?export=1") },
+    { id: "check", group: "Actions", label: "Test the provider connection", hint: "real request · --no-save", run: () => router.push("/?check=1") },
+    { id: "reference", group: "Actions", label: "CLI reference", hint: "jev help", run: () => setReferenceOpen(true) },
   ], [router]);
 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <Link href="/" className="brand" aria-label="jev · Resumen">
-          <span className="brand-mark">jev</span><span className="brand-sub">consola web</span>
+        <Link href="/" className="brand" aria-label="jev · Overview">
+          <span className="brand-mark">jev</span><span className="brand-sub">web console</span>
         </Link>
-        <nav className="nav" aria-label="Secciones">
+        <nav className="nav" aria-label="Sections">
           {NAVIGATION.map((group) => (
             <div key={group.group} style={{ display: "contents" }}>
               <p className="nav-label">{group.group}</p>
@@ -104,10 +104,10 @@ function ShellInner({ data, children }: { data: ShellData; children: ReactNode }
           ))}
         </nav>
         <div className="sidebar-foot">
-          <button type="button" className="db-chip" title="Copiar la ruta de la base SQLite" onClick={() => void copy(data.dbPath)}>
-            <span>Base SQLite</span><span>{data.dbPath}</span>
+          <button type="button" className="db-chip" title="Copy the SQLite database path" onClick={() => void copy(data.dbPath)}>
+            <span>SQLite database</span><span>{data.dbPath}</span>
           </button>
-          <div className="sidebar-meta"><span>v{data.version}</span><span>esquema {data.schemaVersion}</span></div>
+          <div className="sidebar-meta"><span>v{data.version}</span><span>schema {data.schemaVersion}</span></div>
         </div>
       </aside>
 
@@ -116,8 +116,8 @@ function ShellInner({ data, children }: { data: ShellData; children: ReactNode }
           <div className="crumb"><span>jev</span><span className="sep">/</span><strong>{current.label}</strong><span className="sep">·</span><span className="mono" style={{ fontSize: 11 }}>{data.listen.host}:{data.listen.port}</span></div>
           <div className="topbar-right">
             <span className="provider" title={`Provider: ${data.provider.status}`}><span className={`dot${data.provider.status === "error" ? " off" : data.provider.status === "unknown" ? " unknown" : ""}`} /><span className="provider-model">{data.provider.model}</span></span>
-            <Button variant="ghost" size="sm" onClick={() => setReferenceOpen(true)} title="Referencia de comandos CLI"><Icon name="terminal" /><span className="topbar-label">Referencia CLI</span></Button>
-            <Button size="sm" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Meta+K Control+K"><Icon name="search" /><span>Buscar</span><span className="kbd">⌘K</span></Button>
+            <Button variant="ghost" size="sm" onClick={() => setReferenceOpen(true)} title="CLI command reference"><Icon name="terminal" /><span className="topbar-label">CLI reference</span></Button>
+            <Button size="sm" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Meta+K Control+K"><Icon name="search" /><span>Search</span><span className="kbd">⌘K</span></Button>
           </div>
         </header>
         <main className="content">

@@ -1,181 +1,182 @@
 ---
 name: jev-cli
 description: >
-  Documentación de la CLI `jev` (jev-client) organizada por casos de uso.
-  Activa esta skill cuando quieras resolver una tarea concreta con `jev` por
-  consola: clasificar un ticket con `choice`, puntuar urgencia con `score`,
-  decidir un sí/no con `noul`, invocar `jev` de forma no interactiva desde un
-  script bash (parseando el resultado con `jq` y manejando los códigos de
-  salida), o crear y reutilizar plantillas con macros. Úsala también cuando
-  necesites saber qué comando ejecutar para «quiero X».
+  Documentation for the `jev` CLI (jev-client) organized by use case.
+  Enable this skill when you want to solve a concrete task with `jev` from the
+  console: classify a ticket with `choice`, rate urgency with `score`, decide
+  yes/no with `noul`, invoke `jev` non-interactively from a bash script (parsing
+  the result with `jq` and handling exit codes), or create and reuse templates
+  with macros. Use it also when you need to know which command to run for
+  "I want X".
 ---
 
-# Skill de la CLI de `jev` por casos de uso
+# `jev` CLI skill by use case
 
-`jev` (el binario de **jev-client**) consume la API de Jev (System One de
-TypeSafe) vía OpenCode. No genera texto: recibe un `state` y una o más
-preguntas tipadas y devuelve **una respuesta por pregunta con probabilidades**.
+`jev` (the **jev-client** binary) consumes the Jev API (TypeSafe's System One)
+via OpenCode. It does not generate text: it takes a `state` and one or more
+typed questions and returns **one answer per question with probabilities**.
 
-Esta skill documenta **cómo invocar la CLI por consola y desde scripts**, por
-tipo de operación. Es un índice y un contrato de scripting: el detalle de cada
-operación vive en `references/*.md`. No duplica el [`README.md`](../../README.md),
-lo resume y enlaza.
+This skill documents **how to invoke the CLI from the console and from
+scripts**, by type of operation. It is an index and a scripting contract: the
+details of each operation live in `references/*.md`. It does not duplicate the
+[`README.md`](../../README.md); it summarizes and links to it.
 
-## Requisitos y arranque rápido
+## Requirements and quick start
 
-- Node.js 20.9+ (o 22+).
-- Una API key de [OpenCode Console](https://opencode.ai/console).
+- Node.js 20.9+ (or 22+).
+- An API key from [OpenCode Console](https://opencode.ai/console).
 
 ```sh
 cd jev-client
 npm install
 npm run build
-export OPENCODE_API_KEY="sk-..."   # o JEV_API_KEY
+export OPENCODE_API_KEY="sk-..."   # or JEV_API_KEY
 
-npm link        # opcional: deja `jev` disponible en el PATH
-jev demo        # ejemplo integrado end-to-end
+npm link        # optional: makes `jev` available on the PATH
+jev demo        # built-in end-to-end example
 ```
 
-Sin enlazar:
+Without linking:
 
 ```sh
 node dist/src/bin.js demo
 npm start -- demo
-npm run dev -- demo   # compila y ejecuta
+npm run dev -- demo   # builds and runs
 ```
 
-## Configuración mínima
+## Minimal configuration
 
-Precedencia: **flag > variable de entorno > base SQLite > valor por defecto**.
-Las cadenas vacías cuentan como no definidas.
+Precedence: **flag > environment variable > SQLite database > default value**.
+Empty strings count as undefined.
 
-| Qué | Flag | Variable | Clave SQLite | Default |
+| What | Flag | Variable | SQLite key | Default |
 | --- | --- | --- | --- | --- |
-| API key | `--key` | `OPENCODE_API_KEY` o `JEV_API_KEY` | `api_key` | — (obligatoria) |
+| API key | `--key` | `OPENCODE_API_KEY` or `JEV_API_KEY` | `api_key` | — (required) |
 | Endpoint | `--url` | `JEV_URL` | `api_url` | `https://opencode.ai/inference/systemone/v1/systemone` |
-| Modelo | `--model` | `JEV_MODEL` | `model` | `jev-1.13` |
+| Model | `--model` | `JEV_MODEL` | `model` | `jev-1.13` |
 | Timeout (s) | `--timeout` | — | `timeout` | `30` |
-| Reintentos | `--retries` | — | `retries` | `2` |
-| Base SQLite | `--db` | `JEV_DB` | — | `~/.jev-client/db/jev.db` |
+| Retries | `--retries` | — | `retries` | `2` |
+| SQLite database | `--db` | `JEV_DB` | — | `~/.jev-client/db/jev.db` |
 
-`--url` espera el **endpoint completo**. La API key guardada con
-`jev config set api_key` queda en claro en SQLite; para no persistirla usa
-`--key` o las variables de entorno.
+`--url` expects the **full endpoint**. The API key stored with
+`jev config set api_key` stays in plain text in SQLite; to avoid persisting it,
+use `--key` or the environment variables.
 
-## Tabla resumen de los tres tipos de pregunta
+## Summary table of the three question types
 
-| `type` | Campos obligatorios | Forma de `criteria` | Qué devuelve |
+| `type` | Required fields | Shape of `criteria` | What it returns |
 | --- | --- | --- | --- |
-| `noul` | `instructions` | opcional (string) | `noul`: probabilidad de «sí» (0–1) |
-| `choice` | `instructions`, `criteria` | **objeto** `{ clave: descripción }` | `choice`, `confidence`, `probabilities` |
-| `score` | `instructions`, `criteria` | **array ordenado** `[nivel0, nivel1, …]` | `score`, `legend`, `probabilities` |
+| `noul` | `instructions` | optional (string) | `noul`: probability of "yes" (0–1) |
+| `choice` | `instructions`, `criteria` | **object** `{ key: description }` | `choice`, `confidence`, `probabilities` |
+| `score` | `instructions`, `criteria` | **ordered array** `[level0, level1, …]` | `score`, `legend`, `probabilities` |
 
-En `score`, la posición del array es la nota: `0` el primer nivel, `1` el
-segundo… El `score` es una media ponderada y puede ser decimal; cuando cae
-entre dos niveles se muestra con `≈`.
+In `score`, the position in the array is the score: `0` for the first level,
+`1` for the second… The `score` is a weighted mean and can be a decimal; when
+it falls between two levels it is shown with `≈`.
 
-## Anatomía de una pregunta: qué ve el modelo
+## Question anatomy: what the model sees
 
-Un request es `{ model, state, questions: { clave: pregunta } }` y cada
-pregunta es `{ type, instructions, criteria }`. De ahí salen tres reglas que
-valen para `noul`, `choice` y `score`:
+A request is `{ model, state, questions: { key: question } }` and each question
+is `{ type, instructions, criteria }`. Three rules follow, valid for `noul`,
+`choice` and `score`:
 
-1. **`state` es único y compartido** por todas las preguntas del request.
-2. **La clave de `questions` no se envía al modelo**: `"gato"` en
-   `{"gato": {…}}` solo identifica la respuesta en `answers`, no es contexto.
-3. El modelo solo ve, por pregunta, **`state` + `instructions` + `criteria`**.
+1. **`state` is single and shared** by all the questions in the request.
+2. **The `questions` key is not sent to the model**: `"cat"` in
+   `{"cat": {…}}` only identifies the answer in `answers`; it is not context.
+3. The model only sees, per question, **`state` + `instructions` + `criteria`**.
 
-Por eso, al evaluar varios elementos en un solo request (varios animales,
-varios tickets, varias URLs…), hay que **nombrar el elemento dentro de cada
-`instructions`** —o ponerlo en `state` y referenciarlo por nombre—. Si el
-referente vive solo en la clave, todas las preguntas ven el mismo texto y las
-respuestas colapsan al mismo valor.
+That is why, when evaluating several items in a single request (several
+animals, several tickets, several URLs…), you must **name the item inside each
+`instructions`** — or put it in `state` and reference it by name. If the
+referent lives only in the key, every question sees the same text and the
+answers collapse to the same value.
 
-| | `instructions` | Resultado |
+| | `instructions` | Result |
 | --- | --- | --- |
-| Mal | `"¿Qué tamaño tiene este animal?"` (el animal, solo en la clave) | las 7 preguntas ≈ 1.75 («Mediano») |
-| Bien | `"¿Qué tamaño tiene un gato?"`, `"…una mosca?"`, … | mosca 0.03 («Diminuto») … elefante 3.93 («Enorme») |
+| Wrong | `"What size is this animal?"` (the animal, only in the key) | all 7 questions ≈ 1.75 ("Medium") |
+| Right | `"What size is a cat?"`, `"…a fly?"`, … | fly 0.03 ("Tiny") … elephant 3.93 ("Huge") |
 
-Detalle y caso completo en
-[`references/anatomia-pregunta.md`](references/anatomia-pregunta.md).
+Details and the full case in
+[`references/question-anatomy.md`](references/question-anatomy.md).
 
-## Tabla de decisión
+## Decision table
 
-| Quiero… | Comando | Referencia |
+| I want to… | Command | Reference |
 | --- | --- | --- |
-| Decidir sí/no (¿es facturación?, ¿es urgente?) | `jev ask --noul 'q=¿…?'` | [`references/noul.md`](references/noul.md) |
-| Clasificar entre opciones fijas (equipo, tono, categoría) | `jev ask --choice 'q=¿…?' --option 'q.a=…'` | [`references/choice.md`](references/choice.md) |
-| Puntuar en una escala ordenada (urgencia, frustración) | `jev ask --score 'q=¿…?' --level 'q=…'` | [`references/score.md`](references/score.md) |
-| Ejecutar cualquiera de lo anterior en un script bash | `jev ask … --json` + `jq` | el fichero de la operación |
-| Guardar un request con huecos y reutilizarlo | `jev template create` | [`references/templates.md`](references/templates.md) |
-| Ejecutar una plantilla para muchos contextos | `jev batch <plantilla> --contexts …` | [`references/templates.md`](references/templates.md) |
-| Previsualizar un request sin gastar tokens | `jev template render` | [`references/templates.md`](references/templates.md) |
-| Evaluar una imagen (experimental) | `jev ask --asset <ref>=foto.jpg …` | [`references/templates.md`](references/templates.md) |
+| Decide yes/no (is it billing?, is it urgent?) | `jev ask --noul 'q=Is it…?'` | [`references/noul.md`](references/noul.md) |
+| Classify among fixed options (team, tone, category) | `jev ask --choice 'q=Which…?' --option 'q.a=…'` | [`references/choice.md`](references/choice.md) |
+| Rate on an ordered scale (urgency, frustration) | `jev ask --score 'q=How…?' --level 'q=…'` | [`references/score.md`](references/score.md) |
+| Run any of the above from a bash script | `jev ask … --json` + `jq` | the file for the operation |
+| Save a request with placeholders and reuse it | `jev template create` | [`references/templates.md`](references/templates.md) |
+| Run a template for many contexts | `jev batch <template> --contexts …` | [`references/templates.md`](references/templates.md) |
+| Preview a request without spending tokens | `jev template render` | [`references/templates.md`](references/templates.md) |
+| Evaluate an image (experimental) | `jev ask --asset <ref>=photo.jpg …` | [`references/templates.md`](references/templates.md) |
 
-## Flags tipados para `jev ask`
+## Typed flags for `jev ask`
 
-Para el caso común no hace falta escribir JSON inline. Estos flags traducen la
-entrada de consola al request que el cliente ya entiende:
+For the common case you do not need to write JSON inline. These flags translate
+console input into the request the client already understands:
 
-| Flag | Forma | Produce (`questions.<clave>`) |
+| Flag | Shape | Produces (`questions.<key>`) |
 | --- | --- | --- |
-| `--noul` | `--noul <clave>=<instrucción>` | `{ type: "noul", instructions }` |
-| `--choice` | `--choice <clave>=<instrucción>` | `{ type: "choice", instructions, criteria: {…} }` |
-| `--score` | `--score <clave>=<instrucción>` | `{ type: "score", instructions, criteria: […] }` |
-| `--option` | `--option <pregunta>.<opción>=<descripción>` | añade `{ opción: descripción }` al `criteria` del `--choice` |
-| `--level` | `--level <pregunta>=<nivel>` | añade `nivel` (por orden) al `criteria` del `--score` |
+| `--noul` | `--noul <key>=<instruction>` | `{ type: "noul", instructions }` |
+| `--choice` | `--choice <key>=<instruction>` | `{ type: "choice", instructions, criteria: {…} }` |
+| `--score` | `--score <key>=<instruction>` | `{ type: "score", instructions, criteria: […] }` |
+| `--option` | `--option <question>.<option>=<description>` | adds `{ option: description }` to the `--choice` `criteria` |
+| `--level` | `--level <question>=<level>` | adds `level` (in order) to the `--score` `criteria` |
 
-Todos son repetibles. `--option` es para las opciones de un `--choice` y
-`--level` para la escala (ordenada) de un `--score`; la posición de aparición de
-`--level` es la nota. No se combinan con `--questions`, `--questions-file`,
-`--request` ni `--request-file` (esos siguen siendo la vía JSON/fichero).
+All of them are repeatable. `--option` is for the options of a `--choice` and
+`--level` for the (ordered) scale of a `--score`; the position where `--level`
+appears is the score. They do not combine with `--questions`,
+`--questions-file`, `--request` or `--request-file` (those remain the
+JSON/file route).
 
-## Imágenes (experimental)
+## Images (experimental)
 
-`jev ask` acepta imágenes con `--asset [<ref>=]<ruta>` (repetible) o
-`--assets-file <ruta>` (mapa JSON). La referencia se escribe en `state` donde
-iría texto; el cliente añade el header `TypeSafe-Danger-Zone-Images: true`
-automáticamente (`--no-images-header` lo omite para depurar el `400`).
+`jev ask` accepts images with `--asset [<ref>=]<path>` (repeatable) or
+`--assets-file <path>` (JSON map). The reference is written in `state` where
+text would go; the client adds the `TypeSafe-Danger-Zone-Images: true` header
+automatically (`--no-images-header` omits it to debug the `400`).
 
 ```sh
-jev ask --state '{"foto":"<ref>"}' --asset <ref>=foto.jpg \
-    --choice 'animal=¿Qué animal aparece en `foto`?' \
-    --option 'animal.GATO=Felino' --option 'animal.PERRO=Canino'
+jev ask --state '{"photo":"<ref>"}' --asset <ref>=photo.jpg \
+    --choice 'animal=What animal appears in `photo`?' \
+    --option 'animal.CAT=Feline' --option 'animal.DOG=Canine'
 ```
 
-- Solo PNG/JPEG estático, 280–1568 px por lado, ≤16 MiB por fichero.
-- `data:` en `state` **no** funciona: usa `assets` + referencia.
-- El `box` (localizar objetos) no está disponible vía el proxy de OpenCode.
+- Static PNG/JPEG only, 280–1568 px per side, ≤16 MiB per file.
+- `data:` in `state` does **not** work: use `assets` + reference.
+- `box` (localize objects) is not available through the OpenCode proxy.
 
-Las imágenes son experimentales: formato y límites pueden cambiar.
+Images are experimental: format and limits may change.
 
-## Contrato de scripting
+## Scripting contract
 
-Esto es lo que necesitas para invocar `jev` de forma no interactiva:
+This is what you need to invoke `jev` non-interactively:
 
-- **Códigos de salida**: `0` correcto; `1` error de API/red/configuración
-  (falta la key, JSON inválido…); `2` uso incorrecto (comando o flag inválido).
-- **`--json`** imprime la respuesta cruda de la API a **stdout**. En `ask`/`demo`
-  el resumen de tokens (`tokens: … in / … out, cost=…`) va a **stderr**, así que
-  `--json` se puede redirigir a un fichero sin contaminarlo.
-- **`--no-save`** no registra la ejecución en el historial SQLite.
-- **`--db <ruta>`** (o `JEV_DB`) aísla ejecuciones en una base propia —útil en
-  scripts y tests— y evita tocar la base del usuario.
+- **Exit codes**: `0` success; `1` API/network/configuration error
+  (missing key, invalid JSON…); `2` incorrect usage (invalid command or flag).
+- **`--json`** prints the raw API response to **stdout**. In `ask`/`demo` the
+  token summary (`tokens: … in / … out, cost=…`) goes to **stderr**, so `--json`
+  can be redirected to a file without polluting it.
+- **`--no-save`** does not record the run in the SQLite history.
+- **`--db <path>`** (or `JEV_DB`) isolates runs in a dedicated database — handy
+  in scripts and tests — and avoids touching the user's database.
 
 ```sh
-jev ask --state "…" --noul 'q=¿…?' --json 2>/dev/null | jq '.answers.q.noul'
+jev ask --state "…" --noul 'q=Is it…?' --json 2>/dev/null | jq '.answers.q.noul'
 ```
 
-## Punteros
+## Pointers
 
-- [`references/noul.md`](references/noul.md) — operación `noul`: casos de uso, CLI y bash.
-- [`references/choice.md`](references/choice.md) — operación `choice`: casos de uso, CLI y bash.
-- [`references/score.md`](references/score.md) — operación `score`: casos de uso, CLI y bash.
-- [`references/templates.md`](references/templates.md) — manual de plantillas con casos reales.
-- [`references/anatomia-pregunta.md`](references/anatomia-pregunta.md) — qué ve el
-  modelo en cada pregunta y cómo evaluar varios elementos en un solo request.
+- [`references/noul.md`](references/noul.md) — `noul` operation: use cases, CLI and bash.
+- [`references/choice.md`](references/choice.md) — `choice` operation: use cases, CLI and bash.
+- [`references/score.md`](references/score.md) — `score` operation: use cases, CLI and bash.
+- [`references/templates.md`](references/templates.md) — template manual with real cases.
+- [`references/question-anatomy.md`](references/question-anatomy.md) — what the
+  model sees in each question and how to evaluate several items in one request.
 
-Fuera del alcance de esta skill (ver [`README.md`](../../README.md) para el uso):
-la TUI (`jev tui`), la consola web (`jev web-console`) y el servidor MCP
-(`jev mcp`). Para usos como librería TypeScript, consulta
-[`docs/libreria.md`](../../docs/libreria.md).
+Out of scope for this skill (see [`README.md`](../../README.md) for usage):
+the TUI (`jev tui`), the web console (`jev web-console`) and the MCP server
+(`jev mcp`). For TypeScript library usage, see
+[`docs/library.md`](../../docs/library.md).

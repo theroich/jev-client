@@ -1,7 +1,7 @@
 import type { RequestRecord } from "./request-repository.js";
 import type { Answer, JevResponse } from "./types.js";
 
-/** Resume una respuesta en una línea. */
+/** Summarizes an answer in one line. */
 export function answerSummary(answer: Answer): string {
   switch (answer.type) {
     case "noul":
@@ -40,11 +40,11 @@ export function answerSummary(answer: Answer): string {
 }
 
 /**
- * Informe legible. Los nombres de respuesta se ordenan para que la salida sea
- * estable entre ejecuciones.
+ * Human-readable report. Answer names are sorted so the output is stable
+ * across runs.
  */
 export function formatReport(response: JevResponse): string {
-  const lines = [`modelo: ${response.model}`];
+  const lines = [`model: ${response.model}`];
 
   for (const name of Object.keys(response.answers).sort()) {
     const answer = response.answers[name];
@@ -63,7 +63,7 @@ export function formatReport(response: JevResponse): string {
   return `${lines.join("\n")}\n`;
 }
 
-/** Probabilidades ordenadas de mayor a menor. */
+/** Probabilities sorted from highest to lowest. */
 export function formatProbabilities(
   probabilities: Record<string, number>,
 ): string {
@@ -81,8 +81,8 @@ interface LegendLevel {
 }
 
 /**
- * Devuelve el nivel de la rúbrica más cercano. `exact` es false cuando el score
- * cae entre dos niveles, para poder marcarlo como aproximado.
+ * Returns the closest rubric level. `exact` is false when the score falls
+ * between two levels, so it can be marked as approximate.
  */
 export function legendLevel(
   legend: Record<string, unknown> | undefined,
@@ -118,7 +118,7 @@ export function formatNumber(value: number): string {
   return Object.is(value, -0) ? "0" : String(value);
 }
 
-/** Enmascara un secreto dejando visibles los primeros y últimos 4 caracteres. */
+/** Masks a secret, leaving the first and last 4 characters visible. */
 export function maskSecret(value: string): string {
   if (value.length <= 8) {
     return "********";
@@ -126,7 +126,7 @@ export function maskSecret(value: string): string {
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
 }
 
-/** Coste con notación científica solo cuando es muy pequeño. */
+/** Cost with scientific notation only when it is very small. */
 export function formatCost(value: number): string {
   if (value !== 0 && Math.abs(value) < 1e-4) {
     return value.toExponential(3);
@@ -134,7 +134,7 @@ export function formatCost(value: number): string {
   return String(value);
 }
 
-/** Tamaño legible en bytes (KiB/MiB). */
+/** Human-readable size in bytes (KiB/MiB). */
 export function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value < 0) {
     return "—";
@@ -148,7 +148,7 @@ export function formatBytes(value: number): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Una línea por petición para `history list`. */
+/** One line per request for `history list`. */
 export function formatHistoryRecord(record: RequestRecord): string {
   const model = record.model ?? "-";
   const status = record.statusCode === null ? "-" : String(record.statusCode);
@@ -160,7 +160,7 @@ export function formatHistoryRecord(record: RequestRecord): string {
   return `#${record.id} ${record.createdAt} ${model} ${status} ${ok} ${duration} ${tokens} ${cost}`;
 }
 
-/** Detalle completo para `history show`. */
+/** Full detail for `history show`. */
 export function formatHistoryDetail(record: RequestRecord): string {
   const lines = [
     `id: ${record.id}`,
@@ -187,7 +187,7 @@ export function formatHistoryDetail(record: RequestRecord): string {
   return `${lines.join("\n")}\n`;
 }
 
-/** Objeto JSON para `history export` (una línea por petición). */
+/** JSON object for `history export` (one line per request). */
 export function historyRecordToJson(
   record: RequestRecord,
 ): Record<string, unknown> {

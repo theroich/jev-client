@@ -33,67 +33,67 @@ import type {
 export const MAX_CONCURRENCY = 10;
 
 export const DEMO_STATE =
-  "Nuestro checkout lleva caído 30 minutos y cada minuto perdemos ventas. " +
-  "Llevamos dos días sin respuesta de soporte. Necesitamos una solución ya.";
+  "Our checkout has been down for 30 minutes and we lose sales every minute. " +
+  "We have had no response from support for two days. We need a solution now.";
 
-/** Devuelve preguntas nuevas para que el consumidor pueda modificarlas. */
+/** Returns fresh questions so the consumer can modify them. */
 export function demoQuestions(): Record<string, Question> {
   return {
     is_urgent: {
       type: "noul",
-      instructions: "¿El mensaje transmite urgencia o presión de tiempo?",
+      instructions: "Does the message convey urgency or time pressure?",
     },
     team: {
       type: "choice",
-      instructions: "¿Qué equipo debería gestionar la incidencia?",
+      instructions: "Which team should handle the incident?",
       criteria: {
-        billing: "Cobros, facturas o pagos",
-        infra: "Caídas, errores 500 o problemas de plataforma",
-        sales: "Precios o dudas comerciales",
+        billing: "Billing, invoices or payments",
+        infra: "Outages, 500 errors or platform issues",
+        sales: "Pricing or sales questions",
       },
     },
     frustration: {
       type: "score",
-      instructions: "¿Cómo de frustrado está el cliente?",
-      criteria: ["Tranquilo", "Molesto pero correcto", "Muy enfadado"],
+      instructions: "How frustrated is the customer?",
+      criteria: ["Calm", "Annoyed but polite", "Very angry"],
     },
   };
 }
 
 export interface JevServiceOptions {
-  /** Flags de sesión; tienen la misma precedencia que en la CLI. */
+  /** Session flags; they have the same precedence as in the CLI. */
   flags?: ConfigFlags;
-  /** Entorno inyectable. Default: process.env. */
+  /** Injectable environment. Default: process.env. */
   env?: NodeJS.ProcessEnv;
-  /** Equivalente a --db; si falta se usa JEV_DB o la ruta por defecto. */
+  /** Equivalent to --db; if missing, JEV_DB or the default path is used. */
   dbPath?: string;
-  /** fetch inyectable (tests). */
+  /** Injectable fetch (tests). */
   fetch?: FetchLike;
 }
 
 export interface ExecutionOptions {
-  /** Modelo para esta ejecución; un flag de sesión tiene prioridad. */
+  /** Model for this run; a session flag takes precedence. */
   model?: string;
-  /** Guarda la petición en requests. Default: true. */
+  /** Saves the request in requests. Default: true. */
   save?: boolean;
-  /** Origen de la ejecución, para auditar el historial. Default: 'cli'. */
+  /** Run source, for auditing the history. Default: 'cli'. */
   source?: RequestSource;
-  /** Nombre de plantilla asociado; se guarda en `requests.template_name`. */
+  /** Associated template name; stored in `requests.template_name`. */
   templateName?: string;
-  /** Envía el header de imágenes cuando hay `assets`. Default: true. */
+  /** Sends the images header when there are `assets`. Default: true. */
   imagesHeader?: boolean;
   signal?: AbortSignal;
 }
 
 export interface ExecutionResult {
-  /** Request efectivo, con el modelo ya resuelto. */
+  /** Effective request, with the model already resolved. */
   request: JevRequest;
   response: JevResponse;
-  /** Id SQLite de requests, o null cuando save es false. */
+  /** SQLite requests id, or null when save is false. */
   requestId: number | null;
   statusCode: number | null;
   durationMs: number;
-  /** Uso real informado por la API; null significa no informado. */
+  /** Actual usage reported by the API; null means not reported. */
   usage: BatchUsage;
 }
 
@@ -157,11 +157,11 @@ export type BatchEvent =
   | { type: "batch.finish"; summary: BatchSummary };
 
 export interface BatchExecutionOptions extends ExecutionOptions {
-  /** Workers simultáneos, de 1 a 10. Default: 1. */
+  /** Simultaneous workers, from 1 to 10. Default: 1. */
   concurrency?: number;
-  /** No programa nuevos items después del primer error. Default: false. */
+  /** Does not schedule new items after the first error. Default: false. */
   failFast?: boolean;
-  /** Imágenes aportadas en tiempo de ejecución, adjuntadas a cada petición. */
+  /** Images provided at run time, attached to each request. */
   assets?: Record<string, ImageAsset>;
   onEvent?: (event: BatchEvent) => void;
 }
@@ -190,13 +190,13 @@ interface RequestCapture {
 }
 
 /**
- * Ejecuta ask/demo/batch con la configuración y la base SQLite del CLI.
- * La conexión se reutiliza hasta llamar a close().
+ * Runs ask/demo/batch with the CLI's configuration and SQLite database.
+ * The connection is reused until close() is called.
  */
 export class JevService {
   readonly databasePath: string;
 
-  /** Conexión única reutilizada también por los repositorios de la consola. */
+  /** Single connection also reused by the console repositories. */
   readonly db: SqliteDatabase;
   private readonly flags: ConfigFlags;
   private readonly env: NodeJS.ProcessEnv;
@@ -246,19 +246,19 @@ export class JevService {
       concurrency > MAX_CONCURRENCY
     ) {
       throw new Error(
-        `concurrency debe ser un entero entre 1 y ${MAX_CONCURRENCY}`,
+        `concurrency must be an integer between 1 and ${MAX_CONCURRENCY}`,
       );
     }
     if (!Array.isArray(contexts)) {
-      throw new Error("contexts debe ser un array de mapas de contexto");
+      throw new Error("contexts must be an array of context maps");
     }
     if (templateName.trim() === "") {
-      throw new Error("el nombre de la plantilla no puede estar vacío");
+      throw new Error("the template name cannot be empty");
     }
 
     const template = new TemplateRepository(this.db).get(templateName);
     if (template === undefined) {
-      throw new Error(`plantilla no encontrada: ${templateName}`);
+      throw new Error(`template not found: ${templateName}`);
     }
     const prepared = this.prepare();
     const batchId = randomUUID();
@@ -289,7 +289,7 @@ export class JevService {
           ok: false,
           requestId: null,
           durationMs: Date.now() - startedAt,
-          error: `el contexto #${index + 1} no es un objeto`,
+          error: `context #${index + 1} is not an object`,
           errorCode: "invalid_context",
         };
       }
@@ -399,7 +399,7 @@ export class JevService {
 
     const completedItems = items.map((item) => {
       if (item === undefined) {
-        throw new Error("estado interno de batch incompleto");
+        throw new Error("incomplete internal batch state");
       }
       return item;
     });
@@ -422,8 +422,8 @@ export class JevService {
     const config = resolveConfig(this.flags, this.env, stored);
     if (!config.apiKey) {
       throw new Error(
-        "falta la API key: usa --key, define OPENCODE_API_KEY (o JEV_API_KEY) " +
-          "o guarda api_key con 'jev config set'",
+        "missing API key: use --key, set OPENCODE_API_KEY (or JEV_API_KEY) " +
+          "or save api_key with 'jev config set'",
       );
     }
     return { config, stored };
@@ -512,7 +512,7 @@ function itemFinishEvent(item: BatchItemResult): BatchEvent {
       item.status === "error"
         ? {
             code: item.errorCode ?? "execution_error",
-            message: item.error ?? "desconocido",
+            message: item.error ?? "unknown",
             hint: item.errorHint,
           }
         : null,

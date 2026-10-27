@@ -1,18 +1,18 @@
 import type { Template, TemplateMacro } from "../template-repository.js";
 
-/** Longitud máxima de la descripción de un tool (para no saturar al LLM). */
+/** Maximum length of a tool description (to avoid flooding the LLM). */
 export const MAX_TOOL_DESCRIPTION_LENGTH = 2_000;
 
-/** Longitud máxima de la descripción de un parámetro de tool. */
+/** Maximum length of a tool parameter description. */
 export const MAX_PARAM_DESCRIPTION_LENGTH = 500;
 
-/** Patrón conservador de nombre de tool MCP. */
+/** Conservative MCP tool name pattern. */
 export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Prefijo reservado para las tools fijas del servidor. */
+/** Prefix reserved for the server's built-in tools. */
 export const RESERVED_TOOL_PREFIX = "jev_";
 
-/** Anotaciones MCP de un tool. */
+/** MCP annotations for a tool. */
 export interface ToolAnnotations {
   title?: string;
   readOnlyHint?: boolean;
@@ -21,7 +21,7 @@ export interface ToolAnnotations {
   openWorldHint?: boolean;
 }
 
-/** Keywords que ya restringen el tipo sin declarar `type`. */
+/** Keywords that already restrict the type without declaring `type`. */
 const TYPE_RESTRICTING_KEYWORDS = [
   "enum",
   "const",
@@ -51,16 +51,16 @@ function restrictsType(schema: Record<string, unknown>): boolean {
 }
 
 /**
- * Esquema JSON de un parámetro de tool, derivado de una macro.
+ * JSON Schema for a tool parameter, derived from a macro.
  *
- * - Sin esquema (o `true`): `{ "type": "string" }`.
- * - Esquema objeto: se conserva completo; si no declara `type` y no restringe
- *   el tipo por `enum`/`const`/`oneOf`/`anyOf`/`allOf`/`$ref`, se añade
- *   `"type": "string"` para no invalidarlo.
- * - `false` (ningún valor válido): `{ "not": {} }`, equivalente y serializable.
+ * - No schema (or `true`): `{ "type": "string" }`.
+ * - Object schema: kept as-is; if it does not declare `type` and does not
+ *   restrict the type through `enum`/`const`/`oneOf`/`anyOf`/`allOf`/`$ref`,
+ *   `"type": "string"` is added so it is not invalidated.
+ * - `false` (no valid value): `{ "not": {} }`, equivalent and serializable.
  *
- * La descripción del parámetro es `macro.description`, o `schema.description`
- * si la primera está vacía. Se recorta a `MAX_PARAM_DESCRIPTION_LENGTH`.
+ * The parameter description is `macro.description`, or `schema.description`
+ * when the former is empty. It is truncated to `MAX_PARAM_DESCRIPTION_LENGTH`.
  */
 export function macroParamSchema(macro: TemplateMacro): Record<string, unknown> {
   let schema: Record<string, unknown>;
@@ -88,8 +88,8 @@ export function macroParamSchema(macro: TemplateMacro): Record<string, unknown> 
 }
 
 /**
- * `inputSchema` JSON Schema de una plantilla: una propiedad por macro detectada
- * con su clave exacta (incluidas rutas con puntos), todas `required` y
+ * `inputSchema` JSON Schema for a template: one property per detected macro
+ * with its exact key (including dotted paths), all `required` and
  * `additionalProperties: false`.
  */
 export function inputSchemaForTemplate(template: Template): Record<string, unknown> {
@@ -105,12 +105,12 @@ export function inputSchemaForTemplate(template: Template): Record<string, unkno
   };
 }
 
-/** `true` si el nombre cumple el patrón MCP y no usa el prefijo reservado. */
+/** `true` if the name matches the MCP pattern and does not use the reserved prefix. */
 export function isValidToolName(name: string): boolean {
   return TOOL_NAME_PATTERN.test(name) && !name.startsWith(RESERVED_TOOL_PREFIX);
 }
 
-/** Recorta y normaliza un nombre de plantilla a un slug `tpl_<slug>`. */
+/** Trims and normalizes a template name into a `tpl_<slug>` slug. */
 export function templateAlias(name: string, taken: Set<string>): string {
   const base = slugify(name) || "template";
   let candidate = `tpl_${base}`;
@@ -126,8 +126,8 @@ export function templateAlias(name: string, taken: Set<string>): string {
 }
 
 /**
- * Nombre de tool para una plantilla. Devuelve el nombre exacto cuando es válido
- * y no colisiona; en otro caso un alias determinista `tpl_<slug>`.
+ * Tool name for a template. Returns the exact name when it is valid and does
+ * not collide; otherwise a deterministic `tpl_<slug>` alias.
  */
 export function toolNameForTemplate(
   name: string,
@@ -139,10 +139,10 @@ export function toolNameForTemplate(
   return { toolName: templateAlias(name, taken), aliased: true };
 }
 
-/** Descripción de una plantilla para su tool; fallback determinista si vacía. */
+/** Description of a template for its tool; deterministic fallback when empty. */
 export function toolDescriptionForTemplate(template: Template): string {
   const description = template.description.trim();
-  const fallback = `Ejecuta la plantilla "${template.name}" con los valores de sus macros.`;
+  const fallback = `Runs the "${template.name}" template with its macro values.`;
   return truncate(description !== "" ? description : fallback, MAX_TOOL_DESCRIPTION_LENGTH);
 }
 
@@ -161,7 +161,7 @@ function slugify(name: string): string {
     .slice(0, 60);
 }
 
-/** Hash FNV-1a corto, determinista y alfanumérico. */
+/** Short, deterministic, alphanumeric FNV-1a hash. */
 function shortHash(value: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {

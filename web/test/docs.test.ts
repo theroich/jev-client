@@ -26,8 +26,8 @@ const TOKEN = "test-bootstrap-token";
 
 const TEMPLATE_BODY = JSON.stringify({
   model: "jev-1.13",
-  state: "{{estado}}",
-  questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  state: "{{state}}",
+  questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
 });
 
 let root: string;
@@ -49,7 +49,7 @@ beforeEach(async () => {
   runtime = createConsoleRuntime({
     env,
     fetch: async () => {
-      throw new Error("los docs no deben llamar a Jev");
+      throw new Error("docs must not call Jev");
     },
   });
   installConsoleRuntime(runtime);
@@ -79,12 +79,12 @@ function request(
   return new NextRequest(`${ORIGIN}${pathname}`, { method, headers });
 }
 
-test("los endpoints de docs exigen sesión de consola", async () => {
+test("docs endpoints require a console session", async () => {
   assert.equal((await docs(request("/api/docs", "GET", { session: false }))).status, 401);
   assert.equal((await docsTools(request("/api/docs/tools", "GET", { session: false }))).status, 401);
 });
 
-test("/api/docs responde JSON con el documento de la app", async () => {
+test("/api/docs responds with the app document as JSON", async () => {
   const response = await docs(request("/api/docs"));
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /application\/json/);
@@ -94,8 +94,8 @@ test("/api/docs responde JSON con el documento de la app", async () => {
   assert.ok(body.endpoints.includes("/api/docs/tools"));
 });
 
-test("/api/docs/tools coincide con el registry MCP e incluye tools por plantilla", async () => {
-  new TemplateRepository(runtime.service.db).save("pedido", "Pedido de soporte", TEMPLATE_BODY);
+test("/api/docs/tools matches the MCP registry and includes per-template tools", async () => {
+  new TemplateRepository(runtime.service.db).save("order", "Support order", TEMPLATE_BODY);
   const response = await docsTools(request("/api/docs/tools"));
   assert.equal(response.status, 200);
   const body = (await response.json()) as {
@@ -104,23 +104,23 @@ test("/api/docs/tools coincide con el registry MCP e incluye tools por plantilla
   };
   const names = body.tools.map((tool) => tool.name);
   assert.ok(names.includes("jev_overview"));
-  assert.ok(names.includes("pedido"));
-  const dynamic = body.tools.find((tool) => tool.name === "pedido");
+  assert.ok(names.includes("order"));
+  const dynamic = body.tools.find((tool) => tool.name === "order");
   assert.equal(dynamic?.source, "template");
-  assert.equal(dynamic?.templateName, "pedido");
+  assert.equal(dynamic?.templateName, "order");
 });
 
-test("/api/docs/tools/[name] devuelve el detalle y 404 para una tool inexistente", async () => {
+test("/api/docs/tools/[name] returns the detail and 404 for an unknown tool", async () => {
   const ok = await docsTool(request("/api/docs/tools/jev_overview"), { params: Promise.resolve({ name: "jev_overview" }) });
   assert.equal(ok.status, 200);
   assert.equal(((await ok.json()) as { name: string }).name, "jev_overview");
 
-  const missing = await docsTool(request("/api/docs/tools/inexistente"), { params: Promise.resolve({ name: "inexistente" }) });
+  const missing = await docsTool(request("/api/docs/tools/unknown"), { params: Promise.resolve({ name: "unknown" }) });
   assert.equal(missing.status, 404);
   assert.equal(((await missing.json()) as { error: { code: string } }).error.code, "tool_not_found");
 });
 
-test("/api/docs/mcp y /api/docs/examples responden JSON", async () => {
+test("/api/docs/mcp and /api/docs/examples respond with JSON", async () => {
   const mcp = await docsMcp(request("/api/docs/mcp"));
   assert.equal(mcp.status, 200);
   assert.ok(((await mcp.json()) as { content: string }).content.includes("jev mcp"));

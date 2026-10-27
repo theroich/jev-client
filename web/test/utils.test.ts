@@ -13,15 +13,15 @@ import {
 } from "../lib/utils";
 import { draftsFromQuestions, questionsFromDrafts } from "../lib/questions";
 
-test("state distingue texto/JSON y bloquea JSON mal formado", () => {
-  assert.deepEqual(parseStateInput(" hola ").value, " hola ");
+test("state distinguishes text/JSON and blocks malformed JSON", () => {
+  assert.deepEqual(parseStateInput(" hello ").value, " hello ");
   assert.deepEqual(parseStateInput('{"ticket":1}').value, { ticket: 1 });
   assert.deepEqual(parseStateInput("[1,2]").value, [1, 2]);
-  assert.match(parseStateInput("{bad}").error ?? "", /JSON inválido/);
-  assert.equal(parseStateInput("").kind, "vacío");
+  assert.match(parseStateInput("{bad}").error ?? "", /Invalid JSON/);
+  assert.equal(parseStateInput("").kind, "empty");
 });
 
-test("shellQuote y CLI de historial conservan argumentos y filtros", () => {
+test("shellQuote and history CLI keep arguments and filters", () => {
   assert.equal(shellQuote("a'b"), `'a'"'"'b'`);
   const filters = filtersFromSearchParams(new URLSearchParams("status=429&model=jev-x&batch=b-1&limit=500"));
   assert.equal(filters.limit, 200);
@@ -34,40 +34,40 @@ test("shellQuote y CLI de historial conservan argumentos y filtros", () => {
   assert.ok(api.get("since")?.endsWith("Z"));
 });
 
-test("contextos validan array, objetos y límite", () => {
-  assert.equal(validateContexts("{}").error, "Los contextos deben ser un array JSON.");
+test("contexts validate array, objects and limit", () => {
+  assert.equal(validateContexts("{}").error, "Contexts must be a JSON array.");
   const result = validateContexts('[{"x":1},null,[],{"x":2}]');
   assert.deepEqual(result.invalid, [1, 2]);
-  assert.match(validateContexts(`[${Array.from({ length: 1001 }, () => "{}").join(",")}]`).error ?? "", /1.000/);
+  assert.match(validateContexts(`[${Array.from({ length: 1001 }, () => "{}").join(",")}]`).error ?? "", /1,000/);
 });
 
-test("el esqueleto de contextos usa una clave plana por macro", () => {
+test("the context skeleton uses one flat key per macro", () => {
   assert.equal(buildContextsSkeleton([]), "[]");
   assert.equal(
-    buildContextsSkeleton([{ name: "ticket", description: "Identificador" }]),
+    buildContextsSkeleton([{ name: "ticket", description: "Identifier" }]),
     '[\n  {\n    "ticket": ""\n  }\n]',
   );
   assert.equal(
     buildContextsSkeleton([
-      { name: "cliente.nombre", description: "" },
-      { name: "cliente.plan", description: "free | pro" },
-      { name: "estado_de_pedido", description: "" },
+      { name: "customer.name", description: "" },
+      { name: "customer.plan", description: "free | pro" },
+      { name: "order_state", description: "" },
     ]),
-    '[\n  {\n    "cliente.nombre": "",\n    "cliente.plan": "",\n    "estado_de_pedido": ""\n  }\n]',
+    '[\n  {\n    "customer.name": "",\n    "customer.plan": "",\n    "order_state": ""\n  }\n]',
   );
 });
 
-test("el esqueleto conserva rutas con punto y escapa caracteres especiales", () => {
+test("the skeleton keeps dotted paths and escapes special characters", () => {
   const macros = [
-    { name: 'cliente."nombre"', description: "" },
-    { name: "ruta\\anidada", description: "" },
+    { name: 'customer."name"', description: "" },
+    { name: "nested\\path", description: "" },
     { name: "emoji.🛒", description: "" },
   ];
   const skeleton = buildContextsSkeleton(macros);
   assert.deepEqual(JSON.parse(skeleton), [
     {
-      'cliente."nombre"': "",
-      "ruta\\anidada": "",
+      'customer."name"': "",
+      "nested\\path": "",
       "emoji.🛒": "",
     },
   ]);
@@ -76,24 +76,24 @@ test("el esqueleto conserva rutas con punto y escapa caracteres especiales", () 
   assert.equal(validateContexts(skeleton).error, null);
 });
 
-test("los valores de marcador cuentan también en contextos anidados", () => {
+test("placeholder values are also counted in nested contexts", () => {
   assert.equal(countEmptyContextValues([]), 0);
   assert.equal(countEmptyContextValues([{ ticket: "TCK-1" }]), 0);
-  assert.equal(countEmptyContextValues([{ ticket: "", "cliente.nombre": "" }]), 2);
-  assert.equal(countEmptyContextValues([{ cliente: { nombre: "", plan: "pro" }, notas: ["", "ok"] }]), 2);
+  assert.equal(countEmptyContextValues([{ ticket: "", "customer.name": "" }]), 2);
+  assert.equal(countEmptyContextValues([{ customer: { name: "", plan: "pro" }, notes: ["", "ok"] }]), 2);
   assert.equal(countEmptyContextValues([{ ticket: "  ", nested: { list: ["", " "] } }]), 3);
 });
 
-test("preguntas conservan tipos, criteria y orden al editar", () => {
+test("questions keep types, criteria and order while editing", () => {
   const drafts = draftsFromQuestions({
-    urgent: { type: "noul", instructions: "¿Urgente?", criteria: "sé estricto" },
-    team: { type: "choice", criteria: { infra: "Infra", billing: "Facturación" } },
-    score: { type: "score", criteria: ["Bajo", "Alto"] },
+    urgent: { type: "noul", instructions: "Urgent?", criteria: "be strict" },
+    team: { type: "choice", criteria: { infra: "Infra", billing: "Billing" } },
+    score: { type: "score", criteria: ["Low", "High"] },
   });
   const questions = questionsFromDrafts(drafts);
   assert.deepEqual(Object.keys(questions), ["urgent", "team", "score"]);
-  assert.equal(questions.urgent?.criteria, "sé estricto");
-  assert.deepEqual(questions.team?.criteria, { infra: "Infra", billing: "Facturación" });
-  assert.deepEqual(questions.score?.criteria, ["Bajo", "Alto"]);
+  assert.equal(questions.urgent?.criteria, "be strict");
+  assert.deepEqual(questions.team?.criteria, { infra: "Infra", billing: "Billing" });
+  assert.deepEqual(questions.score?.criteria, ["Low", "High"]);
   assert.deepEqual(questionsFromDrafts(draftsFromQuestions(questions)), questions);
 });

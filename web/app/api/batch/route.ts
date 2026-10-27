@@ -17,25 +17,25 @@ export function POST(request: NextRequest) {
     const body = await readJson(request, 5_000_000);
     const templateName = body.templateName;
     if (typeof templateName !== "string" || !templateName.trim()) {
-      throw new ConsoleError(400, "invalid_template", "Selecciona una plantilla");
+      throw new ConsoleError(400, "invalid_template", "Select a template");
     }
     getTemplate(templateName);
     if (!Array.isArray(body.contexts)) {
-      throw new ConsoleError(400, "invalid_contexts", "contexts debe ser un array de mapas de contexto");
+      throw new ConsoleError(400, "invalid_contexts", "contexts must be an array of context maps");
     }
     if (body.contexts.length > 1000) {
-      throw new ConsoleError(400, "too_many_contexts", "El máximo es 1.000 contextos por lote");
+      throw new ConsoleError(400, "too_many_contexts", "The maximum is 1,000 contexts per batch");
     }
     const contexts = body.contexts;
     const concurrency = body.concurrency === undefined ? 1 : Number(body.concurrency);
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_CONCURRENCY) {
-      throw new ConsoleError(400, "invalid_concurrency", `concurrency debe ser un entero entre 1 y ${MAX_CONCURRENCY}`);
+      throw new ConsoleError(400, "invalid_concurrency", `concurrency must be an integer between 1 and ${MAX_CONCURRENCY}`);
     }
     const failFast = body.failFast === true;
     const save = body.save !== false;
     const runtime = getConsoleRuntime();
     const controller = new AbortController();
-    const abort = () => controller.abort(new DOMException("Lote cancelado por el cliente", "AbortError"));
+    const abort = () => controller.abort(new DOMException("Batch cancelled by the client", "AbortError"));
     if (request.signal.aborted) abort();
     else request.signal.addEventListener("abort", abort, { once: true });
 
@@ -50,7 +50,7 @@ export function POST(request: NextRequest) {
             output.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
           } catch {
             closed = true;
-            controller.abort(new DOMException("Lote cancelado por el cliente", "AbortError"));
+            controller.abort(new DOMException("Batch cancelled by the client", "AbortError"));
           }
         };
         try {
@@ -77,7 +77,7 @@ export function POST(request: NextRequest) {
       },
       cancel() {
         closed = true;
-        controller.abort(new DOMException("Lote cancelado por el cliente", "AbortError"));
+        controller.abort(new DOMException("Batch cancelled by the client", "AbortError"));
       },
     });
 

@@ -53,13 +53,13 @@ async function run(
   return { code, stdout, stderr };
 }
 
-test("ask registra la petición y history la consulta", async (t) => {
+test("ask records the request and history queries it", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const ask = await run(
-    ["ask", "--state", "hola", "--questions", '{"q":{"type":"noul"}}'],
+    ["ask", "--state", "hello", "--questions", '{"q":{"type":"noul"}}'],
     dbPath,
   );
   assert.equal(ask.code, 0);
@@ -75,7 +75,7 @@ test("ask registra la petición y history la consulta", async (t) => {
   assert.match(show.stdout, /id: 1/);
   assert.match(show.stdout, /status: 200/);
   assert.match(show.stdout, /ok: true/);
-  assert.match(show.stdout, /"state": "hola"/);
+  assert.match(show.stdout, /"state": "hello"/);
   assert.match(show.stdout, /"noul": 0\.99/);
 
   const exported = await run(["history", "export"], dbPath);
@@ -87,19 +87,19 @@ test("ask registra la petición y history la consulta", async (t) => {
   assert.equal(record.cost, 1.5e-6);
   assert.deepEqual(record.request, {
     model: "jev-1.13",
-    state: "hola",
+    state: "hello",
     questions: { q: { type: "noul" } },
   });
   assert.deepEqual(record.response, stubBody);
 });
 
-test("registra las peticiones fallidas con su error", async (t) => {
+test("records failed requests with their error", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const ask = await run(
-    ["ask", "--state", "hola", "--questions", '{"q":{"type":"noul"}}'],
+    ["ask", "--state", "hello", "--questions", '{"q":{"type":"noul"}}'],
     dbPath,
     {
       handler: () =>
@@ -120,7 +120,7 @@ test("registra las peticiones fallidas con su error", async (t) => {
   assert.match(show.stdout, /cost: -/);
 });
 
-test("--no-save no registra la ejecución", async (t) => {
+test("--no-save does not record the run", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -129,7 +129,7 @@ test("--no-save no registra la ejecución", async (t) => {
     [
       "ask",
       "--state",
-      "hola",
+      "hello",
       "--questions",
       '{"q":{"type":"noul"}}',
       "--no-save",
@@ -143,7 +143,7 @@ test("--no-save no registra la ejecución", async (t) => {
   assert.equal(list.stdout, "");
 });
 
-test("history lista con filtros", async (t) => {
+test("history lists with filters", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -204,17 +204,17 @@ test("history lista con filtros", async (t) => {
   assert.equal(invalid.code, 2);
 });
 
-test("history show de un id inexistente devuelve error", async (t) => {
+test("history show of a nonexistent id returns an error", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const show = await run(["history", "show", "42"], dbPath);
   assert.equal(show.code, 1);
-  assert.match(show.stderr, /no existe la petición 42/);
+  assert.match(show.stderr, /request 42 does not exist/);
 });
 
-test("demo también se registra", async (t) => {
+test("demo is also recorded", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-history-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");

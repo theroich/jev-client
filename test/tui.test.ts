@@ -34,10 +34,10 @@ const SPECIAL_KEYS = {
   ctrlE: { ctrl: true, name: "e" },
 } satisfies Record<string, KeypressKey>;
 
-/** Pulsa una tecla usando el mismo driver que la TUI real. */
+/** Presses a key using the same driver as the real TUI. */
 function press(app: TuiApp, key: KeypressKey): void {
   const action = keyToAction(key);
-  assert.ok(action !== null, `tecla sin acción: ${JSON.stringify(key)}`);
+  assert.ok(action !== null, `key without action: ${JSON.stringify(key)}`);
   app.handleAction(action);
 }
 
@@ -45,7 +45,7 @@ function pressKey(app: TuiApp, key: keyof typeof SPECIAL_KEYS): void {
   press(app, SPECIAL_KEYS[key]);
 }
 
-/** Pulsa un carácter imprimible (conserva mayúsculas/minúsculas). */
+/** Presses a printable character (preserves case). */
 function pressChar(app: TuiApp, char: string): void {
   press(app, { name: char, sequence: char });
 }
@@ -68,20 +68,20 @@ function clearAndType(app: TuiApp, text: string): void {
 }
 
 function openTemplates(app: TuiApp): void {
-  pressKey(app, "down"); // Plantillas
+  pressKey(app, "down"); // Templates
   pressKey(app, "enter");
 }
 
-test("keyToAction traduce las teclas comunes a acciones canónicas", () => {
+test("keyToAction translates common keys into canonical actions", () => {
   assert.equal(keyToAction({ name: "up" }), "up");
   assert.equal(keyToAction({ name: "return" }), "enter");
   assert.equal(keyToAction({ name: "escape" }), "esc");
-  // readline marca el ESC solitario con meta: true.
+  // readline marks a lone ESC with meta: true.
   assert.equal(
     keyToAction({ name: "escape", sequence: "\u001b", meta: true }),
     "esc",
   );
-  // Alt+tecla sigue ignorándose.
+  // Alt+key is still ignored.
   assert.equal(keyToAction({ name: "x", sequence: "\u001bx", meta: true }), null);
   assert.equal(keyToAction({ name: "backspace" }), "backspace");
   assert.equal(keyToAction({ ctrl: true, name: "c" }), "ctrl-c");
@@ -93,17 +93,17 @@ test("keyToAction traduce las teclas comunes a acciones canónicas", () => {
   assert.equal(keyToAction({ sequence: "\u001b[A" }), null);
 });
 
-test("el editor conserva mayúsculas y minúsculas del texto", () => {
+test("the editor preserves text case", () => {
   const app = new TuiApp(createTuiBackend(openDatabase(":memory:")));
 
   openTemplates(app);
-  pressChar(app, "n"); // nueva
-  typeText(app, "PedidoCliente");
+  pressChar(app, "n"); // new
+  typeText(app, "OrderCustomer");
 
-  assert.match(app.render(), /Nombre: PedidoCliente/);
+  assert.match(app.render(), /Name: OrderCustomer/);
 });
 
-test("tui cambia modelo y URL y persiste en SQLite", () => {
+test("tui changes model and URL and persists to SQLite", () => {
   const db = openDatabase(":memory:");
   const backend = createTuiBackend(db);
   const app = new TuiApp(backend);
@@ -111,12 +111,12 @@ test("tui cambia modelo y URL y persiste en SQLite", () => {
   pressKey(app, "enter"); // menu -> provider
   pressKey(app, "down"); // api_key
   pressKey(app, "down"); // model
-  pressKey(app, "enter"); // editar model
+  pressKey(app, "enter"); // edit model
   clearAndType(app, "jev-2.0");
-  pressKey(app, "enter"); // guardar
+  pressKey(app, "enter"); // save
 
   assert.equal(new ConfigRepository(db).get("model"), "jev-2.0");
-  assert.match(app.render(), /configuración guardada: model/);
+  assert.match(app.render(), /settings saved: model/);
 
   pressKey(app, "up"); // model -> api_key
   pressKey(app, "up"); // api_key -> api_url
@@ -130,7 +130,7 @@ test("tui cambia modelo y URL y persiste en SQLite", () => {
   );
 });
 
-test("la API key nunca se muestra completa en pantalla", () => {
+test("the API key is never shown in full on screen", () => {
   const db = openDatabase(":memory:");
   const backend = createTuiBackend(db);
   backend.setConfig("api_key", "sk-super-secret-123456");
@@ -142,16 +142,16 @@ test("la API key nunca se muestra completa en pantalla", () => {
   assert.ok(!frame.includes("sk-super-secret-123456"));
 
   pressKey(app, "down"); // api_key
-  pressKey(app, "enter"); // editar api_key (input vacío)
-  typeText(app, "sk-nueva-key");
+  pressKey(app, "enter"); // edit api_key (empty input)
+  typeText(app, "sk-new-key");
   const editing = app.render();
-  assert.ok(!editing.includes("sk-nueva-key"));
-  assert.ok(editing.includes("••••••••••••"));
+  assert.ok(!editing.includes("sk-new-key"));
+  assert.ok(editing.includes("••••••••••"));
   pressKey(app, "enter");
-  assert.equal(new ConfigRepository(db).get("api_key"), "sk-nueva-key");
+  assert.equal(new ConfigRepository(db).get("api_key"), "sk-new-key");
 });
 
-test("el provider valida timeout y retries", () => {
+test("the provider validates timeout and retries", () => {
   const db = openDatabase(":memory:");
   const app = new TuiApp(createTuiBackend(db));
 
@@ -160,63 +160,63 @@ test("el provider valida timeout y retries", () => {
   pressKey(app, "down"); // model
   pressKey(app, "down"); // timeout
   pressKey(app, "enter");
-  clearAndType(app, "no-un-numero");
-  assert.match(app.render(), /timeout debe ser un número positivo/);
-  pressKey(app, "enter"); // no guarda
+  clearAndType(app, "not-a-number");
+  assert.match(app.render(), /timeout must be a positive number/);
+  pressKey(app, "enter"); // does not save
   assert.equal(new ConfigRepository(db).get("timeout"), undefined);
 });
 
-test("q en provider vuelve al menú", () => {
+test("q in provider returns to the menu", () => {
   const app = new TuiApp(createTuiBackend(openDatabase(":memory:")));
 
   pressKey(app, "enter"); // provider
-  assert.match(app.render(), /Configuración del provider/);
+  assert.match(app.render(), /Provider settings/);
   pressChar(app, "q");
-  assert.match(app.render(), /Jev — modo interactivo/);
+  assert.match(app.render(), /Jev — interactive mode/);
   assert.equal(app.done, false);
 });
 
-test("tui crea, lista y edita una plantilla con el driver real", () => {
+test("tui creates, lists and edits a template with the real driver", () => {
   const db = openDatabase(":memory:");
   const backend = createTuiBackend(db);
   const app = new TuiApp(backend);
 
   openTemplates(app);
-  pressChar(app, "N"); // nueva (los comandos no distinguen mayúsculas)
+  pressChar(app, "N"); // new (commands ignore case)
 
-  typeText(app, "pedido");
-  pressKey(app, "enter"); // -> descripción
-  typeText(app, "Pedido con cliente");
+  typeText(app, "order");
+  pressKey(app, "enter"); // -> description
+  typeText(app, "Order with customer");
   pressKey(app, "enter"); // -> body
 
   const body =
-    '{"model":"jev-1.13","state":"{{estado}}","questions":{"urgent":{"type":"noul"}}}';
+    '{"model":"jev-1.13","state":"{{state}}","questions":{"urgent":{"type":"noul"}}}';
   typeText(app, body);
-  assert.match(app.render(), /macros: estado/);
+  assert.match(app.render(), /macros: state/);
 
-  pressKey(app, "enter"); // confirmación
-  pressKey(app, "enter"); // sí -> guardar
+  pressKey(app, "enter"); // confirmation
+  pressKey(app, "enter"); // yes -> save
 
-  const saved = new TemplateRepository(db).get("pedido");
+  const saved = new TemplateRepository(db).get("order");
   assert.ok(saved !== undefined);
-  assert.equal(saved.description, "Pedido con cliente");
-  assert.match(app.render(), /pedido - Pedido con cliente/);
+  assert.equal(saved.description, "Order with customer");
+  assert.match(app.render(), /order - Order with customer/);
 
-  pressChar(app, "e"); // editar (empieza en descripción)
-  clearAndType(app, "Descripción Nueva");
+  pressChar(app, "e"); // edit (starts at description)
+  clearAndType(app, "New description");
   pressKey(app, "enter"); // -> body
   clearAndType(
     app,
-    '{"model":"jev-1.13","state":"{{estado}}","questions":{"q":{"type":"noul"}}}',
+    '{"model":"jev-1.13","state":"{{state}}","questions":{"q":{"type":"noul"}}}',
   );
-  pressKey(app, "enter"); // confirmación
-  pressKey(app, "enter"); // sí -> guardar
+  pressKey(app, "enter"); // confirmation
+  pressKey(app, "enter"); // yes -> save
 
-  const edited = new TemplateRepository(db).get("pedido");
-  assert.equal(edited?.description, "Descripción Nueva");
+  const edited = new TemplateRepository(db).get("order");
+  assert.equal(edited?.description, "New description");
 });
 
-test("el body con JSON inválido no se guarda y muestra el error", () => {
+test("a body with invalid JSON is not saved and shows the error", () => {
   const db = openDatabase(":memory:");
   const app = new TuiApp(createTuiBackend(db));
 
@@ -226,100 +226,100 @@ test("el body con JSON inválido no se guarda y muestra el error", () => {
   pressKey(app, "enter");
   pressKey(app, "enter"); // -> body
 
-  typeText(app, '{"model":"x"}'); // falta state
-  assert.match(app.render(), /error: la plantilla no tiene state/);
-  pressKey(app, "enter"); // bloqueado
-  assert.match(app.render(), /Nueva plantilla/);
-  assert.ok(!app.render().includes("¿Guardar"));
+  typeText(app, '{"model":"x"}'); // missing state
+  assert.match(app.render(), /error: the template has no state/);
+  pressKey(app, "enter"); // blocked
+  assert.match(app.render(), /New template/);
+  assert.ok(!app.render().includes("Save template"));
   assert.equal(new TemplateRepository(db).get("t"), undefined);
 });
 
-test("borrar una plantilla pide confirmación", () => {
+test("deleting a template asks for confirmation", () => {
   const db = openDatabase(":memory:");
   const backend = createTuiBackend(db);
   backend.saveTemplate("x", "", VALID_BODY);
   const app = new TuiApp(backend);
 
   openTemplates(app);
-  pressChar(app, "d"); // borrar
-  assert.match(app.render(), /¿Eliminar la plantilla 'x'/);
-  pressKey(app, "enter"); // sí
+  pressChar(app, "d"); // delete
+  assert.match(app.render(), /Delete template 'x'/);
+  pressKey(app, "enter"); // yes
   assert.equal(new TemplateRepository(db).get("x"), undefined);
-  assert.match(app.render(), /plantilla eliminada: x/);
+  assert.match(app.render(), /template deleted: x/);
 });
 
-test("/ activa la búsqueda; escribir filtra, Backspace borra y Esc/Enter salen", () => {
+test("/ enables search; typing filters, Backspace deletes and Esc/Enter exit", () => {
   const backend = createTuiBackend(openDatabase(":memory:"));
-  backend.saveTemplate("alfa", "primera", VALID_BODY);
-  backend.saveTemplate("beta", "segunda", VALID_BODY);
+  backend.saveTemplate("alpha", "first", VALID_BODY);
+  backend.saveTemplate("beta", "second", VALID_BODY);
   const app = new TuiApp(backend);
 
   openTemplates(app);
   pressChar(app, "/");
-  assert.match(app.render(), /Buscar: █/);
+  assert.match(app.render(), /Search: █/);
 
   typeText(app, "be");
-  assert.match(app.render(), /Buscar: be█/);
+  assert.match(app.render(), /Search: be█/);
   assert.match(app.render(), /beta/);
-  assert.ok(!app.render().includes("alfa"));
+  assert.ok(!app.render().includes("alpha"));
 
   pressKey(app, "backspace");
-  assert.match(app.render(), /Buscar: b█/);
+  assert.match(app.render(), /Search: b█/);
 
   pressKey(app, "esc");
-  assert.doesNotMatch(app.render(), /Buscar: .*█/);
-  assert.match(app.render(), /Buscar: b/);
+  assert.doesNotMatch(app.render(), /Search: .*█/);
+  assert.match(app.render(), /Search: b/);
   assert.match(app.render(), /beta/);
-  assert.ok(!app.render().includes("alfa"));
+  assert.ok(!app.render().includes("alpha"));
 
-  // Enter también sale del filtro sin abrir el detalle (la query se conserva).
+  // Enter also exits the filter without opening the detail (the query is kept).
   pressChar(app, "/");
-  clearLine(app); // borra la query anterior
-  typeText(app, "al");
+  clearLine(app); // clears the previous query
+  typeText(app, "ph");
   pressKey(app, "enter");
-  assert.doesNotMatch(app.render(), /Buscar: .*█/);
-  assert.match(app.render(), /Buscar: al/);
-  assert.match(app.render(), /alfa/);
+  assert.doesNotMatch(app.render(), /Search: .*█/);
+  assert.match(app.render(), /Search: ph/);
+  assert.match(app.render(), /alpha/);
   assert.ok(!app.render().includes("beta"));
 
-  // Con la búsqueda vacía vuelven a aparecer todas.
+  // With an empty search all of them show up again.
   pressChar(app, "/");
   clearLine(app);
   pressKey(app, "esc");
-  assert.match(app.render(), /alfa/);
+  assert.match(app.render(), /alpha/);
   assert.match(app.render(), /beta/);
 });
 
-test("Enter abre el detalle y e/d/b/q responden", () => {
+test("Enter opens the detail and e/d/b/q respond", () => {
   const backend = createTuiBackend(openDatabase(":memory:"));
-  backend.saveTemplate("uno", "primera", VALID_BODY);
+  backend.saveTemplate("one", "first", VALID_BODY);
   const app = new TuiApp(backend);
 
   openTemplates(app);
-  pressKey(app, "enter"); // detalle
-  assert.match(app.render(), /Plantilla: uno/);
+  pressKey(app, "enter"); // detail
+  assert.match(app.render(), /Template: one/);
 
-  pressChar(app, "e"); // editar
-  assert.match(app.render(), /Editar plantilla: uno/);
-  pressKey(app, "esc"); // sin cambios -> listado
-  assert.match(app.render(), /Plantillas/);
+  pressChar(app, "e"); // edit
+  assert.match(app.render(), /Edit template: one/);
+  pressKey(app, "esc"); // no changes -> list
+  assert.match(app.render(), /Templates/);
 
-  pressKey(app, "enter"); // detalle
-  pressChar(app, "b"); // volver
-  assert.match(app.render(), /Plantillas/);
+  pressKey(app, "enter"); // detail
+  pressChar(app, "b"); // back
+  assert.match(app.render(), /Templates/);
 
-  pressKey(app, "enter"); // detalle
-  pressChar(app, "d"); // borrar -> confirmación
-  assert.match(app.render(), /¿Eliminar la plantilla 'uno'/);
-  pressChar(app, "N"); // rechazar
-  assert.match(app.render(), /Plantilla: uno/);
+  pressKey(app, "enter"); // detail
+  pressChar(app, "d"); // delete -> confirmation
+  assert.match(app.render(), /Delete template 'one'/);
+  pressChar(app, "N"); // reject
+  assert.match(app.render(), /Template: one/);
 
-  pressChar(app, "q"); // volver desde el detalle
-  assert.match(app.render(), /Plantillas/);
+  pressChar(app, "q"); // back from the detail
+  assert.match(app.render(), /Templates/);
   assert.equal(app.done, false);
 });
 
-test("las confirmaciones aceptan s/S/y/Y/Enter y rechazan n/N/Esc", () => {
+test("confirmations accept s/S/y/Y/Enter and reject n/N/Esc", () => {
   for (const char of ["s", "S", "y", "Y"]) {
     const db = openDatabase(":memory:");
     const backend = createTuiBackend(db);
@@ -328,12 +328,12 @@ test("las confirmaciones aceptan s/S/y/Y/Enter y rechazan n/N/Esc", () => {
 
     openTemplates(app);
     pressChar(app, "d");
-    assert.match(app.render(), /¿Eliminar la plantilla 'x'/);
+    assert.match(app.render(), /Delete template 'x'/);
     pressChar(app, char);
     assert.equal(
       new TemplateRepository(db).get("x"),
       undefined,
-      `debería aceptar ${char}`,
+      `should accept ${char}`,
     );
   }
 
@@ -348,9 +348,9 @@ test("las confirmaciones aceptan s/S/y/Y/Enter y rechazan n/N/Esc", () => {
     pressChar(app, char);
     assert.ok(
       new TemplateRepository(db).get("x") !== undefined,
-      `debería rechazar ${char}`,
+      `should reject ${char}`,
     );
-    assert.match(app.render(), /Plantillas/);
+    assert.match(app.render(), /Templates/);
   }
 
   const db = openDatabase(":memory:");
@@ -361,20 +361,20 @@ test("las confirmaciones aceptan s/S/y/Y/Enter y rechazan n/N/Esc", () => {
   pressChar(app, "d");
   pressKey(app, "esc");
   assert.ok(new TemplateRepository(db).get("x") !== undefined);
-  assert.match(app.render(), /Plantillas/);
+  assert.match(app.render(), /Templates/);
 });
 
-test("q en Plantillas vuelve al menú", () => {
+test("q in Templates returns to the menu", () => {
   const app = new TuiApp(createTuiBackend(openDatabase(":memory:")));
 
   openTemplates(app);
-  assert.match(app.render(), /Plantillas/);
+  assert.match(app.render(), /Templates/);
   pressChar(app, "q");
-  assert.match(app.render(), /Jev — modo interactivo/);
+  assert.match(app.render(), /Jev — interactive mode/);
   assert.equal(app.done, false);
 });
 
-test("Ctrl-A, Ctrl-E, Delete y Backspace siguen funcionando al editar", () => {
+test("Ctrl-A, Ctrl-E, Delete and Backspace still work while editing", () => {
   const app = new TuiApp(createTuiBackend(openDatabase(":memory:")));
 
   pressKey(app, "enter"); // provider
@@ -397,26 +397,26 @@ test("Ctrl-A, Ctrl-E, Delete y Backspace siguen funcionando al editar", () => {
   assert.match(app.render(), /URL > Xab█/);
 });
 
-test("salir con cambios sin guardar pide confirmación", () => {
+test("quitting with unsaved changes asks for confirmation", () => {
   const db = openDatabase(":memory:");
   const app = new TuiApp(createTuiBackend(db));
 
   openTemplates(app);
   pressChar(app, "n");
-  typeText(app, "x"); // cambios sin guardar
+  typeText(app, "x"); // unsaved changes
 
-  pressKey(app, "ctrlC"); // intenta salir
-  assert.match(app.render(), /Hay cambios sin guardar/);
-  pressChar(app, "n"); // no -> vuelve al editor
-  assert.match(app.render(), /Nueva plantilla/);
+  pressKey(app, "ctrlC"); // tries to quit
+  assert.match(app.render(), /There are unsaved changes/);
+  pressChar(app, "n"); // no -> returns to the editor
+  assert.match(app.render(), /New template/);
 
   pressKey(app, "ctrlC");
-  pressKey(app, "enter"); // sí -> sale
+  pressKey(app, "enter"); // yes -> quits
   assert.equal(app.done, true);
   assert.equal(app.exitCode, 0);
 });
 
-test("q desde el menú principal sale (sin distinguir mayúsculas)", () => {
+test("q from the main menu quits (ignoring case)", () => {
   const app = new TuiApp(createTuiBackend(openDatabase(":memory:")));
   assert.equal(app.done, false);
   pressChar(app, "q");
@@ -429,17 +429,17 @@ test("q desde el menú principal sale (sin distinguir mayúsculas)", () => {
   assert.equal(upper.exitCode, 0);
 });
 
-test("descartar cambios vuelve a plantillas sin guardar", () => {
+test("discarding changes returns to templates without saving", () => {
   const db = openDatabase(":memory:");
   const app = new TuiApp(createTuiBackend(db));
 
   openTemplates(app);
   pressChar(app, "n");
   typeText(app, "y");
-  pressKey(app, "esc"); // descartar
-  assert.match(app.render(), /Descartar los cambios/);
-  pressKey(app, "enter"); // sí
-  assert.match(app.render(), /Plantillas/);
+  pressKey(app, "esc"); // discard
+  assert.match(app.render(), /Discard unsaved changes/);
+  pressKey(app, "enter"); // yes
+  assert.match(app.render(), /Templates/);
   assert.equal(new TemplateRepository(db).get("y"), undefined);
 });
 
@@ -477,21 +477,21 @@ async function runTuiCli(
   return { code, stdout, stderr, backend };
 }
 
-test("tui sin TTY devuelve error claro con los comandos equivalentes", async () => {
+test("tui without a TTY returns a clear error with the equivalent commands", async () => {
   const result = await runTuiCli(["tui"], { isTty: false });
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /requiere una terminal/);
+  assert.match(result.stderr, /requires a terminal/);
   assert.match(result.stderr, /jev config set/);
   assert.match(result.stderr, /jev template/);
 });
 
-test("tui --help muestra el uso", async () => {
+test("tui --help shows usage", async () => {
   const result = await runTuiCli(["tui", "--help"]);
   assert.equal(result.code, 0);
-  assert.match(result.stdout, /modo interactivo/);
+  assert.match(result.stdout, /interactive mode/);
 });
 
-test("tui con TTY delega en el runner inyectado", async () => {
+test("tui with a TTY delegates to the injected runner", async () => {
   const dir = await mkdtemp(join(tmpdir(), "jev-tui-"));
   try {
     const dbPath = join(dir, "jev.db");

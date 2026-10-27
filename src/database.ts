@@ -88,8 +88,8 @@ const MIGRATIONS: readonly Migration[] = [
   {
     version: 5,
     up(db) {
-      // `ALTER TABLE ... ADD COLUMN` no admite IF NOT EXISTS: se consulta el
-      // catálogo para que reaplicar la migración siga siendo inocuo.
+      // `ALTER TABLE ... ADD COLUMN` does not support IF NOT EXISTS: the
+      // catalog is queried so reapplying the migration stays harmless.
       const columns = db
         .prepare<[], { name: string }>("PRAGMA table_info(template_macros)")
         .all();
@@ -101,8 +101,8 @@ const MIGRATIONS: readonly Migration[] = [
   {
     version: 6,
     up(db) {
-      // La tabla requests la crea la migración v3; en bases de prueba creadas a
-      // mano puede no existir, así que se comprueba antes de alterar.
+      // The requests table is created by migration v3; in hand-made test
+      // databases it may not exist, so it is checked before altering.
       const table = db
         .prepare<[], { name: string }>(
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'requests'",
@@ -111,8 +111,8 @@ const MIGRATIONS: readonly Migration[] = [
       if (table === undefined) {
         return;
       }
-      // `ALTER TABLE ... ADD COLUMN` no admite IF NOT EXISTS: se consulta el
-      // catálogo para que reaplicar la migración siga siendo inocuo.
+      // `ALTER TABLE ... ADD COLUMN` does not support IF NOT EXISTS: the
+      // catalog is queried so reapplying the migration stays harmless.
       const columns = db
         .prepare<[], { name: string }>("PRAGMA table_info(requests)")
         .all();
@@ -125,12 +125,12 @@ const MIGRATIONS: readonly Migration[] = [
   },
 ];
 
-/** Ruta por defecto dentro del directorio personal que determine el SO. */
+/** Default path inside the home directory determined by the OS. */
 export function defaultDatabasePath(): string {
   return join(homedir(), ".jev-client", "db", "jev.db");
 }
 
-/** Precedencia de la ruta: --db > JEV_DB > ruta por defecto. */
+/** Path precedence: --db > JEV_DB > default path. */
 export function resolveDatabasePath(
   flag?: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -143,8 +143,8 @@ export function resolveDatabasePath(
 }
 
 /**
- * Abre la base, crea sus directorios y aplica las migraciones pendientes.
- * El directorio nuevo se crea con 0700 y la base queda con 0600.
+ * Opens the database, creates its directories and applies pending migrations.
+ * A new directory is created with 0700 and the database ends up with 0600.
  */
 export function openDatabase(path: string): SqliteDatabase {
   if (path !== ":memory:") {
@@ -172,12 +172,12 @@ export function openDatabase(path: string): SqliteDatabase {
   }
 }
 
-/** Migra cada versión en una transacción; reaplicarla no cambia los datos. */
+/** Migrates each version in a transaction; reapplying it does not change the data. */
 export function migrateDatabase(db: SqliteDatabase): void {
   const current = db.pragma("user_version", { simple: true }) as number;
   if (current > SCHEMA_VERSION) {
     throw new Error(
-      `la base usa el esquema ${current}, pero esta versión solo admite hasta ${SCHEMA_VERSION}`,
+      `the database uses schema ${current}, but this version only supports up to ${SCHEMA_VERSION}`,
     );
   }
 

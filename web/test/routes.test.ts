@@ -56,7 +56,7 @@ beforeEach(async () => {
   providerStatus = 200;
   const fetchImpl: FetchLike = async (_input, init) => {
     if (providerStatus !== 200) {
-      return new Response(JSON.stringify({ error: { code: "api_key_expired", message: "caducada" } }), { status: providerStatus });
+      return new Response(JSON.stringify({ error: { code: "api_key_expired", message: "expired" } }), { status: providerStatus });
     }
     active += 1;
     maxActive = Math.max(maxActive, active);
@@ -65,7 +65,7 @@ beforeEach(async () => {
     const request = JSON.parse(String(init?.body)) as { model: string; questions: Record<string, { type: string }> };
     const answers = Object.fromEntries(Object.entries(request.questions).map(([name, question]) => {
       if (question.type === "choice") return [name, { type: "choice", choice: "infra", confidence: 0.8, probabilities: { infra: 0.8, billing: 0.2 } }];
-      if (question.type === "score") return [name, { type: "score", score: 1.4, legend: { "0": "Bajo", "1": "Medio", "2": "Alto" }, probabilities: { "0": 0.1, "1": 0.3, "2": 0.6 } }];
+      if (question.type === "score") return [name, { type: "score", score: 1.4, legend: { "0": "Low", "1": "Medium", "2": "High" }, probabilities: { "0": 0.1, "1": 0.3, "2": 0.6 } }];
       return [name, { type: "noul", noul: 0.9 }];
     }));
     return new Response(JSON.stringify({ model: request.model, answers, usage: { input_tokens: 10, output_tokens: 4, cost: 0.000001 } }), { status: 200 });
@@ -110,7 +110,7 @@ function request(pathname: string, method = "GET", options: { body?: unknown; to
   return new NextRequest(`${ORIGIN}${pathname}`, { method, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
 }
 
-test("health es público y la sesión exige cookie, CSRF y Origin", async () => {
+test("health is public and the session requires cookie, CSRF and Origin", async () => {
   const live = await health();
   assert.equal(live.status, 200);
   assert.equal((await live.json() as { ok: boolean }).ok, true);
@@ -121,7 +121,7 @@ test("health es público y la sesión exige cookie, CSRF y Origin", async () => 
   assert.equal((await sessionPost(request("/api/session", "POST", { token: TOKEN, session: false }))).status, 401);
 });
 
-test("config enmascara, revela explícitamente y guarda solo cambios", async () => {
+test("config masks, reveals explicitly and saves only changes", async () => {
   runtime.config.set("api_key", "sqlite-secret-key");
   runtime.config.set("api_url", "https://stored.test/systemone");
   const listed = await configGet(request("/api/config"));
@@ -129,7 +129,7 @@ test("config enmascara, revela explícitamente y guarda solo cambios", async () 
   assert.ok(!JSON.stringify(body).includes("sqlite-secret-key"));
   assert.equal(body.entries.find((entry) => entry.key === "api_key")?.source, "env");
   const revealed = await reveal(request("/api/config/api_key/reveal", "POST", { body: {} }), { params: Promise.resolve({ key: "api_key" }) });
-  // La key efectiva de entorno tiene prioridad sobre SQLite.
+  // The effective environment key has priority over SQLite.
   assert.equal((await revealed.json() as { value: string }).value, "env-test-key");
   const saved = await configPut(request("/api/config", "PUT", { body: { model: "web-model", timeout: 12, api_key: "new-secret" } }));
   assert.equal(saved.status, 200);
@@ -139,10 +139,10 @@ test("config enmascara, revela explícitamente y guarda solo cambios", async () 
   assert.ok(!JSON.stringify(await (await configGet(request("/api/config"))).json()).includes("new-secret"));
 });
 
-test("config valida en servidor, hace unset y bloquea flags de sesión", async () => {
+test("config validates on the server, unsets and blocks session flags", async () => {
   runtime.config.set("model", "stored-model");
   runtime.config.set("api_url", "https://stored.test/systemone");
-  const invalid = await configPut(request("/api/config", "PUT", { body: { model: "no-debe-guardarse", api_url: "bad" } }));
+  const invalid = await configPut(request("/api/config", "PUT", { body: { model: "must-not-be-saved", api_url: "bad" } }));
   assert.equal(invalid.status, 400);
   assert.equal(runtime.config.get("model"), "stored-model");
   assert.equal(runtime.config.get("api_url"), "https://stored.test/systemone");
@@ -156,15 +156,15 @@ test("config valida en servidor, hace unset y bloquea flags de sesión", async (
   assert.equal(model?.source, "flag");
   const reset = await configReset(request("/api/config/reset", "POST", { body: {} }));
   assert.equal(reset.status, 200);
-  assert.equal(runtime.config.get("model"), "stored-model", "reset no toca la clave fijada por flag");
+  assert.equal(runtime.config.get("model"), "stored-model", "reset does not touch the key fixed by flag");
   assert.equal(runtime.config.get("api_url"), undefined);
   delete runtime.flags.model;
   await configPut(request("/api/config", "PUT", { body: { model: "" } }));
   assert.equal(runtime.config.get("model"), undefined);
 });
 
-test("ask/demo/provider comparten historial y export es idéntico a la CLI", async () => {
-  const response = await ask(request("/api/ask", "POST", { body: { state: { ticket: "hola" }, questions: { q: { type: "noul" } }, save: true } }));
+test("ask/demo/provider share history and export is identical to the CLI", async () => {
+  const response = await ask(request("/api/ask", "POST", { body: { state: { ticket: "hello" }, questions: { q: { type: "noul" } }, save: true } }));
   assert.equal(response.status, 200, await response.clone().text());
   const execution = await response.json() as { requestId: number; request: { model: string }; usage: { inputTokens: number } };
   assert.equal(execution.requestId, 1);
@@ -192,7 +192,7 @@ test("ask/demo/provider comparten historial y export es idéntico a la CLI", asy
   assert.deepEqual(keys, ["id", "created_at", "started_at", "finished_at", "duration_ms", "endpoint", "model", "status_code", "ok", "request", "response", "input_tokens", "output_tokens", "cost", "error_code", "error_message", "template_name", "batch_id", "source"]);
 });
 
-test("plantillas validan macros, renderizan y renombran sin duplicar", async () => {
+test("templates validate macros, render and rename without duplicating", async () => {
   const bodyJson = JSON.stringify({ model: "jev-1.13", state: { text: "{{ticket}}", client: "{{client.name}}" }, questions: { q: { type: "noul" } } });
   const created = await templatesPost(request("/api/templates", "POST", { body: { name: "ticket", description: "Ticket", bodyJson } }));
   assert.equal(created.status, 201);
@@ -202,7 +202,7 @@ test("plantillas validan macros, renderizan y renombran sin duplicar", async () 
   const missingBody = await missing.json() as { error: { message: string } };
   assert.match(missingBody.error.message, /client.name/);
   assert.match(missingBody.error.message, /ticket/);
-  const rendered = await templateRender(request("/api/templates/render", "POST", { body: { bodyJson, context: { ticket: "hola", client: { name: "Ana" } } } }));
+  const rendered = await templateRender(request("/api/templates/render", "POST", { body: { bodyJson, context: { ticket: "hello", client: { name: "Ana" } } } }));
   assert.equal((await rendered.json() as { request: { state: { client: string } } }).request.state.client, "Ana");
   const renamed = await templatePatch(request("/api/templates/ticket", "PATCH", { body: { name: "ticket-web" } }), { params: Promise.resolve({ name: "ticket" }) });
   assert.equal(renamed.status, 200);
@@ -211,7 +211,7 @@ test("plantillas validan macros, renderizan y renombran sin duplicar", async () 
   assert.equal((await templatesGet(request("/api/templates"))).status, 200);
 });
 
-test("macros con descripción se guardan, fusionan, renombran y borran en cascada", async () => {
+test("macros with description are saved, merged, renamed and deleted in cascade", async () => {
   const bodyJson = JSON.stringify({
     model: "jev-1.13",
     state: { ticket: "{{ticket}}", client: "{{client.name}}" },
@@ -223,33 +223,33 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
       description: "Ticket",
       bodyJson,
       macros: [
-        { name: "ticket", description: "  Identificador del pedido (TCK-1042)  " },
-        { name: "client.name", description: "Nombre del cliente", schema: null },
+        { name: "ticket", description: "  Order identifier (TCK-1042)  " },
+        { name: "client.name", description: "Customer name", schema: null },
       ],
     },
   }));
   assert.equal(created.status, 201);
   assert.deepEqual((await created.json() as { macros: unknown }).macros, [
-    { name: "client.name", description: "Nombre del cliente", schema: null },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
+    { name: "client.name", description: "Customer name", schema: null },
+    { name: "ticket", description: "Order identifier (TCK-1042)", schema: null },
   ]);
 
   const listed = await templatesGet(request("/api/templates"));
   const items = (await listed.json() as { items: Array<{ macros: unknown }> }).items;
   assert.deepEqual(items[0]?.macros, [
-    { name: "client.name", description: "Nombre del cliente", schema: null },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
+    { name: "client.name", description: "Customer name", schema: null },
+    { name: "ticket", description: "Order identifier (TCK-1042)", schema: null },
   ]);
 
   const invalid = await templatesPost(request("/api/templates", "POST", {
-    body: { name: "invalida", bodyJson, macros: [{ name: "inexistente", description: "x" }] },
+    body: { name: "invalid", bodyJson, macros: [{ name: "unknown", description: "x" }] },
   }));
   assert.equal(invalid.status, 400);
   assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_macro");
-  assert.equal(runtime.templates.get("invalida"), undefined);
+  assert.equal(runtime.templates.get("invalid"), undefined);
 
   const tooLong = await templatesPost(request("/api/templates", "POST", {
-    body: { name: "larga", bodyJson, macros: [{ name: "ticket", description: "x".repeat(501) }] },
+    body: { name: "long", bodyJson, macros: [{ name: "ticket", description: "x".repeat(501) }] },
   }));
   assert.equal(tooLong.status, 400);
   assert.equal((await tooLong.json() as { error: { code: string } }).error.code, "invalid_macro_description");
@@ -261,13 +261,13 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
   });
   const updated = await templatePut(
     request("/api/templates/ticket", "PUT", {
-      body: { name: "ticket", description: "Ticket", bodyJson: withoutClient, macros: [{ name: "ticket", description: "Nueva descripción" }] },
+      body: { name: "ticket", description: "Ticket", bodyJson: withoutClient, macros: [{ name: "ticket", description: "New description" }] },
     }),
     { params: Promise.resolve({ name: "ticket" }) },
   );
   assert.equal(updated.status, 200);
   assert.deepEqual((await updated.json() as { macros: unknown }).macros, [
-    { name: "ticket", description: "Nueva descripción", schema: null },
+    { name: "ticket", description: "New description", schema: null },
   ]);
   assert.deepEqual(
     runtime.service.db.prepare("SELECT macro FROM template_macros ORDER BY macro").all(),
@@ -284,7 +284,7 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
     { params: Promise.resolve({ name: "ticket-2" }) },
   );
   assert.deepEqual((await detail.json() as { macros: unknown }).macros, [
-    { name: "ticket", description: "Nueva descripción", schema: null },
+    { name: "ticket", description: "New description", schema: null },
   ]);
 
   const deleted = await templateDelete(
@@ -298,7 +298,7 @@ test("macros con descripción se guardan, fusionan, renombran y borran en cascad
   );
 });
 
-test("los esquemas de macros se guardan, validan, conservan y limpian por la API", async () => {
+test("macro schemas are saved, validated, kept and cleared through the API", async () => {
   const bodyJson = JSON.stringify({
     model: "jev-1.13",
     state: { ticket: "{{ticket}}", client: "{{client.plan}}" },
@@ -307,7 +307,7 @@ test("los esquemas de macros se guardan, validan, conservan y limpian por la API
   const created = await templatesPost(request("/api/templates", "POST", {
     body: {
       name: "schemas",
-      description: "Esquemas",
+      description: "Schemas",
       bodyJson,
       macros: [
         { name: "ticket", description: "Ticket", schema: { type: "string", format: "uuid" } },
@@ -369,12 +369,12 @@ test("los esquemas de macros se guardan, validan, conservan y limpian por la API
     assert.equal(runtime.templates.get(name), undefined);
   }
 
-  // `schema: null` limpia el esquema y conserva la descripción.
+  // `schema: null` clears the schema and keeps the description.
   const updated = await templatePut(
     request("/api/templates/schemas", "PUT", {
       body: {
         name: "schemas",
-        description: "Esquemas",
+        description: "Schemas",
         bodyJson,
         macros: [
           { name: "ticket", description: "Ticket", schema: null },
@@ -390,7 +390,7 @@ test("los esquemas de macros se guardan, validan, conservan y limpian por la API
     { name: "ticket", description: "Ticket", schema: null },
   ]);
 
-  // Renombrar conserva los esquemas y borrar los elimina en cascada.
+  // Renaming keeps the schemas and deleting removes them in cascade.
   const renamed = await templatePatch(
     request("/api/templates/schemas", "PATCH", { body: { name: "schemas-2" } }),
     { params: Promise.resolve({ name: "schemas" }) },
@@ -411,10 +411,10 @@ test("los esquemas de macros se guardan, validan, conservan y limpian por la API
   );
 });
 
-test("los starters de plantilla se guardan por la API y coinciden con show y render de la CLI", async () => {
+test("template starters are saved through the API and match the CLI show and render", async () => {
   const context = {
-    estado_de_pedido: "Me han cobrado dos veces y quiero el reembolso.",
-    cliente: { nombre: "Ana", plan: "pro" },
+    order_state: "I was charged twice and I want a refund.",
+    customer: { name: "Ana", plan: "pro" },
   };
   const io = (): { cli: CliIO; output: () => string } => {
     let output = "";
@@ -455,9 +455,9 @@ test("los starters de plantilla se guardan por la API y coinciden con show y ren
   }
 });
 
-test("batch stream usa pool, batch_id común y resume en NDJSON", async () => {
-  runtime.templates.save("lote", "Lote", JSON.stringify({ model: "jev-1.13", state: "{{message}}", questions: { q: { type: "noul" } } }));
-  const response = await batch(request("/api/batch", "POST", { body: { templateName: "lote", contexts: [{ message: "uno" }, { message: "dos" }, { message: "tres" }], concurrency: 3, save: true } }));
+test("batch stream uses a pool, a shared batch_id and summarizes in NDJSON", async () => {
+  runtime.templates.save("batch", "Batch", JSON.stringify({ model: "jev-1.13", state: "{{message}}", questions: { q: { type: "noul" } } }));
+  const response = await batch(request("/api/batch", "POST", { body: { templateName: "batch", contexts: [{ message: "one" }, { message: "two" }, { message: "three" }], concurrency: 3, save: true } }));
   assert.equal(response.status, 200);
   const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as { type: string; batchId?: string; requestId?: number | null; summary?: { ok: number; inputTokens: number } });
   const start = events.find((event) => event.type === "batch.start");
@@ -469,24 +469,24 @@ test("batch stream usa pool, batch_id común y resume en NDJSON", async () => {
   assert.equal(maxActive, 3);
   const rows = runtime.requests.list();
   assert.equal(rows.length, 3);
-  assert.ok(rows.every((row) => row.batchId === start.batchId && row.templateName === "lote"));
+  assert.ok(rows.every((row) => row.batchId === start.batchId && row.templateName === "batch"));
 
-  const noSave = await batch(request("/api/batch", "POST", { body: { templateName: "lote", contexts: [{ message: "sin historial" }], save: false } }));
+  const noSave = await batch(request("/api/batch", "POST", { body: { templateName: "batch", contexts: [{ message: "no history" }], save: false } }));
   const noSaveEvents = (await noSave.text()).trim().split("\n").map((line) => JSON.parse(line) as { type: string; requestId?: number | null });
   assert.ok(noSaveEvents.filter((event) => event.type === "item.finish").every((event) => event.requestId === null));
   assert.equal(runtime.requests.count(), 3);
 });
 
-test("ask valida state y preguntas sin llamar al provider", async () => {
+test("ask validates state and questions without calling the provider", async () => {
   const empty = await ask(request("/api/ask", "POST", { body: { state: "", questions: { q: { type: "noul" } } } }));
   assert.equal(empty.status, 400);
-  const invalid = await ask(request("/api/ask", "POST", { body: { state: "hola", questions: { q: { type: "invented" } } } }));
+  const invalid = await ask(request("/api/ask", "POST", { body: { state: "hello", questions: { q: { type: "invented" } } } }));
   assert.equal(invalid.status, 400);
-  assert.match((await invalid.json() as { error: { message: string } }).error.message, /tipo no soportado/);
+  assert.match((await invalid.json() as { error: { message: string } }).error.message, /unsupported type/);
   assert.equal(runtime.requests.count(), 0);
 });
 
-test("ask acepta assets y los redacta al persistir", async () => {
+test("ask accepts assets and redacts them when persisting", async () => {
   const png = Buffer.alloc(24);
   png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
   png.writeUInt32BE(13, 8);
@@ -496,8 +496,8 @@ test("ask acepta assets y los redacta al persistir", async () => {
 
   const response = await ask(request("/api/ask", "POST", {
     body: {
-      state: { foto: "ref-1" },
-      questions: { animal: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+      state: { photo: "ref-1" },
+      questions: { animal: { type: "noul", instructions: "What is in ref-1?" } },
       save: true,
       assets: { "ref-1": { data_base64: png.toString("base64"), format: "png" } },
     },
@@ -509,20 +509,20 @@ test("ask acepta assets y los redacta al persistir", async () => {
   assert.equal((row.requestJson ?? "").includes("data_base64"), false);
 
   const invalid = await ask(request("/api/ask", "POST", {
-    body: { state: "hola", questions: { q: { type: "noul" } }, assets: { "ref-x": { format: "png" } } },
+    body: { state: "hello", questions: { q: { type: "noul" } }, assets: { "ref-x": { format: "png" } } },
   }));
   assert.equal(invalid.status, 400);
   assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_assets");
 });
 
-test("un 401 del provider se distingue de una sesión inválida", async () => {
+test("a provider 401 is distinguished from an invalid session", async () => {
   providerStatus = 401;
-  const response = await ask(request("/api/ask", "POST", { body: { state: "hola", questions: { q: { type: "noul" } }, save: false } }));
+  const response = await ask(request("/api/ask", "POST", { body: { state: "hello", questions: { q: { type: "noul" } }, save: false } }));
   assert.equal(response.status, 502);
   const body = await response.json() as { error: { code: string; hint: string; details: { providerStatus: number } } };
   assert.equal(body.error.code, "api_key_expired");
   assert.equal(body.error.details.providerStatus, 401);
-  assert.match(body.error.hint, /caducado/);
+  assert.match(body.error.hint, /expired/);
   const check = await providerCheck(request("/api/provider/check", "POST", { body: {} }));
   assert.equal(check.status, 502);
   const checkBody = await check.json() as { error: { details: { providerStatus: number; latencyMs: number } } };

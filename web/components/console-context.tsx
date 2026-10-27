@@ -44,7 +44,7 @@ function errorBody(value: unknown): ApiErrorBody {
       }
     }
   }
-  return { code: "console_error", message: "La consola devolvió un error inesperado." };
+  return { code: "console_error", message: "The console returned an unexpected error." };
 }
 
 export function ConsoleProvider({ children }: { children: ReactNode }) {
@@ -104,7 +104,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
         if (!response.ok || !data.csrfToken) {
           throw new Error(
             data.error?.message ??
-              "No se pudo validar la sesión. Reinicia `jev web-console` y abre la URL impresa por la CLI.",
+              "The session could not be validated. Restart `jev web-console` and open the URL printed by the CLI.",
           );
         }
         csrf.current = data.csrfToken;
@@ -174,11 +174,11 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
           textarea.select();
           const copied = document.execCommand("copy");
           textarea.remove();
-          if (!copied) throw new Error("copy rechazado");
+          if (!copied) throw new Error("copy rejected");
         }
-        notify("Copiado al portapapeles");
+        notify("Copied to clipboard");
       } catch {
-        notify("No se pudo copiar", true);
+        notify("Could not copy", true);
       }
     },
     [notify],
@@ -205,7 +205,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
 
 export function useConsole(): ConsoleContextValue {
   const context = useContext(ConsoleContext);
-  if (!context) throw new Error("useConsole debe usarse dentro de ConsoleProvider");
+  if (!context) throw new Error("useConsole must be used inside ConsoleProvider");
   return context;
 }
 
@@ -219,7 +219,7 @@ export function describeApiError(error: unknown): ApiErrorBody {
     };
   }
   if (error instanceof DOMException && error.name === "AbortError") {
-    return { code: "cancelled", message: "Ejecución cancelada." };
+    return { code: "cancelled", message: "Run cancelled." };
   }
   return {
     code: "console_error",

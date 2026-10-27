@@ -42,22 +42,22 @@ async function visualContract(page: Page) {
   }, { selectors, properties });
 }
 
-test("regresión del contrato visual calculado contra el HTML exportado", async ({ page }) => {
+test("visual contract regression computed against the exported HTML", async ({ page }) => {
   for (const [width, height] of viewports) {
     await page.setViewportSize({ width, height });
     await page.goto(reference);
     const expected = await visualContract(page);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Resumen", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     const actual = await visualContract(page);
     for (const selector of selectors) {
       for (const property of properties) {
         const expectedValue = expected[selector]?.[property];
         if (expectedValue === undefined || expectedValue === "" || expectedValue === "color-mix" || expectedValue === "unsupported" || actual[selector]?.[property] === "unsupported") continue;
-        // Alturas de contenido cambian con datos reales; la geometría de tracks,
-        // radios, tipografía, posición y espaciado sí es contractual. Los colores
-        // derivados con color-mix se validan en los screenshots/tokens, no con
-        // la rasterización de canvas (que difiere entre oklch/lab).
+        // Content heights change with real data; track geometry,
+        // radii, typography, position and spacing are contractual. Colors
+        // derived with color-mix are validated in the screenshots/tokens, not with
+        // canvas rasterization (which differs between oklch/lab).
         if (property === "height" && ![".topbar", ".btn-primary"].includes(selector)) continue;
         if (["backgroundColor", "color", "borderColor"].includes(property) && selector !== "body") continue;
         const actualValue = actual[selector]?.[property];

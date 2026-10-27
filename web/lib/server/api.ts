@@ -28,20 +28,20 @@ export function json(value: unknown, status = 200): NextResponse {
 export async function readJson(request: NextRequest, maxBytes = 2_000_000): Promise<Record<string, unknown>> {
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (declared > maxBytes) {
-    throw new ConsoleError(413, "body_too_large", `El body supera el límite de ${maxBytes} bytes.`);
+    throw new ConsoleError(413, "body_too_large", `The body exceeds the ${maxBytes} byte limit.`);
   }
   const text = await request.text();
   if (new TextEncoder().encode(text).byteLength > maxBytes) {
-    throw new ConsoleError(413, "body_too_large", `El body supera el límite de ${maxBytes} bytes.`);
+    throw new ConsoleError(413, "body_too_large", `The body exceeds the ${maxBytes} byte limit.`);
   }
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new ConsoleError(400, "invalid_json", `JSON inválido: ${error instanceof Error ? error.message : String(error)}`);
+    throw new ConsoleError(400, "invalid_json", `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new ConsoleError(400, "invalid_body", "El body debe ser un objeto JSON.");
+    throw new ConsoleError(400, "invalid_body", "The body must be a JSON object.");
   }
   return value as Record<string, unknown>;
 }
@@ -85,13 +85,13 @@ export function errorResponse(error: unknown): NextResponse {
     }, status);
   }
   const message = error instanceof Error ? error.message : String(error);
-  const missingKey = message.includes("falta la API key");
+  const missingKey = message.includes("missing API key");
   return json({
     error: {
       code: missingKey ? "api_key_missing" : "console_error",
       message,
       hint: missingKey
-        ? "Configura api_key, usa --key o define OPENCODE_API_KEY/JEV_API_KEY."
+        ? "Configure api_key, use --key or set OPENCODE_API_KEY/JEV_API_KEY."
         : undefined,
     },
   }, missingKey ? 400 : 500);

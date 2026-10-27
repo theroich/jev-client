@@ -68,11 +68,11 @@ class FakeSignals implements WebConsoleSignalTarget {
   }
 }
 
-test("web-console --help no abre la base ni procesos", async () => {
+test("web-console --help does not open the database or processes", async () => {
   const output = capture();
   const code = await runWebConsoleCommand(["--help"], output.io, {
     spawn: () => {
-      throw new Error("no debe ejecutar spawn");
+      throw new Error("must not run spawn");
     },
   });
 
@@ -83,7 +83,7 @@ test("web-console --help no abre la base ni procesos", async () => {
   assert.match(output.stdout, /--allow-remote/);
 });
 
-test("web-console y --web-console se integran antes del parser general", async () => {
+test("web-console and --web-console are integrated before the general parser", async () => {
   for (const command of ["web-console", "--web-console"]) {
     const output = capture();
     const code = await runCli([command, "--help"], output.io);
@@ -95,12 +95,12 @@ test("web-console y --web-console se integran antes del parser general", async (
   assert.match(help.stdout, /web-console/);
 });
 
-test("web-console valida flags y positionals como errores de uso", async () => {
+test("web-console validates flags and positionals as usage errors", async () => {
   const invalid = [
     ["extra"],
     ["--port", "-1"],
     ["--port", "65536"],
-    ["--port", "no-es-un-puerto"],
+    ["--port", "not-a-port"],
     ["--timeout", "0"],
     ["--retries", "-1"],
     ["--open", "--no-open"],
@@ -112,11 +112,11 @@ test("web-console valida flags y positionals como errores de uso", async () => {
     const code = await runWebConsoleCommand(args, output.io);
     assert.equal(code, 2, args.join(" "));
     assert.match(output.stderr, /error:/, args.join(" "));
-    assert.match(output.stderr, /Uso: jev web-console/, args.join(" "));
+    assert.match(output.stderr, /Usage: jev web-console/, args.join(" "));
   }
 });
 
-test("web-console exige --allow-remote fuera de loopback", async () => {
+test("web-console requires --allow-remote outside loopback", async () => {
   const output = capture();
   const code = await runWebConsoleCommand(
     ["--host", "0.0.0.0", "--no-open"],
@@ -124,16 +124,16 @@ test("web-console exige --allow-remote fuera de loopback", async () => {
   );
 
   assert.equal(code, 2);
-  assert.match(output.stderr, /fuera de loopback/);
+  assert.match(output.stderr, /outside loopback/);
   assert.match(output.stderr, /--allow-remote/);
 });
 
-test("web-console informa de un build standalone ausente tras migrar la base", async (t) => {
+test("web-console reports a missing standalone build after migrating the database", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-console-missing-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
   const output = capture({
-    JEV_CONSOLE_DIR: join(root, "standalone-sin-build"),
+    JEV_CONSOLE_DIR: join(root, "standalone-without-build"),
     JEV_DB: dbPath,
   });
   let spawned = false;
@@ -141,20 +141,20 @@ test("web-console informa de un build standalone ausente tras migrar la base", a
   const code = await runWebConsoleCommand(["--no-open"], output.io, {
     spawn: () => {
       spawned = true;
-      throw new Error("no debe ejecutar spawn");
+      throw new Error("must not run spawn");
     },
   });
 
   assert.equal(code, 1);
   assert.equal(spawned, false);
-  assert.match(output.stderr, /build standalone/);
+  assert.match(output.stderr, /standalone build/);
   assert.match(output.stderr, /server\.js/);
   const db = openDatabase(dbPath);
   assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
   db.close();
 });
 
-test("web-console informa claramente si el puerto está ocupado", async (t) => {
+test("web-console clearly reports when the port is taken", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-console-port-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await writeFile(join(root, "server.js"), "", "utf8");
@@ -178,18 +178,18 @@ test("web-console informa claramente si el puerto está ocupado", async (t) => {
     {
       spawn: () => {
         spawned = true;
-        throw new Error("no debe ejecutar spawn");
+        throw new Error("must not run spawn");
       },
     },
   );
 
   assert.equal(code, 1);
   assert.equal(spawned, false);
-  assert.match(output.stderr, new RegExp(`puerto ${address.port} no está disponible`));
+  assert.match(output.stderr, new RegExp(`port ${address.port} is not available`));
   assert.match(output.stderr, /--port 0/);
 });
 
-test("web-console e2e arranca standalone fake, espera health y cierra con SIGINT", async (t) => {
+test("web-console e2e starts the fake standalone, waits for health and closes with SIGINT", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-console-e2e-"));
   const serverPath = join(root, "server.js");
   const envPath = join(root, "child-env.json");
@@ -251,9 +251,9 @@ test("web-console e2e arranca standalone fake, espera health y cierra con SIGINT
   });
 
   await waitFor(
-    () => output.stdout.includes("Pulsa Ctrl-C"),
+    () => output.stdout.includes("Press Ctrl-C"),
     10_000,
-    () => `banner no recibido. stderr: ${output.stderr}`,
+    () => `banner not received. stderr: ${output.stderr}`,
   );
   const match = output.stdout.match(/^\s*URL:\s+(\S+)$/m);
   assert.ok(match?.[1]);
@@ -314,7 +314,7 @@ test("web-console e2e arranca standalone fake, espera health y cierra con SIGINT
   assert.equal(signals.count(), 0);
   await assert.rejects(
     fetch(healthUrl, { signal: AbortSignal.timeout(2_000) }),
-    "el puerto debe quedar cerrado tras SIGINT",
+    "the port must be closed after SIGINT",
   );
 });
 

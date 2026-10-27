@@ -37,7 +37,7 @@ export function formatTokens(
 export function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -49,16 +49,16 @@ export function relativeDate(value: string, now = Date.now()): string {
   const time = new Date(value).getTime();
   if (!Number.isFinite(time)) return value;
   const minutes = Math.max(0, Math.round((now - time) / 60_000));
-  if (minutes < 1) return "ahora";
-  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `hace ${hours} h`;
-  return `hace ${Math.round(hours / 24)} d`;
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} d ago`;
 }
 
 export interface ParsedState {
   value: State;
-  kind: "texto" | "JSON" | "vacío";
+  kind: "text" | "JSON" | "empty";
   error: string | null;
 }
 
@@ -71,11 +71,11 @@ export function parseStateInput(raw: string): ParsedState {
       return {
         value: raw,
         kind: "JSON",
-        error: `JSON inválido en el state: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Invalid JSON in state: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   }
-  return { value: raw, kind: trimmed === "" ? "vacío" : "texto", error: null };
+  return { value: raw, kind: trimmed === "" ? "empty" : "text", error: null };
 }
 
 export function buildAskCommand(
@@ -103,7 +103,7 @@ export function buildBatchCommand(
   save: boolean,
 ): string {
   const parts = [
-    `jev batch ${shellQuote(template || "plantilla")} --contexts contexts.json`,
+    `jev batch ${shellQuote(template || "template")} --contexts contexts.json`,
     `--concurrency ${concurrency}`,
   ];
   if (failFast) parts.push("--fail-fast");
@@ -166,7 +166,7 @@ export function parseJsonObject(text: string): {
   try {
     const value: unknown = JSON.parse(text);
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { value: null, error: "Debe ser un objeto JSON." };
+      return { value: null, error: "It must be a JSON object." };
     }
     return { value: value as Record<string, unknown>, error: null };
   } catch (error) {
@@ -178,8 +178,8 @@ export function parseJsonObject(text: string): {
 }
 
 /**
- * Esqueleto de contextos con una clave plana por macro y `""` como marcador.
- * Mantiene el orden alfabético de `detectMacros` y devuelve `[]` sin macros.
+ * Context skeleton with one flat key per macro and `""` as a placeholder.
+ * Keeps the alphabetical order of `detectMacros` and returns `[]` without macros.
  */
 export function buildContextsSkeleton(
   macros: readonly TemplateMacro[],
@@ -192,7 +192,7 @@ export function buildContextsSkeleton(
   );
 }
 
-/** Cuenta valores de marcador (`""` o solo espacios) en los contextos, incluidos los anidados. */
+/** Counts placeholder values (`""` or whitespace only) in the contexts, including nested ones. */
 export function countEmptyContextValues(
   contexts: readonly Record<string, unknown>[],
 ): number {
@@ -218,10 +218,10 @@ export function validateContexts(text: string): {
   try {
     const parsed: unknown = JSON.parse(text);
     if (!Array.isArray(parsed)) {
-      return { contexts: [], invalid: [], error: "Los contextos deben ser un array JSON." };
+      return { contexts: [], invalid: [], error: "Contexts must be a JSON array." };
     }
     if (parsed.length > 1000) {
-      return { contexts: [], invalid: [], error: "El máximo es 1.000 contextos por lote." };
+      return { contexts: [], invalid: [], error: "The maximum is 1,000 contexts per batch." };
     }
     const invalid = parsed.flatMap((value, index) =>
       value && typeof value === "object" && !Array.isArray(value) ? [] : [index],
@@ -229,13 +229,13 @@ export function validateContexts(text: string): {
     return {
       contexts: parsed as Array<Record<string, unknown>>,
       invalid,
-      error: invalid.length > 0 ? "Hay contextos que no son objetos." : null,
+      error: invalid.length > 0 ? "Some contexts are not objects." : null,
     };
   } catch (error) {
     return {
       contexts: [],
       invalid: [],
-      error: `JSON inválido: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

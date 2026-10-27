@@ -212,7 +212,7 @@ function listenAddress(env: NodeJS.ProcessEnv): { host: string; port: number } {
 
 export function getOverview(window = 30, runtime = getConsoleRuntime()): Overview {
   if (!Number.isInteger(window) || window < 1 || window > 200) {
-    throw new ConsoleError(400, "invalid_window", "La ventana debe ser un entero entre 1 y 200");
+    throw new ConsoleError(400, "invalid_window", "The window must be an integer between 1 and 200");
   }
   const rows = runtime.requests.list({ limit: window });
   const ok = rows.filter((row) => row.ok).length;
@@ -288,9 +288,9 @@ export function getHistoryPage(parsed: ParsedHistoryFilters, runtime = getConsol
 }
 
 export function getHistoryDetail(id: number, runtime = getConsoleRuntime()): HistoryDetail {
-  if (!Number.isInteger(id) || id < 1) throw new ConsoleError(400, "invalid_history_id", "El id debe ser un entero positivo");
+  if (!Number.isInteger(id) || id < 1) throw new ConsoleError(400, "invalid_history_id", "The id must be a positive integer");
   const record = runtime.requests.get(id);
-  if (!record) throw new ConsoleError(404, "history_not_found", `no existe la petición ${id}`);
+  if (!record) throw new ConsoleError(404, "history_not_found", `no request exists with id ${id}`);
   return {
     ...requestSummary(record),
     startedAt: record.startedAt,
@@ -329,16 +329,16 @@ export function listTemplates(runtime = getConsoleRuntime()): TemplateSummary[] 
 
 export function getTemplate(name: string, runtime = getConsoleRuntime()): TemplateDetail {
   const template = runtime.templates.get(name);
-  if (!template) throw new ConsoleError(404, "template_not_found", `plantilla no encontrada: ${name}`);
+  if (!template) throw new ConsoleError(404, "template_not_found", `template not found: ${name}`);
   return { ...templateSummary(template), bodyJson: template.body_json };
 }
 
 function validTemplateName(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
-    throw new ConsoleError(400, "invalid_template_name", "el nombre de la plantilla no puede estar vacío");
+    throw new ConsoleError(400, "invalid_template_name", "the template name cannot be empty");
   }
   if (value.length > 200 || /[\u0000-\u001f]/.test(value)) {
-    throw new ConsoleError(400, "invalid_template_name", "el nombre de la plantilla es inválido o demasiado largo");
+    throw new ConsoleError(400, "invalid_template_name", "the template name is invalid or too long");
   }
   return value.trim();
 }
@@ -347,7 +347,7 @@ export function bodyJsonFromInput(body: Record<string, unknown>): string {
   const raw = body.bodyJson ?? body.body;
   if (typeof raw === "string") return raw;
   if (raw && typeof raw === "object" && !Array.isArray(raw)) return JSON.stringify(raw);
-  throw new ConsoleError(400, "invalid_template_body", "falta bodyJson o body de la plantilla");
+  throw new ConsoleError(400, "invalid_template_body", "bodyJson or the template body is missing");
 }
 
 function macrosFromInput(
@@ -356,31 +356,31 @@ function macrosFromInput(
 ): TemplateMacro[] | undefined {
   if (body.macros === undefined) return undefined;
   if (!Array.isArray(body.macros)) {
-    throw new ConsoleError(400, "invalid_macros", "macros debe ser un array de {name, description, schema?}");
+    throw new ConsoleError(400, "invalid_macros", "macros must be an array of {name, description, schema?}");
   }
   const detected = new Set(detectMacros(bodyJson));
   const normalized = new Map<string, TemplateMacro>();
   for (const entry of body.macros) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new ConsoleError(400, "invalid_macro", "cada macro debe ser un objeto {name, description, schema?}");
+      throw new ConsoleError(400, "invalid_macro", "each macro must be an object {name, description, schema?}");
     }
     const record = entry as Record<string, unknown>;
     const name = typeof record.name === "string" ? record.name.trim() : "";
     if (name === "") {
-      throw new ConsoleError(400, "invalid_macro", "cada macro necesita un name no vacío");
+      throw new ConsoleError(400, "invalid_macro", "each macro needs a non-empty name");
     }
     if (!detected.has(name)) {
       throw new ConsoleError(
         400,
         "invalid_macro",
-        `la macro ${JSON.stringify(name)} no está en el body de la plantilla`,
+        `macro ${JSON.stringify(name)} is not in the template body`,
       );
     }
     if (record.description !== undefined && typeof record.description !== "string") {
       throw new ConsoleError(
         400,
         "invalid_macro_description",
-        `la descripción de la macro ${JSON.stringify(name)} debe ser texto`,
+        `the description of macro ${JSON.stringify(name)} must be text`,
       );
     }
     const description = (record.description ?? "").trim();
@@ -388,7 +388,7 @@ function macrosFromInput(
       throw new ConsoleError(
         400,
         "invalid_macro_description",
-        `la descripción de la macro ${JSON.stringify(name)} supera los ${MAX_MACRO_DESCRIPTION_LENGTH} caracteres`,
+        `the description of macro ${JSON.stringify(name)} exceeds ${MAX_MACRO_DESCRIPTION_LENGTH} characters`,
       );
     }
     let schema: MacroSchema | null = null;
@@ -413,7 +413,7 @@ export function createTemplate(body: Record<string, unknown>, runtime = getConso
   const bodyJson = bodyJsonFromInput(body);
   validateBody(bodyJson);
   const macros = macrosFromInput(body, bodyJson);
-  if (runtime.templates.get(name)) throw new ConsoleError(409, "template_conflict", `ya existe la plantilla: ${name}`);
+  if (runtime.templates.get(name)) throw new ConsoleError(409, "template_conflict", `template already exists: ${name}`);
   runtime.templates.save(name, description, bodyJson, macros);
   return getTemplate(name, runtime);
 }
@@ -434,15 +434,15 @@ export function renameTemplate(name: string, body: Record<string, unknown>, runt
     runtime.templates.rename(name, newName);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.startsWith("ya existe")) throw new ConsoleError(409, "template_conflict", message);
-    if (message.startsWith("plantilla no encontrada")) throw new ConsoleError(404, "template_not_found", message);
+    if (message.startsWith("template already exists")) throw new ConsoleError(409, "template_conflict", message);
+    if (message.startsWith("template not found")) throw new ConsoleError(404, "template_not_found", message);
     throw error;
   }
   return getTemplate(newName, runtime);
 }
 
 export function deleteTemplate(name: string, runtime = getConsoleRuntime()): void {
-  if (!runtime.templates.remove(name)) throw new ConsoleError(404, "template_not_found", `plantilla no encontrada: ${name}`);
+  if (!runtime.templates.remove(name)) throw new ConsoleError(404, "template_not_found", `template not found: ${name}`);
 }
 
 function validateBody(bodyJson: string): void {
@@ -461,7 +461,7 @@ export function renderTemplateDraft(body: Record<string, unknown>): { request: J
   const bodyJson = bodyJsonFromInput(body);
   const context = body.context ?? {};
   if (!context || typeof context !== "object" || Array.isArray(context)) {
-    throw new ConsoleError(400, "invalid_context", "el contexto debe ser un objeto JSON");
+    throw new ConsoleError(400, "invalid_context", "the context must be a JSON object");
   }
   try {
     return { request: resolveTemplateBody(bodyJson, context as TemplateContext) };
@@ -472,11 +472,11 @@ export function renderTemplateDraft(body: Record<string, unknown>): { request: J
 
 export function saveConfigChanges(body: Record<string, unknown>, runtime = getConsoleRuntime()): ConfigSnapshot {
   const entries = Object.entries(body).filter(([key]) => isConfigKey(key));
-  if (entries.length === 0) throw new ConsoleError(400, "empty_config", "No hay claves de configuración para guardar");
+  if (entries.length === 0) throw new ConsoleError(400, "empty_config", "There are no configuration keys to save");
   const readonly = entries.filter(([key]) => flagSource(runtime, key as ConfigKey));
-  if (readonly.length) throw new ConsoleError(409, "config_readonly", `Las claves fijadas por flag son de solo lectura: ${readonly.map(([key]) => key).join(", ")}`);
+  if (readonly.length) throw new ConsoleError(409, "config_readonly", `Keys fixed by flag are read-only: ${readonly.map(([key]) => key).join(", ")}`);
   for (const [key, raw] of entries) {
-    if (typeof raw !== "string" && typeof raw !== "number") throw new ConsoleError(400, "invalid_config", `El valor de ${key} debe ser texto o número`);
+    if (typeof raw !== "string" && typeof raw !== "number") throw new ConsoleError(400, "invalid_config", `The value of ${key} must be text or a number`);
     const value = String(raw);
     if (value !== "") {
       try { validateConfigValue(key as ConfigKey, value); } catch (error) {
@@ -495,8 +495,8 @@ export function saveConfigChanges(body: Record<string, unknown>, runtime = getCo
 }
 
 export function unsetConfig(key: string, runtime = getConsoleRuntime()): ConfigSnapshot {
-  if (!isConfigKey(key)) throw new ConsoleError(400, "invalid_config_key", `clave inválida: ${key}`);
-  if (flagSource(runtime, key)) throw new ConsoleError(409, "config_readonly", `${key} está fijada por flag y es de solo lectura`);
+  if (!isConfigKey(key)) throw new ConsoleError(400, "invalid_config_key", `invalid key: ${key}`);
+  if (flagSource(runtime, key)) throw new ConsoleError(409, "config_readonly", `${key} is fixed by flag and is read-only`);
   runtime.config.unset(key);
   return getConfigSnapshot(runtime);
 }
@@ -510,20 +510,20 @@ export function resetConfig(runtime = getConsoleRuntime()): ConfigSnapshot {
 
 export function revealApiKey(runtime = getConsoleRuntime()): { key: string; value: string } {
   const value = resolvedConfig(runtime).apiKey;
-  if (!value) throw new ConsoleError(404, "api_key_missing", "No hay una API key efectiva para revelar");
+  if (!value) throw new ConsoleError(404, "api_key_missing", "There is no effective API key to reveal");
   return { key: "api_key", value };
 }
 
 export async function executeAsk(body: Record<string, unknown>, runtime = getConsoleRuntime()): Promise<ExecutionResult> {
-  if (!("state" in body)) throw new ConsoleError(400, "invalid_request", "el request no tiene state");
+  if (!("state" in body)) throw new ConsoleError(400, "invalid_request", "the request has no state");
   if (
     (typeof body.state !== "string" && (body.state === null || typeof body.state !== "object")) ||
     (typeof body.state === "string" && body.state.trim() === "")
   ) {
-    throw new ConsoleError(400, "invalid_request", "el state está vacío o tiene un tipo inválido");
+    throw new ConsoleError(400, "invalid_request", "the state is empty or has an invalid type");
   }
   if (body.model !== undefined && (typeof body.model !== "string" || !body.model.trim())) {
-    throw new ConsoleError(400, "invalid_request", "model debe ser un string no vacío");
+    throw new ConsoleError(400, "invalid_request", "model must be a non-empty string");
   }
   let questions;
   try { questions = validateQuestions(body.questions); } catch (error) {
@@ -541,26 +541,26 @@ export async function executeAsk(body: Record<string, unknown>, runtime = getCon
 }
 
 /**
- * Normaliza `assets` del body de la consola: `{ ref: { data_base64, format } }`.
- * La imagen ya llega en base64 desde el cliente (no se persiste tal cual: el
- * repositorio la redacta).
+ * Normalizes the console body `assets`: `{ ref: { data_base64, format } }`.
+ * The image already arrives as base64 from the client (it is not persisted as
+ * is: the repository redacts it).
  */
 function parseAssetsInput(value: unknown): Record<string, ImageAsset> | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new ConsoleError(400, "invalid_assets", "assets debe ser un objeto { ref: { data_base64, format } }");
+    throw new ConsoleError(400, "invalid_assets", "assets must be an object { ref: { data_base64, format } }");
   }
   const assets: Record<string, ImageAsset> = {};
   for (const [ref, entry] of Object.entries(value as Record<string, unknown>)) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new ConsoleError(400, "invalid_assets", `el asset ${JSON.stringify(ref)} debe ser un objeto`);
+      throw new ConsoleError(400, "invalid_assets", `asset ${JSON.stringify(ref)} must be an object`);
     }
     const record = entry as Record<string, unknown>;
     if (record.data_base64 === undefined) {
-      throw new ConsoleError(400, "invalid_assets", `el asset ${JSON.stringify(ref)} necesita data_base64`);
+      throw new ConsoleError(400, "invalid_assets", `asset ${JSON.stringify(ref)} needs data_base64`);
     }
     if (typeof record.data_base64 !== "string") {
-      throw new ConsoleError(400, "invalid_assets", `el asset ${JSON.stringify(ref)} tiene un data_base64 inválido`);
+      throw new ConsoleError(400, "invalid_assets", `asset ${JSON.stringify(ref)} has an invalid data_base64`);
     }
     assets[ref] = {
       type: "image",
@@ -583,7 +583,7 @@ export async function checkProvider(runtime = getConsoleRuntime()) {
     const result = await runtime.service.ask({
       model: "",
       state: "ping",
-      questions: { ping: { type: "noul", instructions: "Comprueba que el provider puede evaluar una petición mínima." } },
+      questions: { ping: { type: "noul", instructions: "Check that the provider can evaluate a minimal request." } },
     }, { save: false });
     runtime.providerStatus = "ok";
     return {
@@ -596,7 +596,7 @@ export async function checkProvider(runtime = getConsoleRuntime()) {
     runtime.providerStatus = "error";
     const latencyMs = Date.now() - started;
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("falta la API key")) throw error;
+    if (message.includes("missing API key")) throw error;
     if (error instanceof JevApiError) {
       const status = error.statusCode === 429 ? 429 : error.statusCode === 422 ? 422 : 502;
       throw new ConsoleError(

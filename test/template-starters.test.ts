@@ -20,7 +20,7 @@ const context = JSON.parse(
   await readFile(fileURLToPath(new URL("../../examples/context.json", import.meta.url)), "utf8"),
 ) as Record<string, unknown>;
 
-test("hay un starter por cada tipo y noul es el preseleccionado", () => {
+test("there is one starter per type and noul is preselected", () => {
   assert.deepEqual(
     TEMPLATE_STARTERS.map((starter) => starter.id),
     ["noul", "choice", "score"],
@@ -35,7 +35,7 @@ test("hay un starter por cada tipo y noul es el preseleccionado", () => {
   }
 });
 
-test("cada starter usa el tipo de pregunta correcto y la forma de criteria esperada", () => {
+test("each starter uses the right question type and the expected criteria shape", () => {
   const bodyFor = (id: "noul" | "choice" | "score"): JevRequest => {
     const starter = getTemplateStarter(id);
     assert.ok(starter);
@@ -57,10 +57,10 @@ test("cada starter usa el tipo de pregunta correcto y la forma de criteria esper
   assert.ok(score);
   assert.equal(score.type, "score");
   assert.ok(Array.isArray(score.criteria));
-  assert.deepEqual(score.criteria, ["Puede esperar", "Esta semana", "Hoy mismo"]);
+  assert.deepEqual(score.criteria, ["It can wait", "This week", "Today"]);
 });
 
-test("los tres starters validan sin ediciones y renderizan con examples/context.json", () => {
+test("all three starters validate unedited and render with examples/context.json", () => {
   for (const starter of TEMPLATE_STARTERS) {
     const bodyJson = JSON.stringify(starter.body, null, 2);
     assert.doesNotThrow(() => validateTemplateBody(bodyJson), starter.id);
@@ -68,9 +68,9 @@ test("los tres starters validan sin ediciones y renderizan con examples/context.
     const request = resolveTemplateBody(bodyJson, context);
     assert.equal(request.model, "jev-1.13");
     assert.deepEqual(request.state, {
-      ticket: context.estado_de_pedido,
-      cliente: (context.cliente as Record<string, unknown>).nombre,
-      plan: (context.cliente as Record<string, unknown>).plan,
+      ticket: context.order_state,
+      customer: (context.customer as Record<string, unknown>).name,
+      plan: (context.customer as Record<string, unknown>).plan,
     });
     assert.ok(Object.keys(request.questions).length > 0);
 
@@ -80,24 +80,24 @@ test("los tres starters validan sin ediciones y renderizan con examples/context.
   }
 });
 
-test("createTemplateStarterBody clona el starter y permite cambiar el modelo", () => {
+test("createTemplateStarterBody clones the starter and allows changing the model", () => {
   const original = getTemplateStarter("choice");
   assert.ok(original);
 
-  const copy = createTemplateStarterBody("choice", "modelo-efectivo");
-  assert.equal(copy.model, "modelo-efectivo");
+  const copy = createTemplateStarterBody("choice", "effective-model");
+  assert.equal(copy.model, "effective-model");
   assert.equal(original.body.model, "jev-1.13");
 
-  copy.state = "otro";
+  copy.state = "other";
   copy.questions.team = { type: "noul" };
   assert.deepEqual(original.body.state, {
-    ticket: "{{estado_de_pedido}}",
-    cliente: "{{cliente.nombre}}",
-    plan: "{{cliente.plan}}",
+    ticket: "{{order_state}}",
+    customer: "{{customer.name}}",
+    plan: "{{customer.plan}}",
   });
   assert.equal(original.body.questions.team?.type, "choice");
 
   assert.equal(createTemplateStarterBody("score").model, "jev-1.13");
   assert.equal(createTemplateStarterBody("noul", "  ").model, "jev-1.13");
-  assert.throws(() => createTemplateStarterBody("otro" as never), /starter desconocido/);
+  assert.throws(() => createTemplateStarterBody("otro" as never), /unknown starter/);
 });

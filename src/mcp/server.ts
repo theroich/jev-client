@@ -35,8 +35,8 @@ import {
 } from "./tools.js";
 
 const SERVER_INSTRUCTIONS =
-  "Servidor MCP de jev-client. Las plantillas guardadas se publican como tools propias; " +
-  "usa jev_docs o jev_overview para orientarte. Los logs van a stderr; stdout es JSON-RPC.";
+  "jev-client MCP server. Saved templates are published as their own tools; " +
+  "use jev_docs or jev_overview to get oriented. Logs go to stderr; stdout is JSON-RPC.";
 
 function toMcpTool(tool: ToolDefinition): Tool {
   const entry: Tool = {
@@ -74,8 +74,8 @@ function toolErrorResult(
 }
 
 /**
- * Crea el server MCP (bajo nivel, para controlar los JSON Schema crudos) con
- * todos los handlers de tools, resources y prompts ya registrados.
+ * Creates the MCP server (low level, to control the raw JSON Schemas) with all
+ * tool, resource and prompt handlers already registered.
  */
 export function createMcpServer(ctx: McpContext): Server {
   const server = new Server(
@@ -99,7 +99,7 @@ export function createMcpServer(ctx: McpContext): Server {
     const { name, arguments: args } = request.params;
     const tool = enabledTools(ctx).find((entry) => entry.name === name);
     if (tool === undefined) {
-      return toolErrorResult("tool_not_found", `tool no disponible: ${name}`);
+      return toolErrorResult("tool_not_found", `tool not available: ${name}`);
     }
     try {
       const result = await tool.run((args ?? {}) as Record<string, unknown>, ctx);
@@ -139,7 +139,7 @@ export function createMcpServer(ctx: McpContext): Server {
     const uri = request.params.uri;
     const content = readResource(uri, ctx);
     if (content === undefined) {
-      throw new McpError(ErrorCode.InvalidParams, `resource no encontrada: ${uri}`);
+      throw new McpError(ErrorCode.InvalidParams, `resource not found: ${uri}`);
     }
     return {
       contents: [{ uri, mimeType: content.mimeType, text: content.text }],
@@ -157,7 +157,7 @@ export function createMcpServer(ctx: McpContext): Server {
   server.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const text = getPrompt(request.params.name);
     if (text === undefined) {
-      throw new McpError(ErrorCode.InvalidParams, `prompt no encontrado: ${request.params.name}`);
+      throw new McpError(ErrorCode.InvalidParams, `prompt not found: ${request.params.name}`);
     }
     return {
       description: listPrompts().find((prompt) => prompt.name === request.params.name)?.description,
@@ -168,13 +168,13 @@ export function createMcpServer(ctx: McpContext): Server {
   return server;
 }
 
-/** Ejecuta el servidor sobre stdio y cierra el servicio ante señales. */
+/** Runs the server over stdio and closes the service on signals. */
 export async function runMcpServer(ctx: McpContext): Promise<void> {
   const server = createMcpServer(ctx);
   const transport = new StdioServerTransport();
 
   const shutdown = async (): Promise<void> => {
-    ctx.log("cerrando el servidor MCP…");
+    ctx.log("shutting down the MCP server…");
     try {
       await server.close();
     } finally {
@@ -192,7 +192,7 @@ export async function runMcpServer(ctx: McpContext): Promise<void> {
 
   try {
     await server.connect(transport);
-    ctx.log(`servidor MCP jev-client ${VERSION} conectado por stdio`);
+    ctx.log(`jev-client MCP server ${VERSION} connected over stdio`);
   } catch (error) {
     ctx.service.close();
     throw error;

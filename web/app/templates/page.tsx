@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { TemplatesScreen } from "@/components/templates-screen";
 import { getConfigSnapshot, getTemplate, listTemplates } from "@/lib/server/runtime";
 
-export const metadata: Metadata = { title: "Plantillas" };
+export const metadata: Metadata = { title: "Templates" };
 export const dynamic = "force-dynamic";
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

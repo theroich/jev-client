@@ -6,8 +6,8 @@ import { getShellData } from "@/lib/server/runtime";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "jev · Consola web", template: "%s · jev" },
-  description: "Consola local para operar jev-client sobre la misma SQLite que la CLI",
+  title: { default: "jev · Web console", template: "%s · jev" },
+  description: "Local console to operate jev-client on the same SQLite database as the CLI",
   icons: { icon: "/favicon.svg" },
 };
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="en">
       <body><ConsoleShell data={getShellData()}>{children}</ConsoleShell></body>
     </html>
   );

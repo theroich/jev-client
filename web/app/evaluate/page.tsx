@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { EvaluateScreen } from "@/components/evaluate-screen";
 import { getConfigSnapshot } from "@/lib/server/runtime";
 
-export const metadata: Metadata = { title: "Evaluar" };
+export const metadata: Metadata = { title: "Evaluate" };
 export const dynamic = "force-dynamic";
 
 export default function Page() {

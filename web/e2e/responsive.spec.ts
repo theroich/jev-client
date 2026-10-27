@@ -11,9 +11,9 @@ const viewports = [
   { width: 1440, height: 900 },
   { width: 1920, height: 1080 },
 ];
-const routes = ["/", "/evaluar", "/plantillas", "/lotes", "/historial", "/configuracion"];
+const routes = ["/", "/evaluate", "/templates", "/batches", "/history", "/settings"];
 
-test("matriz responsive sin overflow ni activos remotos", async ({ page }) => {
+test("responsive matrix without overflow or remote assets", async ({ page }) => {
   const external: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -35,16 +35,16 @@ test("matriz responsive sin overflow ni activos remotos", async ({ page }) => {
       expect(tokens.accent).not.toBe("");
     }
     const screenshot = await page.screenshot({ fullPage: true, animations: "disabled" });
-    test.info().attach(`resumen-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: "image/png" });
+    test.info().attach(`overview-${viewport.width}x${viewport.height}`, { body: screenshot, contentType: "image/png" });
   }
   expect(external).toEqual([]);
 });
 
-test("el modal Empezar plantilla cabe a 360 px sin scroll horizontal", async ({ page }) => {
+test("the Start template modal fits at 360 px without horizontal scroll", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto("/plantillas");
-  await page.getByRole("button", { name: "Nueva plantilla", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Empezar plantilla" });
+  await page.goto("/templates");
+  await page.getByRole("button", { name: "New template", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Start template" });
   await expect(dialog).toBeVisible();
   const dimensions = await page.evaluate(() => ({
     width: window.innerWidth,
@@ -59,29 +59,29 @@ test("el modal Empezar plantilla cabe a 360 px sin scroll horizontal", async ({ 
   expect(columns.trim().split(/\s+/).length).toBe(1);
 });
 
-test("la pestaña Macros con esquema cabe a 360 px y responde al teclado", async ({ page }) => {
+test("the Macros tab with a schema fits at 360 px and responds to the keyboard", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto("/plantillas/pedido");
+  await page.goto("/templates/order");
   await page.getByRole("tab", { name: "Macros" }).click();
-  await page.getByRole("button", { name: "Mostrar esquema JSON de {{estado_de_pedido}}" }).click();
-  const editor = page.getByRole("textbox", { name: "Esquema JSON de {{estado_de_pedido}}" });
+  await page.getByRole("button", { name: "Show JSON schema of {{order_state}}" }).click();
+  const editor = page.getByRole("textbox", { name: "JSON schema of {{order_state}}" });
   await editor.fill('{"type":"string","enum":["ok"]}');
-  await expect(page.getByText("1 con tipo", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 typed", { exact: true })).toBeVisible();
   const dimensions = await page.evaluate(() => ({
     width: window.innerWidth,
     scroll: document.documentElement.scrollWidth,
   }));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width + 1);
-  // Esc limpia el campo enfocado sin tocar la descripción.
+  // Esc clears the focused field without touching the description.
   await editor.focus();
   await page.keyboard.press("Escape");
   await expect(editor).toHaveValue("");
-  await expect(page.getByText("0 con tipo", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 typed", { exact: true })).toBeVisible();
 });
 
-test("breakpoints conservan la geometría del handoff", async ({ page }) => {
+test("breakpoints keep the handoff geometry", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/evaluar");
+  await page.goto("/evaluate");
   await expect(page.locator(".grid-ask")).toHaveCSS("grid-template-columns", / \d/);
   await page.setViewportSize({ width: 1024, height: 768 });
   const columns = await page.locator(".grid-ask").evaluate((element) => getComputedStyle(element).gridTemplateColumns);

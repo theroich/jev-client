@@ -137,9 +137,9 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
       });
       if (!response.ok) {
         const body = await response.json() as { error?: { code?: string; message?: string; hint?: string } };
-        throw new ApiRequestError(body.error?.code ?? "batch_error", body.error?.message ?? "No se pudo ejecutar el lote", body.error?.hint, response.status);
+        throw new ApiRequestError(body.error?.code ?? "batch_error", body.error?.message ?? "The batch could not be run", body.error?.hint, response.status);
       }
-      if (!response.body) throw new Error("El servidor no devolvió el stream NDJSON del lote");
+      if (!response.body) throw new Error("The server did not return the batch NDJSON stream");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -153,11 +153,11 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
       }
       buffer += decoder.decode();
       if (buffer.trim()) processEvent(JSON.parse(buffer) as BatchEvent);
-      notify("Lote finalizado");
+      notify("Batch finished");
     } catch (caught) {
       setError(describeApiError(caught));
       if (controller.signal.aborted) {
-        setItems((current) => current.map((item) => ["pending", "running"].includes(item.state) ? { ...item, state: "skipped", error: { code: "cancelled", message: "Omitido al cancelar; las filas ya escritas se conservan." } } : item));
+        setItems((current) => current.map((item) => ["pending", "running"].includes(item.state) ? { ...item, state: "skipped", error: { code: "cancelled", message: "Skipped on cancel; rows already written are kept." } } : item));
       }
     } finally {
       setRunning(false);
@@ -175,17 +175,17 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
 
   return (
     <section>
-      <ScreenHead eyebrow="Biblioteca · jev batch" title="Lotes" description={<>Una plantilla y un array de contextos: una petición real por mapa, con pool de concurrencia y el mismo <code>batch_id</code> generado en el servidor.</>} />
-      {error ? <div className="mt-12"><Callout tone="danger"><strong>{error.code}</strong>: {error.message}{error.hint ? <><br /><strong>pista:</strong> {error.hint}</> : null}</Callout></div> : null}
+      <ScreenHead eyebrow="Library · jev batch" title="Batches" description={<>One template and an array of contexts: one real request per entry, with a concurrency pool and the same <code>batch_id</code> generated on the server.</>} />
+      {error ? <div className="mt-12"><Callout tone="danger"><strong>{error.code}</strong>: {error.message}{error.hint ? <><br /><strong>hint:</strong> {error.hint}</> : null}</Callout></div> : null}
       <div className="grid grid-batch">
-        <Panel title="Configuración del lote">
+        <Panel title="Batch settings">
           <div className="stack" style={{ gap: 12 }}>
-            {templates.length === 0 ? <Callout>No hay plantillas. <Link className="link" href="/plantillas?new=1">Crear una plantilla</Link> antes de ejecutar un lote.</Callout> : null}
-            <div className="field"><label htmlFor="batch-template">Plantilla</label><select id="batch-template" className="select mono" value={template} onChange={(event) => changeTemplate(event.target.value)} disabled={running || templates.length === 0}>{templates.map((item) => <option value={item.name} key={item.name}>{item.name}</option>)}</select></div>
+            {templates.length === 0 ? <Callout>No templates. <Link className="link" href="/templates?new=1">Create a template</Link> before running a batch.</Callout> : null}
+            <div className="field"><label htmlFor="batch-template">Template</label><select id="batch-template" className="select mono" value={template} onChange={(event) => changeTemplate(event.target.value)} disabled={running || templates.length === 0}>{templates.map((item) => <option value={item.name} key={item.name}>{item.name}</option>)}</select></div>
             <div className="field">
               <div className="row-between">
-                <label htmlFor="batch-contexts">Contextos (array JSON)</label>
-                <Button size="sm" onClick={requestSkeleton} disabled={running || !template} aria-label={template ? `Rellenar con las macros de ${template}` : "Rellenar con macros"}><Icon name="refresh" />Rellenar con macros</Button>
+                <label htmlFor="batch-contexts">Contexts (JSON array)</label>
+                <Button size="sm" onClick={requestSkeleton} disabled={running || !template} aria-label={template ? `Fill with the macros of ${template}` : "Fill with macros"}><Icon name="refresh" />Fill with macros</Button>
               </div>
               <textarea
                 id="batch-contexts"
@@ -202,57 +202,57 @@ export function BatchScreen({ templates }: { templates: TemplateSummary[] }) {
                 }}
                 disabled={running}
               />
-              <p id="batch-contexts-hint" className={`hint${validation.error ? " form-error" : ""}`}>{validation.error ?? `${validation.contexts.length} contextos válidos · máximo 1.000`}{validation.invalid.length ? ` Ítems inválidos: ${validation.invalid.map((index) => index + 1).join(", ")}.` : ""}</p>
-              {emptyValues > 0 && !validation.error ? <p id="batch-contexts-empty" className="hint hint-warn">{emptyValues === 1 ? "Hay 1 valor sin rellenar" : `Hay ${emptyValues} valores sin rellenar`}; se pedirá confirmación antes de ejecutar.</p> : null}
-              {skeletonSkipped ? <Callout tone="info">Has editado los contextos, así que no se han sustituido por los de la nueva plantilla. <Button size="sm" onClick={requestSkeleton} disabled={running} aria-label={`Rellenar con las macros de ${template}`}><Icon name="refresh" />Rellenar con las macros de {template}</Button></Callout> : null}
+              <p id="batch-contexts-hint" className={`hint${validation.error ? " form-error" : ""}`}>{validation.error ?? `${validation.contexts.length} valid contexts · max 1,000`}{validation.invalid.length ? ` Invalid items: ${validation.invalid.map((index) => index + 1).join(", ")}.` : ""}</p>
+              {emptyValues > 0 && !validation.error ? <p id="batch-contexts-empty" className="hint hint-warn">{emptyValues === 1 ? "1 value is not filled in" : `${emptyValues} values are not filled in`}; confirmation will be requested before running.</p> : null}
+              {skeletonSkipped ? <Callout tone="info">You edited the contexts, so they were not replaced by the new template ones. <Button size="sm" onClick={requestSkeleton} disabled={running} aria-label={`Fill with the macros of ${template}`}><Icon name="refresh" />Fill with the macros of {template}</Button></Callout> : null}
               <details className="macro-legend">
-                <summary>Macros de la plantilla{activeTemplate?.macros.length ? ` (${activeTemplate.macros.length})` : ""}</summary>
-                {activeTemplate && activeTemplate.macros.length > 0 ? <ul className="macro-legend-list">{activeTemplate.macros.map((macro) => <li key={macro.name}><code>{`{{${macro.name}}}`}</code><span>{macro.description.trim() || "(sin descripción)"}</span></li>)}</ul> : <p className="hint">{templates.length === 0 ? "Crea una plantilla para generar el esqueleto de contextos." : "Esta plantilla no tiene macros; escribe los contextos a mano."}</p>}
+                <summary>Template macros{activeTemplate?.macros.length ? ` (${activeTemplate.macros.length})` : ""}</summary>
+                {activeTemplate && activeTemplate.macros.length > 0 ? <ul className="macro-legend-list">{activeTemplate.macros.map((macro) => <li key={macro.name}><code>{`{{${macro.name}}}`}</code><span>{macro.description.trim() || "(no description)"}</span></li>)}</ul> : <p className="hint">{templates.length === 0 ? "Create a template to generate the context skeleton." : "This template has no macros; write the contexts by hand."}</p>}
               </details>
             </div>
             <div className="inline-fields">
-              <div className="field"><span className="label" id="concurrency-label">Concurrencia</span><div className="stepper" aria-labelledby="concurrency-label"><button type="button" aria-label="Reducir concurrencia" disabled={running || concurrency <= 1} onClick={() => setConcurrency((value) => Math.max(1, value - 1))}>−</button><output>{concurrency}</output><button type="button" aria-label="Aumentar concurrencia" disabled={running || concurrency >= 10} onClick={() => setConcurrency((value) => Math.min(10, value + 1))}>+</button></div></div>
-              <div className="field" style={{ flex: "1 1 190px" }}><span className="label">Ante el primer error</span><div style={{ height: 32, display: "flex", alignItems: "center" }}><Switch checked={failFast} onChange={setFailFast} disabled={running} label="Detenerse (fail-fast)" /></div></div>
+              <div className="field"><span className="label" id="concurrency-label">Concurrency</span><div className="stepper" aria-labelledby="concurrency-label"><button type="button" aria-label="Decrease concurrency" disabled={running || concurrency <= 1} onClick={() => setConcurrency((value) => Math.max(1, value - 1))}>−</button><output>{concurrency}</output><button type="button" aria-label="Increase concurrency" disabled={running || concurrency >= 10} onClick={() => setConcurrency((value) => Math.min(10, value + 1))}>+</button></div></div>
+              <div className="field" style={{ flex: "1 1 190px" }}><span className="label">On the first error</span><div style={{ height: 32, display: "flex", alignItems: "center" }}><Switch checked={failFast} onChange={setFailFast} disabled={running} label="Stop (fail-fast)" /></div></div>
             </div>
-            <Switch checked={save} onChange={setSave} disabled={running} label="Guardar en historial" />
-            <p className="hint">Por defecto <code>--continue-on-error</code>. Al cancelar se abortan las peticiones en vuelo y no se programa ningún item nuevo.</p>
+            <Switch checked={save} onChange={setSave} disabled={running} label="Save to history" />
+            <p className="hint">Defaults to <code>--continue-on-error</code>. Cancelling aborts in-flight requests and schedules no new item.</p>
             <div className="action-row">
-              <Button variant="primary" className="w-full" onClick={requestExecute} disabled={!ready || running || Boolean(validation.error) || validation.contexts.length === 0 || !template}><Icon name="play" />{running ? "Ejecutando lote…" : "Ejecutar lote"}</Button>
-              {running ? <Button variant="danger" className="w-full" onClick={() => abort.current?.abort()}><Icon name="stop" />Cancelar y conservar filas escritas</Button> : null}
+              <Button variant="primary" className="w-full" onClick={requestExecute} disabled={!ready || running || Boolean(validation.error) || validation.contexts.length === 0 || !template}><Icon name="play" />{running ? "Running batch…" : "Run batch"}</Button>
+              {running ? <Button variant="danger" className="w-full" onClick={() => abort.current?.abort()}><Icon name="stop" />Cancel and keep written rows</Button> : null}
             </div>
           </div>
         </Panel>
 
-        <Panel title="Ejecución" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>{batchId ? <Link className="link" href={`/historial?batch=${encodeURIComponent(batchId)}`} title="Filtrar historial por batch">{batchId}</Link> : "sin batch"}</span>} tight>
+        <Panel title="Run" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>{batchId ? <Link className="link" href={`/history?batch=${encodeURIComponent(batchId)}`} title="Filter history by batch">{batchId}</Link> : "no batch"}</span>} tight>
           <div className="panel-body">
-            {running ? <div style={{ marginBottom: 12 }}><Loading label="Progreso NDJSON en tiempo real" /></div> : null}
-            {!running && items.length === 0 ? <EmptyState title="Sin ejecuciones todavía">Configura una plantilla y contextos reales. Los items conservan el orden del array aunque terminen en otro orden.</EmptyState> : null}
+            {running ? <div style={{ marginBottom: 12 }}><Loading label="Live NDJSON progress" /></div> : null}
+            {!running && items.length === 0 ? <EmptyState title="No runs yet">Configure a template and real contexts. Items keep the array order even when they finish in a different order.</EmptyState> : null}
             {items.length > 0 ? <div style={{ margin: -14 }}>{items.map((item) => <div className="batch-item" key={item.index}>
               <span className="b-idx">{item.index + 1}</span>
-              <div className="b-body"><div className="b-title"><strong>contexto #{item.index + 1}</strong><Pill tone={item.state === "ok" ? "ok" : item.state === "error" ? "err" : item.state === "running" ? "info" : "neutral"}>{item.state}</Pill>{item.requestId ? <Link className="link mono" href={`/historial?id=${item.requestId}`}>#{item.requestId}</Link> : null}</div><span className="b-sub">{item.model ?? "modelo —"} · {item.usage ? `${item.usage.inputTokens} in / ${item.usage.outputTokens} out · coste ${formatCost(item.usage.cost)}` : "tokens —"}{item.durationMs ? ` · ${item.durationMs} ms` : ""}</span>{item.error ? <span className="b-error">{item.error.message}{item.error.hint ? ` · pista: ${item.error.hint}` : ""}</span> : null}</div>
-              <span className="cell-muted">{item.state === "running" ? <span className="spinner" aria-label="En ejecución" /> : item.state === "ok" ? <Icon name="check" /> : null}</span>
+              <div className="b-body"><div className="b-title"><strong>context #{item.index + 1}</strong><Pill tone={item.state === "ok" ? "ok" : item.state === "error" ? "err" : item.state === "running" ? "info" : "neutral"}>{item.state}</Pill>{item.requestId ? <Link className="link mono" href={`/history?id=${item.requestId}`}>#{item.requestId}</Link> : null}</div><span className="b-sub">{item.model ?? "model —"} · {item.usage ? `${item.usage.inputTokens} in / ${item.usage.outputTokens} out · cost ${formatCost(item.usage.cost)}` : "tokens —"}{item.durationMs ? ` · ${item.durationMs} ms` : ""}</span>{item.error ? <span className="b-error">{item.error.message}{item.error.hint ? ` · hint: ${item.error.hint}` : ""}</span> : null}</div>
+              <span className="cell-muted">{item.state === "running" ? <span className="spinner" aria-label="Running" /> : item.state === "ok" ? <Icon name="check" /> : null}</span>
             </div>)}</div> : null}
           </div>
           {summary ? <div className="summary-grid">
-            <div><div className="k">Correctas</div><div className="v">{summary.ok}</div></div>
-            <div><div className="k">Errores / omitidos</div><div className="v">{summary.errors} / {summary.skipped}</div></div>
+            <div><div className="k">Successful</div><div className="v">{summary.ok}</div></div>
+            <div><div className="k">Errors / skipped</div><div className="v">{summary.errors} / {summary.skipped}</div></div>
             <div><div className="k">Tokens in / out</div><div className="v">{summary.inputTokens} / {summary.outputTokens}</div></div>
-            <div><div className="k">Coste</div><div className="v">{formatCost(summary.cost)}<div className="hint">{summary.costUnknown} sin informar</div></div></div>
+            <div><div className="k">Cost</div><div className="v">{formatCost(summary.cost)}<div className="hint">{summary.costUnknown} not reported</div></div></div>
           </div> : null}
         </Panel>
       </div>
       <CliBar command={command} />
       {confirmSkeleton ? <ConfirmModal
-        title="Rellenar contextos"
-        description={<>Se sustituirán los contextos actuales por el esqueleto de <strong>{template}</strong>. Se perderán los valores que hayas escrito.</>}
-        confirmLabel="Rellenar"
+        title="Fill contexts"
+        description={<>The current contexts will be replaced by the skeleton of <strong>{template}</strong>. Values you wrote will be lost.</>}
+        confirmLabel="Fill"
         onConfirm={applySkeleton}
         onClose={() => setConfirmSkeleton(false)}
       /> : null}
       {confirmEmpty ? <ConfirmModal
-        title="Quedan valores sin rellenar"
-        description={<>Hay {emptyValues === 1 ? "1 valor" : `${emptyValues} valores`} con el marcador vacío. Jev recibirá cadenas vacías en esos huecos. ¿Ejecutar el lote igualmente?</>}
-        confirmLabel="Ejecutar de todas formas"
+        title="Some values are not filled in"
+        description={<>{emptyValues === 1 ? "1 value has" : `${emptyValues} values have`} an empty placeholder. Jev will receive empty strings in those slots. Run the batch anyway?</>}
+        confirmLabel="Run anyway"
         onConfirm={() => {
           setConfirmEmpty(false);
           void execute();

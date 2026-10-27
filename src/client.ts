@@ -24,7 +24,7 @@ export type FetchLike = (
 ) => Promise<Response>;
 
 export interface RunOptions {
-  /** Cancela la petición en curso y cualquier espera entre reintentos. */
+  /** Cancels the request in progress and any wait between retries. */
   signal?: AbortSignal;
 }
 
@@ -32,24 +32,24 @@ export interface ClientOptions {
   apiKey: string;
   endpoint?: string;
   model?: string;
-  /** Timeout de cada intento HTTP. Default: 30 s. */
+  /** Timeout of each HTTP attempt. Default: 30 s. */
   timeoutMs?: number;
-  /** Reintentos ante 429/5xx y errores de red. Default: 2. */
+  /** Retries on 429/5xx and network errors. Default: 2. */
   maxRetries?: number;
-  /** Backoff base exponencial. Default: 500 ms. */
+  /** Base exponential backoff. Default: 500 ms. */
   backoffMs?: number;
-  /** Tope del Retry-After y del backoff. Default: 10 s. */
+  /** Cap for Retry-After and backoff. Default: 10 s. */
   maxRetryDelayMs?: number;
-  /** fetch inyectable (tests). Default: fetch global. */
+  /** Injectable fetch (tests). Default: global fetch. */
   fetch?: FetchLike;
-  /** Cabeceras extra mezcladas con las por defecto (sin poder tocar `Authorization`). */
+  /** Extra headers merged with the defaults (cannot override `Authorization`). */
   extraHeaders?: Record<string, string>;
   /**
-   * Añade `TypeSafe-Danger-Zone-Images: true` cuando el request lleva `assets`.
-   * Default: true. Se puede desactivar para comprobar el 400 de la API.
+   * Adds `TypeSafe-Danger-Zone-Images: true` when the request carries `assets`.
+   * Default: true. Can be disabled to check the API 400.
    */
   imagesHeader?: boolean;
-  /** Hook que recibe el registro de cada ejecución (con o sin éxito). */
+  /** Hook that receives the log of every run (successful or not). */
   onRequest?: (log: RequestLog) => void;
 }
 
@@ -72,7 +72,7 @@ export class JevClient {
 
   constructor(options: ClientOptions) {
     if (!options.apiKey) {
-      throw new Error("falta la API key");
+      throw new Error("missing API key");
     }
     this.apiKey = options.apiKey;
     this.endpoint = options.endpoint || DEFAULT_ENDPOINT;
@@ -88,7 +88,7 @@ export class JevClient {
     this.onRequest = options.onRequest;
   }
 
-  /** Evalúa `state` contra `questions` con el modelo del cliente. */
+  /** Evaluates `state` against `questions` with the client's model. */
   async systemOne(
     state: State,
     questions: Record<string, Question>,
@@ -100,7 +100,7 @@ export class JevClient {
     );
   }
 
-  /** Envía un request ya construido. Si `model` va vacío, usa el del cliente. */
+  /** Sends an already built request. If `model` is empty, uses the client's. */
   async run(
     request: JevRequest,
     options: RunOptions = {},
@@ -108,7 +108,7 @@ export class JevClient {
     throwIfAborted(options.signal);
     const questions = request.questions ?? {};
     if (Object.keys(questions).length === 0) {
-      throw new Error("el request necesita al menos una pregunta");
+      throw new Error("the request needs at least one question");
     }
 
     const assets = request.assets;
@@ -118,8 +118,8 @@ export class JevClient {
       const orphan = orphanAssetRefs(request);
       if (orphan.length > 0) {
         throw new Error(
-          `los assets no están referenciados en state/questions: ${orphan.join(", ")} ` +
-            "(la API devolvería 400)",
+          `assets are not referenced in state/questions: ${orphan.join(", ")} ` +
+            "(the API would return 400)",
         );
       }
     }
@@ -145,7 +145,7 @@ export class JevClient {
 
     try {
       const attempts = this.maxRetries + 1;
-      let lastError: unknown = new Error("no se intentó la petición");
+      let lastError: unknown = new Error("the request was not attempted");
 
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         throwIfAborted(options.signal);
@@ -192,7 +192,7 @@ export class JevClient {
         const apiError = parseApiError(response.status, text);
         lastError = apiError;
 
-        // Un 429 de cuota trae Retry-After de horas: no tiene sentido reintentar.
+        // A quota 429 carries a Retry-After of hours: retrying makes no sense.
         const retryable =
           RETRYABLE_STATUS.has(response.status) &&
           apiError.code !== "FreeUsageLimitError" &&
@@ -261,18 +261,18 @@ export class JevClient {
   private networkError(error: unknown): Error {
     if (error instanceof Error) {
       if (error.name === "TimeoutError" || error.name === "AbortError") {
-        return new Error(`timeout tras ${this.timeoutMs} ms`);
+        return new Error(`timeout after ${this.timeoutMs} ms`);
       }
       return new Error(
-        `no se pudo conectar con ${this.endpoint}: ${error.message}`,
+        `could not connect to ${this.endpoint}: ${error.message}`,
       );
     }
-    return new Error(`no se pudo conectar con ${this.endpoint}: ${String(error)}`);
+    return new Error(`could not connect to ${this.endpoint}: ${String(error)}`);
   }
 
   /**
-   * Retry-After se respeta pero se capa para que un servidor que pide horas no
-   * bloquee el proceso.
+   * Retry-After is honored but capped so a server asking for hours does not
+   * block the process.
    */
   private retryDelay(attempt: number, retryAfter?: string): number {
     if (retryAfter) {
@@ -320,7 +320,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-/** Extrae tokens/coste del cuerpo crudo sin forzar valores por defecto. */
+/** Extracts tokens/cost from the raw body without forcing default values. */
 function usageFromText(
   text: string,
 ): { inputTokens?: number; outputTokens?: number; cost?: number } {
@@ -336,7 +336,7 @@ function usageFromText(
       };
     }
   } catch {
-    // El cuerpo no es JSON: no hay tokens ni coste.
+    // The body is not JSON: no tokens or cost.
   }
   return {};
 }
@@ -359,7 +359,7 @@ function normalizeResponse(text: string): JevResponse {
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error("respuesta inválida de la API: no es JSON");
+    throw new Error("invalid API response: not JSON");
   }
 
   const record = (parsed ?? {}) as Record<string, unknown>;
@@ -385,8 +385,8 @@ function normalizeResponse(text: string): JevResponse {
 }
 
 /**
- * Construye un error legible. Entiende el formato de OpenCode
- * ({"error": {...}}) y el de TypeSafe/FastAPI ({"detail": ...}).
+ * Builds a readable error. Understands the OpenCode format
+ * ({"error": {...}}) and the TypeSafe/FastAPI one ({"detail": ...}).
  */
 export function parseApiError(status: number, body: string): JevApiError {
   let message = "";
@@ -419,11 +419,11 @@ export function parseApiError(status: number, body: string): JevApiError {
       }
     }
   } catch {
-    // El cuerpo no es JSON: se usa como texto plano.
+    // The body is not JSON: it is used as plain text.
   }
 
   if (!message) {
-    message = body.trim().slice(0, 500) || "error desconocido";
+    message = body.trim().slice(0, 500) || "unknown error";
   }
 
   return new JevApiError(status, code, message, body);
@@ -437,7 +437,7 @@ function describeValidationItem(item: unknown): string {
   const loc = Array.isArray(record.loc)
     ? record.loc.map((part) => String(part)).join(".")
     : "";
-  const msg = asString(record.msg) ?? "inválido";
+  const msg = asString(record.msg) ?? "invalid";
   return loc ? `${loc}: ${msg}` : msg;
 }
 

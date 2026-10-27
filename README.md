@@ -1,44 +1,44 @@
 # jev-client
 
-`jev` es una herramienta de consola que hace **preguntas a la API de Jev**
-(System One de TypeSafe, a través de OpenCode) sobre un texto o un JSON.
+`jev` is a command-line tool that **asks questions to the Jev API** (TypeSafe's
+System One, through OpenCode) about a text or a JSON payload.
 
-Jev no redacta respuestas: **clasifica**. Le pasas un material (`state`) y una o
-varias preguntas, y devuelve una respuesta por pregunta con probabilidades. Por
-ejemplo, puedes preguntarle si un ticket es urgente, qué equipo debe atenderlo o
-cuánto enfado transmite.
+Jev does not write answers: it **classifies**. You pass it a material (`state`)
+and one or more questions, and it returns one answer per question with
+probabilities. For example, you can ask whether a ticket is urgent, which team
+should handle it, or how much anger it conveys.
 
 ```sh
-jev ask --state "Me han cobrado dos veces este mes." \
-  --noul 'billing=¿Es de facturación?'
+jev ask --state "I was charged twice this month." \
+  --noul 'billing=Is this about billing?'
 ```
 
 ```
-modelo: jev-1.13
+model: jev-1.13
   billing: noul=0.9
 tokens: 283 in / 20 out, cost=1.189e-5
 ```
 
-Además de la consola, incluye una **TUI**, una **consola web local** y un
-**servidor MCP** para que lo use un agente. Todo comparte la misma configuración
-y el mismo historial.
+Besides the CLI, it includes a **TUI**, a **local web console** and an **MCP
+server** for an agent to use. They all share the same configuration and the same
+history.
 
-- [Instalación](#instalación)
-- [Primer paso: la API key](#primer-paso-la-api-key)
-- [Probar que todo funciona: `jev demo`](#probar-que-todo-funciona-jev-demo)
-- [Preguntar: `jev ask`](#preguntar-jev-ask)
-- [Repetir preguntas con plantillas](#repetir-preguntas-con-plantillas)
-- [Preguntar en lote: `jev batch`](#preguntar-en-lote-jev-batch)
-- [Consultar el historial](#consultar-el-historial)
-- [Modo interactivo: `jev tui`](#modo-interactivo-jev-tui)
-- [Consola web local](#consola-web-local)
-- [Usar Jev desde un agente (MCP)](#usar-jev-desde-un-agente-mcp)
-- [Analizar imágenes](#analizar-imágenes)
-- [Problemas frecuentes](#problemas-frecuentes)
+- [Installation](#installation)
+- [First step: the API key](#first-step-the-api-key)
+- [Check that everything works: `jev demo`](#check-that-everything-works-jev-demo)
+- [Ask questions: `jev ask`](#ask-questions-jev-ask)
+- [Repeat questions with templates](#repeat-questions-with-templates)
+- [Ask in batch: `jev batch`](#ask-in-batch-jev-batch)
+- [Browse the history](#browse-the-history)
+- [Interactive mode: `jev tui`](#interactive-mode-jev-tui)
+- [Local web console](#local-web-console)
+- [Use Jev from an agent (MCP)](#use-jev-from-an-agent-mcp)
+- [Analyze images](#analyze-images)
+- [Common problems](#common-problems)
 
-## Instalación
+## Installation
 
-Necesitas **Node.js 20.9+** (o 22+) y una API key de
+You need **Node.js 20.9+** (or 22+) and an API key from
 [OpenCode Console](https://opencode.ai/console).
 
 ```sh
@@ -47,77 +47,77 @@ npm install
 npm run build
 ```
 
-Para tener el comando `jev` disponible en cualquier carpeta:
+To have the `jev` command available in any folder:
 
 ```sh
-npm link          # opcional
+npm link          # optional
 jev demo
 ```
 
-También puedes ejecutarlo sin enlazarlo:
+You can also run it without linking it:
 
 ```sh
 node dist/src/bin.js demo
 npm start -- demo
-npm run dev -- demo   # compila y ejecuta
+npm run dev -- demo   # builds and runs
 ```
 
-Si instalas el paquete publicado:
+If you install the published package:
 
 ```sh
 npm install -g jev-client
 jev --help
 ```
 
-## Primer paso: la API key
+## First step: the API key
 
-La forma más rápida es pasarla por variable de entorno:
+The fastest way is to pass it through an environment variable:
 
 ```sh
 export OPENCODE_API_KEY="sk-..."
 ```
 
-o guardarla para no repetirla:
+or store it so you don't have to repeat it:
 
 ```sh
 jev config set api_key "sk-..."
 ```
 
-> La key guardada con `jev config set` queda en claro en tu base local. Si no
-> quieres persistirla, usa `OPENCODE_API_KEY`, `JEV_API_KEY` o `--key`.
+> The key stored with `jev config set` stays in clear text in your local
+> database. If you don't want to persist it, use `OPENCODE_API_KEY`,
+> `JEV_API_KEY` or `--key`.
 
-Comprueba lo que hay configurado:
+Check what is configured:
 
 ```sh
 jev config list
 jev config get model
-jev config get api_key          # la muestra enmascarada
-jev config get api_key --reveal # la muestra completa
+jev config get api_key          # prints it masked
+jev config get api_key --reveal # prints it in full
 ```
 
-Cambiar el modelo o el timeout de forma permanente:
+Change the model or the timeout permanently:
 
 ```sh
 jev config set model jev-1.13
 jev config set timeout 30
 jev config set retries 2
-jev config unset model          # vuelve al valor por defecto
-jev config path                 # ruta de la base de datos en uso
+jev config unset model          # goes back to the default value
+jev config path                 # path of the database in use
 ```
 
-La precedencia es **flag > variable de entorno > valor guardado > valor por
-defecto**. Detalle completo en
-[`docs/configuracion.md`](docs/configuracion.md).
+The precedence is **flag > environment variable > stored value > default
+value**. Full detail in [`docs/configuration.md`](docs/configuration.md).
 
-## Probar que todo funciona: `jev demo`
+## Check that everything works: `jev demo`
 
 ```sh
 jev demo
 ```
 
 ```
-modelo: jev-1.13
-  frustration: score=1.99 ≈ "Muy enfadado" (confidence=0.98)
+model: jev-1.13
+  frustration: score=1.99 ≈ "Very angry" (confidence=0.98)
     2=0.99, 1=0.01, 0=0
   is_urgent: noul=0.99
   team: choice=infra (confidence=0.52)
@@ -125,108 +125,107 @@ modelo: jev-1.13
 tokens: 449 in / 73 out, cost=1.886e-5
 ```
 
-La probabilidad exacta varía ligeramente en cada llamada: lo relevante es la
-opción elegida y su confianza.
+The exact probability varies slightly on each call: what matters is the chosen
+option and its confidence.
 
-Es un ejemplo integrado con urgencia, equipo y frustración. Si ves respuestas y
-tokens, la key y la conexión funcionan.
+It is a built-in example with urgency, team and frustration. If you see answers
+and tokens, the key and the connection work.
 
-`--json` imprime la respuesta cruda de la API, útil para procesarla con otra
-herramienta:
+`--json` prints the raw API response, useful to process it with another tool:
 
 ```sh
 jev demo --json | jq '.answers'
 ```
 
-## Preguntar: `jev ask`
+## Ask questions: `jev ask`
 
-### Tres formas de preguntar
+### Three ways to ask
 
-Jev admite tres tipos de pregunta. Todos se pueden escribir directamente en la
-consola.
+Jev supports three question types. All of them can be written directly on the
+command line.
 
-**Sí/no (`noul`)** — devuelve una probabilidad entre 0 y 1:
+**Yes/no (`noul`)** — returns a probability between 0 and 1:
 
 ```sh
-jev ask --state "Me han cobrado dos veces este mes." \
-  --noul 'billing=¿Es de facturación?'
+jev ask --state "I was charged twice this month." \
+  --noul 'billing=Is this about billing?'
 ```
 
 ```
-modelo: jev-1.13
+model: jev-1.13
   billing: noul=0.9
 tokens: 283 in / 20 out, cost=1.189e-5
 ```
 
-**Elegir una opción (`choice`)** — describes las opciones con `--option`:
+**Pick an option (`choice`)** — you describe the options with `--option`:
 
 ```sh
-jev ask --state "El checkout lleva caído 30 minutos." \
-  --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
-  --option 'team.billing=Cobros, facturas o pagos' \
-  --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
-  --option 'team.sales=Precios o dudas comerciales'
+jev ask --state "The checkout has been down for 30 minutes." \
+  --choice 'team=Which team should handle the incident?' \
+  --option 'team.billing=Charges, invoices or payments' \
+  --option 'team.infra=Outages, 500 errors or platform problems' \
+  --option 'team.sales=Pricing or sales questions'
 ```
 
 ```
-modelo: jev-1.13
+model: jev-1.13
   team: choice=infra (confidence=0.61)
     infra=0.74, billing=0.26, sales=0
 tokens: 354 in / 38 out, cost=1.487e-5
 ```
 
-**Puntuar (`score`)** — los niveles se añaden en orden, del más bajo al más alto:
+**Score (`score`)** — levels are added in order, from lowest to highest:
 
 ```sh
-jev ask --state "Llevamos dos días sin respuesta." \
-  --score 'urgency=¿Cómo de urgente es la incidencia?' \
-  --level 'urgency=Puede esperar' --level 'urgency=Esta semana' \
-  --level 'urgency=Hoy mismo'
+jev ask --state "We have had no reply for two days." \
+  --score 'urgency=How urgent is the incident?' \
+  --level 'urgency=It can wait' --level 'urgency=This week' \
+  --level 'urgency=Today'
 ```
 
 ```
-modelo: jev-1.13
-  urgency: score=1.29 ≈ "Esta semana" (confidence=0.47)
+model: jev-1.13
+  urgency: score=1.29 ≈ "This week" (confidence=0.47)
     1=0.65, 2=0.32, 0=0.03
 tokens: 312 in / 18 out, cost=1.310e-5
 ```
 
-`score` devuelve una media ponderada y puede salir decimal; cuando cae entre dos
-niveles se muestra con `≈`.
+`score` returns a weighted average and may come out as a decimal; when it falls
+between two levels it is shown with `≈`.
 
-Puedes combinar varias preguntas en una sola llamada: se evalúan contra el mismo
-`state` y reciben una respuesta cada una.
+You can combine several questions in a single call: they are evaluated against
+the same `state` and each one receives an answer.
 
 ```sh
-jev ask --state "Me han cobrado dos veces y quiero el reembolso." \
-  --noul 'refund=¿Pide un reembolso?' \
-  --choice 'team=¿Qué equipo debe atenderlo?' \
-  --option 'team.billing=Cobros' --option 'team.legal=Reclamaciones' \
-  --score 'urgency=¿Cómo de urgente es?' \
-  --level 'urgency=Puede esperar' --level 'urgency=Hoy'
+jev ask --state "I was charged twice and I want a refund." \
+  --noul 'refund=Is a refund requested?' \
+  --choice 'team=Which team should handle it?' \
+  --option 'team.billing=Charges' --option 'team.legal=Claims' \
+  --score 'urgency=How urgent is it?' \
+  --level 'urgency=It can wait' --level 'urgency=Today'
 ```
 
-### Qué se envía como `state`
+### What is sent as `state`
 
-Puede ser texto plano, un objeto JSON o un array:
+It can be plain text, a JSON object or an array:
 
 ```sh
-jev ask --state "El cliente está enfadado." --noul 'angry=¿Está enfadado?'
+jev ask --state "The customer is angry." --noul 'angry=Is the customer angry?'
 
-jev ask --state '{"ticket":"Me han cobrado dos veces","plan":"pro"}' \
-  --noul 'refund=¿Pide un reembolso?'
+jev ask --state '{"ticket":"I was charged twice","plan":"pro"}' \
+  --noul 'refund=Is a refund requested?'
 
-jev ask --state '["error 500","checkout caído"]' \
-  --noul 'infra=¿Es un problema de plataforma?'
+jev ask --state '["error 500","checkout down"]' \
+  --noul 'infra=Is this a platform problem?'
 ```
 
-Si el texto empieza por `{` o `[`, se envía como JSON; si no, como string.
+If the text starts with `{` or `[`, it is sent as JSON; otherwise, as a string.
 
-### Leer el material de stdin o de ficheros
+### Read the material from stdin or from files
 
 ```sh
-echo "El checkout está caído" | jev ask --state - \
-  --noul 'urgent=¿Es urgente?'
+echo "The checkout is down" | jev ask --state - \
+  --noul 'urgent=Is it urgent?'
 ```
 
 ```sh
@@ -234,308 +233,306 @@ jev ask --state-file examples/state.json \
         --questions-file examples/questions.json
 ```
 
-`examples/state.json` es el material y `examples/questions.json` las preguntas.
-Útil cuando el JSON es largo o lo genera otro programa.
+`examples/state.json` is the material and `examples/questions.json` the
+questions. Useful when the JSON is long or another program generates it.
 
-### Payload completo
+### Full payload
 
-Si ya tienes el request de Jev tal cual (`model`, `state` y `questions`):
+If you already have the Jev request as is (`model`, `state` and `questions`):
 
 ```sh
 jev ask --request-file examples/request.json
 ```
 
-También admite JSON inline con `--request '{"..."}'`.
+It also accepts inline JSON with `--request '{"..."}'`.
 
-### Elegir modelo, endpoint y timeout
+### Choose model, endpoint and timeout
 
 ```sh
 jev ask --model jev-1.13-free \
   --url https://opencode.ai/inference/systemone/v1/systemone \
   --timeout 60 --retries 3 \
-  --state "hola" --noul 'q=¿Saludo?'
+  --state "hello" --noul 'q=Is it a greeting?'
 ```
 
-Flags útiles en `ask`, `demo` y `batch`:
+Useful flags in `ask`, `demo` and `batch`:
 
-| Flag | Para qué |
+| Flag | What it is for |
 | --- | --- |
-| `--json` | imprime la respuesta cruda de la API |
-| `--no-save` | no guarda esta ejecución en el historial |
-| `--db <ruta>` | usa otra base de datos |
-| `--key <clave>` | API key solo para esta ejecución |
-| `--model <modelo>` | modelo solo para esta ejecución |
-| `--url <endpoint>` | endpoint completo solo para esta ejecución |
-| `--timeout <s>` / `--retries <n>` | timeout y reintentos |
+| `--json` | prints the raw API response |
+| `--no-save` | does not save this run in the history |
+| `--db <path>` | uses another database |
+| `--key <key>` | API key for this run only |
+| `--model <model>` | model for this run only |
+| `--url <endpoint>` | full endpoint for this run only |
+| `--timeout <s>` / `--retries <n>` | timeout and retries |
 
-## Repetir preguntas con plantillas
+## Repeat questions with templates
 
-Una **plantilla** es un request de Jev con huecos (`{{clave}}`) que se rellenan
-con un contexto. Sirve para no repetir el mismo JSON cada vez.
+A **template** is a Jev request with blanks (`{{key}}`) that are filled in with a
+context. It saves you from repeating the same JSON every time.
 
-### Crear una plantilla
+### Create a template
 
-El fichero [`examples/template.json`](examples/template.json) contiene:
+The file [`examples/template.json`](examples/template.json) contains:
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
-    "pedido": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}",
-    "plan": "{{cliente.plan}}"
+    "order": "{{order_state}}",
+    "customer": "{{customer.name}}",
+    "plan": "{{customer.plan}}"
   },
   "questions": {
-    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+    "urgent": { "type": "noul", "instructions": "Is it urgent?" }
   }
 }
 ```
 
-Guárdala con un nombre:
+Save it under a name:
 
 ```sh
-jev template create pedido \
-  --description "Pedido de cliente con macros" \
+jev template create order \
+  --description "Customer order with macros" \
   --file examples/template.json \
-  --macro-desc 'estado_de_pedido=Qué pide el cliente, en texto libre' \
-  --macro-desc 'cliente.nombre=Nombre del cliente' \
-  --macro-type 'cliente.plan=string'
+  --macro-desc 'order_state=What the customer is asking for, as free text' \
+  --macro-desc 'customer.name=Customer name' \
+  --macro-type 'customer.plan=string'
 ```
 
 ```
-plantilla guardada: pedido
+template saved: order
 ```
 
-Las macros se detectan solas del body. `--macro-desc` y `--macro-type` son
-opcionales: añaden una descripción y un tipo para que la plantilla se entienda
-mejor en la TUI, la consola web y los agentes.
+Macros are detected from the body on their own. `--macro-desc` and
+`--macro-type` are optional: they add a description and a type so the template
+is easier to understand in the TUI, the web console and agents.
 
-También puedes pasar el body inline o por stdin:
+You can also pass the body inline or through stdin:
 
 ```sh
-jev template create saludo --body '{"model":"jev-1.13","state":"{{texto}}","questions":{"q":{"type":"noul","instructions":"¿Es un saludo?"}}}'
-cat body.json | jev template create saludo --body -
+jev template create greeting --body '{"model":"jev-1.13","state":"{{text}}","questions":{"q":{"type":"noul","instructions":"Is it a greeting?"}}}'
+cat body.json | jev template create greeting --body -
 ```
 
-`jev templates` es un alias de `jev template`.
+`jev templates` is an alias of `jev template`.
 
-### Ver y validar
+### Show and validate
 
 ```sh
 jev template list
-# pedido - Pedido de cliente con macros
+# order - Customer order with macros
 
-jev template show pedido
+jev template show order
 ```
 
-`show` imprime el body y la lista de macros con su descripción y esquema.
+`show` prints the body and the list of macros with their description and schema.
 
 ```sh
-jev template validate pedido
-# plantilla válida: pedido
+jev template validate order
+# template valid: order
 ```
 
-`validate` comprueba la plantilla sin llamar a Jev. También acepta un fichero:
+`validate` checks the template without calling Jev. It also accepts a file:
 
 ```sh
 jev template validate --file examples/template.json
 ```
 
-### Rellenar y previsualizar
+### Fill in and preview
 
-El contexto es un JSON con una clave por macro. Por ejemplo,
+The context is a JSON object with one key per macro. For example,
 [`examples/context.json`](examples/context.json):
 
 ```json
 {
-  "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
-  "cliente": { "nombre": "Ana", "plan": "pro" }
+  "order_state": "I was charged twice and I want a refund.",
+  "customer": { "name": "Ana", "plan": "pro" }
 }
 ```
 
 ```sh
-jev template render pedido --context-file examples/context.json
+jev template render order --context-file examples/context.json
 ```
 
 ```
 {
   "model": "jev-1.13",
   "state": {
-    "pedido": "Me han cobrado dos veces y quiero el reembolso.",
-    "cliente": "Ana",
+    "order": "I was charged twice and I want a refund.",
+    "customer": "Ana",
     "plan": "pro"
   },
   "questions": {
     "urgent": {
       "type": "noul",
-      "instructions": "¿Es urgente?"
+      "instructions": "Is it urgent?"
     }
   }
 }
 ```
 
-`render` no llama a Jev. Para ejecutar el resultado:
+`render` does not call Jev. To run the result:
 
 ```sh
-jev template render pedido --context-file examples/context.json > /tmp/request.json
+jev template render order --context-file examples/context.json > /tmp/request.json
 jev ask --request-file /tmp/request.json
 ```
 
-Reglas de las macros:
+Macro rules:
 
-- `{{clave}}` busca la clave en el contexto. Admite rutas anidadas
-  (`{{cliente.nombre}}`); si existe una clave literal con puntos, tiene
-  prioridad.
-- Si el texto es **exactamente** una macro, se inserta el valor con su tipo
-  nativo (objeto, array, número, booleano). Si va embebida en una frase, se
-  interpola como texto.
-- `\{{...}}` deja la macro escrita sin resolver.
-- Si falta alguna macro, el comando falla **antes** de llamar a la API y enumera
-  todas las claves que faltan.
+- `{{key}}` looks up the key in the context. Nested paths are supported
+  (`{{customer.name}}`); if a literal key with dots exists, it takes precedence.
+- If the text is **exactly** a macro, the value is inserted with its native type
+  (object, array, number, boolean). If it is embedded in a sentence, it is
+  interpolated as text.
+- `\{{...}}` leaves the macro written without resolving it.
+- If any macro is missing, the command fails **before** calling the API and lists
+  every missing key.
 
-### Editar, describir y borrar
+### Edit, describe and delete
 
 ```sh
-# Abrir el body en $EDITOR
-jev template edit pedido
+# Open the body in $EDITOR
+jev template edit order
 
-# Reemplazar el body desde un fichero
-jev template edit pedido --file nuevo-body.json
+# Replace the body from a file
+jev template edit order --file new-body.json
 
-# Añadir, cambiar o vaciar metadatos sin tocar el body
-jev template edit pedido --macro-desc 'cliente.plan=Plan contratado'
-jev template edit pedido --clear-macro-desc 'cliente.nombre'
-jev template edit pedido --clear-macro-schema 'cliente.plan'
+# Add, change or clear metadata without touching the body
+jev template edit order --macro-desc 'customer.plan=Contracted plan'
+jev template edit order --clear-macro-desc 'customer.name'
+jev template edit order --clear-macro-schema 'customer.plan'
 
-# Borrar (pide confirmación)
-jev template delete pedido
-jev template delete pedido --yes
+# Delete (asks for confirmation)
+jev template delete order
+jev template delete order --yes
 ```
 
-`jev template add` y `jev template remove` son sinónimos rápidos de `create` y
-`delete` sin confirmación.
+`jev template add` and `jev template remove` are quick synonyms of `create` and
+`delete` without confirmation.
 
-## Preguntar en lote: `jev batch`
+## Ask in batch: `jev batch`
 
-Ejecuta una plantilla una vez por cada contexto de un array JSON. Cada petición
-queda en el historial bajo el mismo `batch_id`.
+Runs a template once for each context of a JSON array. Every request ends up in
+the history under the same `batch_id`.
 
 [`examples/contexts.json`](examples/contexts.json):
 
 ```json
 [
   {
-    "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
-    "cliente": { "nombre": "Ana", "plan": "pro" }
+    "order_state": "I was charged twice and I want a refund.",
+    "customer": { "name": "Ana", "plan": "pro" }
   },
   {
-    "estado_de_pedido": "El checkout se queda colgado al pagar.",
-    "cliente": { "nombre": "Luis", "plan": "free" }
+    "order_state": "The checkout hangs when I try to pay.",
+    "customer": { "name": "Luis", "plan": "free" }
   },
   {
-    "estado_de_pedido": "No me llega la factura de este mes.",
-    "cliente": { "nombre": "Marta", "plan": "pro" }
+    "order_state": "I never received this month's invoice.",
+    "customer": { "name": "Marta", "plan": "pro" }
   }
 ]
 ```
 
 ```sh
-jev batch pedido --contexts examples/contexts.json
+jev batch order --contexts examples/contexts.json
 ```
 
 ```
-batch: pedido — 3 peticiones (batch 4f3c…)
+batch: order — 3 requests (batch 4f3c…)
   1: ok    jev-1.13  306 in / 20 out  cost=1.3e-5
   2: ok    jev-1.13  302 in / 20 out  cost=1.3e-5
   3: ok    jev-1.13  302 in / 20 out  cost=1.3e-5
-resumen: 3 ok, 0 error
+summary: 3 ok, 0 error
 tokens: 910 in / 60 out
-coste: 3.8e-5
+cost: 3.8e-5
 ```
 
-Si un contexto no encaja con la plantilla, esa fila muestra el error y el resto
-continúa:
+If a context does not fit the template, that row shows the error and the rest
+continues:
 
 ```
-  2: error faltan macros en el contexto: cliente.plan
+  2: error missing macros in context: customer.plan
 ```
 
-Opciones:
+Options:
 
 ```sh
-# Hasta 3 peticiones a la vez (máximo 10)
-jev batch pedido --contexts examples/contexts.json --concurrency 3
+# Up to 3 requests at a time (maximum 10)
+jev batch order --contexts examples/contexts.json --concurrency 3
 
-# Parar en el primer error (por defecto sigue con el resto)
-jev batch pedido --contexts examples/contexts.json --fail-fast
+# Stop at the first error (by default it continues with the rest)
+jev batch order --contexts examples/contexts.json --fail-fast
 
-# Leer los contextos de stdin
-cat contexts.json | jev batch pedido --contexts -
+# Read the contexts from stdin
+cat contexts.json | jev batch order --contexts -
 ```
 
-Con `--continue-on-error` (por defecto), un contexto inválido no cancela el
-resto; el proceso sale con código `1` si hubo errores. Los resultados se
-imprimen en el orden del fichero, aunque se ejecuten en paralelo.
+With `--continue-on-error` (the default), an invalid context does not cancel the
+rest; the process exits with code `1` if there were errors. Results are printed
+in file order, even though they run in parallel.
 
-## Consultar el historial
+## Browse the history
 
-Todas las ejecuciones de `ask`, `demo` y `batch` se guardan en una base local
-SQLite, también las que fallan.
+Every run of `ask`, `demo` and `batch` is saved in a local SQLite database,
+including the ones that fail.
 
 ```sh
-jev history list                # una línea por petición, la más reciente primero
-jev history show 12             # petición y respuesta completas
-jev history export > hist.jsonl # una petición por línea (JSONL)
+jev history list                # one line per request, most recent first
+jev history show 12             # full request and response
+jev history export > hist.jsonl # one request per line (JSONL)
 ```
 
-Filtrar:
+Filter:
 
 ```sh
 jev history list --limit 20
 jev history list --status 429
 jev history list --model jev-1.13
-jev history list --template pedido
+jev history list --template order
 jev history list --batch 4f3c…
 jev history list --since 2026-10-01T00:00:00Z
 ```
 
-Para no guardar una ejecución concreta, añade `--no-save` a `ask`, `demo` o
-`batch`. La base vive en `~/.jev-client/db/jev.db` y se puede cambiar con
-`--db` o `JEV_DB`. Detalle técnico en
-[`docs/persistencia.md`](docs/persistencia.md).
+To avoid saving a particular run, add `--no-save` to `ask`, `demo` or `batch`.
+The database lives in `~/.jev-client/db/jev.db` and can be changed with `--db` or
+`JEV_DB`. Technical detail in [`docs/persistence.md`](docs/persistence.md).
 
-## Modo interactivo: `jev tui`
+## Interactive mode: `jev tui`
 
-Para configurar el provider y gestionar plantillas sin memorizar comandos:
+To configure the provider and manage templates without memorizing commands:
 
 ```sh
 jev tui
-jev tui --db /ruta/jev.db
+jev tui --db /path/jev.db
 ```
 
-Tiene dos zonas:
+It has two areas:
 
-- **Configuración**: `api_url`, `api_key`, `model`, `timeout` y `retries`, con
-  validación mientras escribes. La key se muestra enmascarada.
-- **Plantillas**: buscar, ver, crear, editar y borrar. Al editar, el JSON se
-  valida en vivo y se muestran las macros detectadas.
+- **Provider settings**: `api_url`, `api_key`, `model`, `timeout` and `retries`,
+  with validation while you type. The key is shown masked.
+- **Templates**: search, show, create, edit and delete. While editing, the JSON
+  is validated live and the detected macros are shown.
 
-| Tecla | Acción |
+| Key | Action |
 | --- | --- |
-| `↑` / `↓` | mover la selección |
-| `Enter` | elegir / confirmar |
-| `Esc` | cancelar / volver |
-| `q` | volver al menú (o salir) |
-| `Ctrl-C` | salir (pide confirmación si hay cambios) |
-| `n` / `e` / `d` / `/` | en plantillas: nueva, editar, borrar, buscar |
+| `↑` / `↓` | move the selection |
+| `Enter` | choose / confirm |
+| `Esc` | cancel / go back |
+| `q` | return to the menu (or quit) |
+| `Ctrl-C` | quit (asks for confirmation if there are unsaved changes) |
+| `n` / `e` / `d` / `/` | in templates: new, edit, delete, search |
 
-Los cambios se guardan en la misma base que usan `jev config` y
-`jev template`, así que se ven desde fuera de la TUI. Sin terminal interactiva
-`jev tui` sale con un error y propone los comandos equivalentes.
+Changes are saved in the same database used by `jev config` and `jev template`,
+so they are visible from outside the TUI. Without an interactive terminal
+`jev tui` exits with an error and suggests the equivalent commands.
 
-## Consola web local
+## Local web console
 
-Una interfaz gráfica con las mismas funciones, sin cuenta ni telemetría:
+A graphical interface with the same features, no account and no telemetry:
 
 ```sh
 jev web-console
@@ -543,37 +540,37 @@ jev --web-console              # alias
 jev web-console --port 0 --no-open
 ```
 
-Abre en el navegador la URL que imprime. Pantallas:
+It opens the URL it prints in the browser. Screens:
 
-| Pantalla | Para qué |
+| Screen | What it is for |
 | --- | --- |
-| **Resumen** | estado, métricas y prueba de conexión |
-| **Evaluar** | lanzar preguntas `noul`, `choice` y `score` y ver probabilidades |
-| **Plantillas** | crear, editar, validar y renderizar, con descripción y tipo por macro |
-| **Lotes** | pegar un array de contextos, ejecutar y seguir el progreso |
-| **Historial** | filtrar, ver el detalle y exportar |
-| **Configuración** | editar la configuración y revelar la key solo si lo pides |
+| **Overview** | state, metrics and connection test |
+| **Evaluate** | launch `noul`, `choice` and `score` questions and see probabilities |
+| **Templates** | create, edit, validate and render, with a description and type per macro |
+| **Batches** | paste an array of contexts, run it and follow the progress |
+| **History** | filter, see the detail and export |
+| **Settings** | edit the configuration and reveal the key only if you ask for it |
 
-Cada pantalla muestra la orden de CLI equivalente. `--port`, `--host`,
-`--allow-remote`, `--open`/`--no-open`, `--dev` y los flags de sesión se explican
-en [`docs/web-console.md`](docs/web-console.md), junto con el modelo de
-seguridad. `--allow-remote` expone una consola de administración: úsalo solo en
-redes de confianza.
+Every screen shows the equivalent CLI command. `--port`, `--host`,
+`--allow-remote`, `--open`/`--no-open`, `--dev` and the session flags are
+explained in [`docs/web-console.md`](docs/web-console.md), together with the
+security model. `--allow-remote` exposes an administration console: use it only
+on trusted networks.
 
-## Usar Jev desde un agente (MCP)
+## Use Jev from an agent (MCP)
 
-El servidor MCP permite que un agente descubra plantillas, rellene contextos y
-ejecute peticiones sin que tú traduzcas la CLI.
+The MCP server lets an agent discover templates, fill in contexts and run
+requests without you translating the CLI.
 
 ```sh
-jev mcp                          # servidor por stdio
+jev mcp                          # server over stdio
 jev-mcp                          # alias
-jev mcp --read-only              # solo lectura
-jev mcp --no-execute             # sin ejecutar contra Jev
-jev mcp --allow-destructive      # permite borrar plantillas
+jev mcp --read-only              # read-only
+jev mcp --no-execute             # without executing against Jev
+jev mcp --allow-destructive      # allows deleting templates
 ```
 
-Configuración en `opencode.json`:
+Configuration in `opencode.json`:
 
 ```jsonc
 {
@@ -590,7 +587,7 @@ Configuración en `opencode.json`:
 }
 ```
 
-Con el paquete de npm:
+With the npm package:
 
 ```jsonc
 {
@@ -602,78 +599,78 @@ Con el paquete de npm:
 }
 ```
 
-Además del catálogo fijo (`jev_ask`, `jev_batch`, `jev_template_*`,
-`jev_history_*`, etc.), **cada plantilla guardada se expone como una tool** con
-sus macros como parámetros. Catálogo completo, resources y permisos en
+Besides the fixed catalog (`jev_ask`, `jev_batch`, `jev_template_*`,
+`jev_history_*`, etc.), **every saved template is exposed as a tool** with its
+macros as parameters. Full catalog, resources and permissions in
 [`docs/mcp.md`](docs/mcp.md).
 
-## Analizar imágenes
+## Analyze images
 
-La API acepta imágenes en un campo `assets`, referenciadas desde el `state`.
-Desde la CLI:
+The API accepts images in an `assets` field, referenced from the `state`. From
+the CLI:
 
 ```sh
-jev ask --state '{"foto":"gato"}' \
-  --asset gato=foto.jpg \
-  --choice 'animal=¿Qué animal aparece en `foto`?' \
-  --option 'animal.GATO=Felino doméstico' \
-  --option 'animal.PERRO=Canino doméstico'
+jev ask --state '{"photo":"cat"}' \
+  --asset cat=photo.jpg \
+  --choice 'animal=Which animal appears in `photo`?' \
+  --option 'animal.CAT=Domestic feline' \
+  --option 'animal.DOG=Domestic canine'
 ```
 
-- `--asset [<ref>=]<ruta>` se puede repetir; sin `<ref>` se genera un UUID.
-- `--assets-file <ruta>` lee un mapa `assets` completo en JSON.
-- Formatos: PNG/JPEG estático, hasta 16 MiB, lados de 280–1568 px.
+- `--asset [<ref>=]<path>` can be repeated; without `<ref>` a UUID is generated.
+- `--assets-file <path>` reads a complete `assets` map in JSON.
+- Formats: static PNG/JPEG, up to 16 MiB, sides of 280–1568 px.
 
-La imagen debe estar referenciada en `state`, `instructions` o `criteria`, y la
-API no redimensiona ni aplica la orientación EXIF. Límites, trampas y el detalle
-del protocolo en [`docs/imagenes.md`](docs/imagenes.md).
+The image must be referenced in `state`, `instructions` or `criteria`, and the
+API does not resize it nor apply the EXIF orientation. Limits, pitfalls and the
+protocol detail in [`docs/images.md`](docs/images.md).
 
-## Problemas frecuentes
+## Common problems
 
-**`NODE_MODULE_VERSION` al arrancar.** El binario nativo de `better-sqlite3` se
-instaló con otra versión de Node. Recompílalo:
+**`NODE_MODULE_VERSION` on startup.** The `better-sqlite3` native binary was
+installed with another Node version. Rebuild it:
 
 ```sh
 npm rebuild better-sqlite3
 ```
 
-**La base usa un esquema más nuevo.** Otra versión de `jev` escribió en la misma
-base. Usa una base temporal:
+**The database uses a newer schema.** Another version of `jev` wrote into the
+same database. Use a temporary database:
 
 ```sh
-jev ask --db "$(mktemp -d)/jev.db" --state "hola" --noul 'q=¿Saludo?'
+jev ask --db "$(mktemp -d)/jev.db" --state "hello" --noul 'q=Is it a greeting?'
 ```
 
-**`429 FreeUsageLimitError`.** `jev-1.13-free` está limitado fuera de OpenCode o
-al agotar la cuota. Para pruebas usa `jev-1.13`.
+**`429 FreeUsageLimitError`.** `jev-1.13-free` is limited outside OpenCode or
+once the quota runs out. Use `jev-1.13` for tests.
 
-**`401` / `api_key_expired`.** Revisa la key con
-`jev config get api_key --reveal` o vuelve a exportar `OPENCODE_API_KEY`.
+**`401` / `api_key_expired`.** Check the key with
+`jev config get api_key --reveal` or export `OPENCODE_API_KEY` again.
 
-**`422`.** La pregunta está mal formada: `choice` usa un objeto en `criteria` y
-`score` usa un array ordenado.
+**`422`.** The question is malformed: `choice` uses an object in `criteria` and
+`score` uses an ordered array.
 
-**La consola web no arranca.** Comprueba el puerto (`--port 0` elige uno libre) y
-que exista el build (`npm run build:web`). Más casos en
-[`docs/solucion-problemas.md`](docs/solucion-problemas.md).
+**The web console does not start.** Check the port (`--port 0` picks a free one)
+and that the build exists (`npm run build:web`). More cases in
+[`docs/troubleshooting.md`](docs/troubleshooting.md).
 
-### Códigos de salida
+### Exit codes
 
-| Código | Significado |
+| Code | Meaning |
 | --- | --- |
-| `0` | Correcto |
-| `1` | Error de API, red o configuración (falta la key, JSON inválido…) |
-| `2` | Uso incorrecto (comando o flags inválidos) |
+| `0` | Success |
+| `1` | API, network or configuration error (missing key, invalid JSON…) |
+| `2` | Wrong usage (invalid command or flags) |
 
-Los errores de autenticación (`401` / `api_key_expired`), cuota
-(`FreeUsageLimitError`) y preguntas mal formadas (`422`) añaden una línea
-`pista:` con la acción recomendada.
+Authentication errors (`401` / `api_key_expired`), quota
+(`FreeUsageLimitError`) and malformed questions (`422`) add a `hint:` line with
+the recommended action.
 
-## Documentación técnica
+## Technical documentation
 
-El README es una guía de uso. El detalle de implementación vive en
-[`docs/`](docs/README.md): arquitectura, persistencia, configuración, tipos de
-pregunta, consola web, MCP, imágenes, uso como librería y desarrollo.
+The README is a usage guide. Implementation detail lives in
+[`docs/`](docs/README.md): architecture, persistence, configuration, question
+types, web console, MCP, images, use as a library and development.
 
-Para scripting por casos de uso, consulta también la skill
-[`skills/jev-cli/`](skills/jev-cli/SKILL.md).
+For scripting by use case, see also the
+[`skills/jev-cli/`](skills/jev-cli/SKILL.md) skill.

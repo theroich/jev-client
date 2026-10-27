@@ -19,8 +19,8 @@ import type { Template } from "./template-repository.js";
 import { TemplateRepository } from "./template-repository.js";
 
 /**
- * Acceso a los datos que necesita la TUI. Respaldado por los mismos
- * repositorios y tablas SQLite que usan los comandos no interactivos.
+ * Data access needed by the TUI. Backed by the same repositories and SQLite
+ * tables used by the non-interactive commands.
  */
 export interface TuiBackend {
   getConfig(): ConfigEntry[];
@@ -31,7 +31,7 @@ export interface TuiBackend {
   removeTemplate(name: string): boolean;
 }
 
-/** Crea el backend de la TUI sobre una base ya abierta. */
+/** Creates the TUI backend over an already-open database. */
 export function createTuiBackend(db: SqliteDatabase): TuiBackend {
   const config = new ConfigRepository(db);
   const templates = new TemplateRepository(db);
@@ -57,9 +57,9 @@ const CONFIG_FIELDS: readonly ConfigKey[] = [
 const CONFIG_LABELS: Record<ConfigKey, string> = {
   api_url: "URL",
   api_key: "API key",
-  model: "Modelo",
+  model: "Model",
   timeout: "Timeout (s)",
-  retries: "Reintentos",
+  retries: "Retries",
 };
 
 type Confirm =
@@ -97,18 +97,14 @@ type Screen =
   | TemplateEditor
   | Confirm;
 
-const MENU_ITEMS = [
-  "Configuración del provider",
-  "Plantillas",
-  "Salir",
-] as const;
+const MENU_ITEMS = ["Provider settings", "Templates", "Quit"] as const;
 
-const BODY_EMPTY = "el cuerpo no puede estar vacío";
+const BODY_EMPTY = "body cannot be empty";
 
 /**
- * Acción lógica canónica que consume la máquina de estados. Los caracteres
- * imprimibles siempre llevan el prefijo `char:` para distinguirlos de las
- * acciones de navegación (`n` es texto, `char:n` es la acción).
+ * Canonical logical action consumed by the state machine. Printable
+ * characters always carry the `char:` prefix to distinguish them from
+ * navigation actions (`n` is text, `char:n` is the action).
  */
 export type TuiAction =
   | "up"
@@ -125,9 +121,9 @@ export type TuiAction =
   | `char:${string}`;
 
 /**
- * Comprueba si la acción es un comando de una tecla, sin distinguir
- * mayúsculas (`char:n` y `char:N`). El texto de los editores no pasa por aquí,
- * así que conserva su caso.
+ * Checks whether the action is a single-key command, ignoring case
+ * (`char:n` and `char:N`). Editor text does not go through here, so it
+ * preserves its case.
  */
 function isCommand(action: TuiAction, command: string): boolean {
   if (!action.startsWith("char:")) {
@@ -137,9 +133,9 @@ function isCommand(action: TuiAction, command: string): boolean {
 }
 
 /**
- * Máquina de estados de la TUI, pura y testeable: no toca la terminal.
- * Recibe "acciones" lógicas (`up`, `down`, `enter`, `char:x`, …) y expone el
- * frame a renderizar, además de realizar los cambios a través del backend.
+ * TUI state machine, pure and testable: it never touches the terminal.
+ * It receives logical "actions" (`up`, `down`, `enter`, `char:x`, …) and
+ * exposes the frame to render, besides performing changes through the backend.
  */
 export class TuiApp {
   done = false;
@@ -223,7 +219,7 @@ export class TuiApp {
     return `${lines.join("\n")}\n`;
   }
 
-  // ── menú principal ────────────────────────────────────────────────
+  // ── main menu ──────────────────────────────────────────────────────
 
   private handleMenu(screen: Extract<Screen, { kind: "menu" }>, action: TuiAction): void {
     if (isCommand(action, "q")) {
@@ -255,18 +251,15 @@ export class TuiApp {
   }
 
   private renderMenu(screen: Extract<Screen, { kind: "menu" }>): string[] {
-    const lines = [
-      " Jev — modo interactivo",
-      " ───────────────────────",
-    ];
+    const lines = [" Jev — interactive mode", " ───────────────────────"];
     MENU_ITEMS.forEach((item, index) => {
       lines.push(`${index === screen.cursor ? "›" : " "} ${item}`);
     });
-    lines.push(" ───────────────────────", " ↑/↓ mover · Enter elegir · q salir");
+    lines.push(" ───────────────────────", " ↑/↓ move · Enter select · q quit");
     return lines;
   }
 
-  // ── configuración del provider ────────────────────────────────────
+  // ── provider settings ─────────────────────────────────────────────
 
   private configValue(key: ConfigKey): string {
     const stored = this.config.get(key);
@@ -351,7 +344,7 @@ export class TuiApp {
       }
       this.backend.setConfig(screen.field, value);
       this.config.set(screen.field, value);
-      this.notice = `configuración guardada: ${screen.field}`;
+      this.notice = `settings saved: ${screen.field}`;
       this.screen = { kind: "provider", cursor: CONFIG_FIELDS.indexOf(screen.field) };
       return;
     }
@@ -374,19 +367,19 @@ export class TuiApp {
   }
 
   private renderProvider(screen: Extract<Screen, { kind: "provider" }>): string[] {
-    const lines = [" Configuración del provider", " ─────────────────────────"];
+    const lines = [" Provider settings", " ─────────────────────────"];
     CONFIG_FIELDS.forEach((field, index) => {
       const selected = index === screen.cursor;
       const value = this.configValue(field);
       const display =
         field === "api_key"
           ? value === ""
-            ? "(no definida)"
+            ? "(not set)"
             : maskSecret(value)
           : value;
       lines.push(`${selected ? "›" : " "} ${CONFIG_LABELS[field].padEnd(12)} ${display}`);
     });
-    lines.push(" ─────────────────────────", " ↑/↓ mover · Enter editar · q menú");
+    lines.push(" ─────────────────────────", " ↑/↓ move · Enter edit · q menu");
     return lines;
   }
 
@@ -395,19 +388,19 @@ export class TuiApp {
   ): string[] {
     const label = CONFIG_LABELS[screen.field];
     const masked = screen.field === "api_key";
-    const lines = [` Editar ${label}`, " ─────────────────────────", ""];
+    const lines = [` Edit ${label}`, " ─────────────────────────", ""];
     lines.push(` ${label} > ${renderInput(screen.value, screen.cursor, masked)}`);
     if (screen.field === "api_key") {
-      lines.push("", " (la key se guarda en claro en la base SQLite)");
+      lines.push("", " (the key is stored in plain text in the SQLite database)");
     }
     if (screen.error !== null) {
       lines.push("", ` error: ${screen.error}`);
     }
-    lines.push("", " Enter guardar · Esc cancelar");
+    lines.push("", " Enter save · Esc cancel");
     return lines;
   }
 
-  // ── plantillas ─────────────────────────────────────────────────────
+  // ── templates ──────────────────────────────────────────────────────
 
   private openTemplates(): void {
     this.templates = this.backend.listTemplates();
@@ -506,13 +499,13 @@ export class TuiApp {
   private renderTemplates(
     screen: Extract<Screen, { kind: "templates" }>,
   ): string[] {
-    const lines = [" Plantillas", " ──────────"];
+    const lines = [" Templates", " ──────────"];
     const cursor = screen.filtering ? "█" : "";
-    lines.push(` Buscar: ${screen.query}${cursor}`);
+    lines.push(` Search: ${screen.query}${cursor}`);
     lines.push("");
     const matches = this.matchingTemplates(screen.query);
     if (matches.length === 0) {
-      lines.push(" (sin resultados)");
+      lines.push(" (no results)");
     } else {
       matches.forEach((template, index) => {
         const selected = !screen.filtering && index === screen.cursor;
@@ -522,7 +515,7 @@ export class TuiApp {
     }
     lines.push(
       "",
-      " (n) nueva · (e) editar · (d) borrar · (/) buscar · Enter ver · q menú",
+      " (n) new · (e) edit · (d) delete · (/) search · Enter view · q menu",
     );
     return lines;
   }
@@ -569,31 +562,31 @@ export class TuiApp {
   ): string[] {
     const template = this.backend.getTemplate(screen.name);
     if (template === undefined) {
-      return [` Plantilla: ${screen.name}`, " ─────────────────", " (no encontrada)"];
+      return [` Template: ${screen.name}`, " ─────────────────", " (not found)"];
     }
     const macros = template.macros;
     const lines = [
-      ` Plantilla: ${template.name}`,
+      ` Template: ${template.name}`,
       " ─────────────────",
-      ` Descripción: ${template.description || "-"}`,
-      ` Macros: ${macros.length > 0 ? macros.map((macro) => macro.name).join(", ") : "(ninguna)"}`,
+      ` Description: ${template.description || "-"}`,
+      ` Macros: ${macros.length > 0 ? macros.map((macro) => macro.name).join(", ") : "(none)"}`,
       "",
-      " Cuerpo:",
+      " Body:",
       prettyJson(template.body_json),
     ];
     if (macros.some((macro) => macro.description !== "")) {
-      lines.push("", " Descripciones:");
+      lines.push("", " Descriptions:");
       for (const macro of macros) {
         if (macro.description !== "") {
           lines.push(`  {{${macro.name}}}: ${macro.description}`);
         }
       }
     }
-    lines.push("", " (e) editar · (d) borrar · b volver");
+    lines.push("", " (e) edit · (d) delete · b back");
     return lines;
   }
 
-  // ── editor de plantillas ──────────────────────────────────────────
+  // ── template editor ───────────────────────────────────────────────
 
   private newEditor(): Screen {
     this.dirty = false;
@@ -651,7 +644,7 @@ export class TuiApp {
           return;
         }
         if (this.backend.getTemplate(name) !== undefined) {
-          this.notice = `ya existe una plantilla con el nombre ${name}`;
+          this.notice = `a template named ${name} already exists`;
           return;
         }
         screen.step = "description";
@@ -675,7 +668,7 @@ export class TuiApp {
       return;
     }
 
-    // paso body
+    // body step
     if (action === "enter") {
       if (screen.error === null && screen.body.trim() !== "") {
         this.screen = {
@@ -719,21 +712,21 @@ export class TuiApp {
 
   private renderTemplateEditor(screen: TemplateEditor): string[] {
     const title =
-      screen.mode === "create" ? "Nueva plantilla" : `Editar plantilla: ${screen.name}`;
+      screen.mode === "create" ? "New template" : `Edit template: ${screen.name}`;
     const lines = [` ${title}`, " ─────────────────"];
 
     const nameCursor = screen.step === "name" ? "█" : "";
-    lines.push(` Nombre: ${screen.name}${nameCursor}`);
+    lines.push(` Name: ${screen.name}${nameCursor}`);
 
     const descCursor = screen.step === "description" ? "█" : "";
-    lines.push(` Descripción: ${screen.description}${descCursor}`);
+    lines.push(` Description: ${screen.description}${descCursor}`);
 
     if (screen.step === "body") {
       lines.push(
-        ` Cuerpo (JSON): ${renderInput(screen.body, screen.bodyCursor, false)}`,
+        ` Body (JSON): ${renderInput(screen.body, screen.bodyCursor, false)}`,
       );
     } else {
-      lines.push(` Cuerpo (JSON): ${screen.body}`);
+      lines.push(` Body (JSON): ${screen.body}`);
     }
 
     lines.push("");
@@ -745,16 +738,16 @@ export class TuiApp {
       } else {
         const macros = detectMacros(screen.body);
         lines.push(
-          ` ✓ válido · macros: ${macros.length > 0 ? macros.join(", ") : "(ninguna)"}`,
+          ` ✓ valid · macros: ${macros.length > 0 ? macros.join(", ") : "(none)"}`,
         );
       }
     }
 
-    lines.push("", " Enter siguiente · Esc cancelar");
+    lines.push("", " Enter next · Esc cancel");
     return lines;
   }
 
-  // ── confirmaciones ─────────────────────────────────────────────────
+  // ── confirmations ──────────────────────────────────────────────────
 
   private handleConfirm(screen: Confirm, action: TuiAction): void {
     const yes =
@@ -768,13 +761,13 @@ export class TuiApp {
       switch (screen.action) {
         case "delete-template":
           this.backend.removeTemplate(screen.name);
-          this.notice = `plantilla eliminada: ${screen.name}`;
+          this.notice = `template deleted: ${screen.name}`;
           this.openTemplates();
           break;
         case "save-template":
           this.backend.saveTemplate(screen.name, screen.description, screen.body);
           this.dirty = false;
-          this.notice = `plantilla guardada: ${screen.name}`;
+          this.notice = `template saved: ${screen.name}`;
           this.openTemplates();
           break;
         case "discard":
@@ -797,22 +790,22 @@ export class TuiApp {
     let prompt: string;
     switch (screen.action) {
       case "delete-template":
-        prompt = `¿Eliminar la plantilla '${screen.name}'? [s/N]`;
+        prompt = `Delete template '${screen.name}'? [y/N]`;
         break;
       case "save-template":
-        prompt = `¿Guardar la plantilla '${screen.name}'? [s/N]`;
+        prompt = `Save template '${screen.name}'? [y/N]`;
         break;
       case "discard":
-        prompt = "¿Descartar los cambios sin guardar? [s/N]";
+        prompt = "Discard unsaved changes? [y/N]";
         break;
       case "quit":
-        prompt = "Hay cambios sin guardar. ¿Salir igualmente? [s/N]";
+        prompt = "There are unsaved changes. Quit anyway? [y/N]";
         break;
     }
     return [" ─────────────────", ` ${prompt}`, " ─────────────────"];
   }
 
-  // ── salida ─────────────────────────────────────────────────────────
+  // ── exit ───────────────────────────────────────────────────────────
 
   private requestQuit(from: Screen): void {
     if (this.dirty) {
@@ -900,7 +893,7 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// ── driver de terminal ───────────────────────────────────────────────
+// ── terminal driver ─────────────────────────────────────────────────
 
 export interface KeypressKey {
   name?: string;
@@ -909,7 +902,7 @@ export interface KeypressKey {
   meta?: boolean;
 }
 
-/** Traduce un evento de teclado de readline a una acción lógica. */
+/** Translates a readline key event into a logical action. */
 export function keyToAction(key: KeypressKey): TuiAction | null {
   const name = key.name;
   if (key.ctrl === true) {
@@ -917,8 +910,8 @@ export function keyToAction(key: KeypressKey): TuiAction | null {
     if (name === "a") return "ctrl-a";
     if (name === "e") return "ctrl-e";
   }
-  // ESC solo llega con `meta: true`, así que se comprueba antes de descartar
-  // las secuencias con meta (Alt+tecla).
+  // ESC only arrives with `meta: true`, so it is checked before discarding
+  // sequences with meta (Alt+key).
   if (name === "escape") {
     return "esc";
   }
@@ -944,8 +937,8 @@ export function keyToAction(key: KeypressKey): TuiAction | null {
 }
 
 /**
- * Ejecuta la TUI sobre la terminal actual (modo raw). Devuelve el código de
- * salida. Requiere una TTY; `runCli` comprueba esto antes de llamarla.
+ * Runs the TUI on the current terminal (raw mode). Returns the exit code.
+ * Requires a TTY; `runCli` checks this before calling it.
  */
 export async function runTui(backend: TuiBackend): Promise<number> {
   const app = new TuiApp(backend);

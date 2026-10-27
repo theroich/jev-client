@@ -1,4 +1,4 @@
-# Uso como librería
+# Use as a library
 
 ```ts
 import { JevClient, type Question } from "jev-client";
@@ -6,24 +6,24 @@ import { JevClient, type Question } from "jev-client";
 const client = new JevClient({ apiKey: process.env.OPENCODE_API_KEY! });
 
 const questions: Record<string, Question> = {
-  refund: { type: "noul", instructions: "¿El cliente pide un reembolso?" },
+  refund: { type: "noul", instructions: "Is the customer asking for a refund?" },
   team: {
     type: "choice",
-    instructions: "¿Qué equipo debe atenderlo?",
+    instructions: "Which team should handle it?",
     criteria: {
-      billing: "Cobros y facturas",
-      legal: "Reclamaciones legales",
+      billing: "Charges and invoices",
+      legal: "Legal claims",
     },
   },
   urgency: {
     type: "score",
-    instructions: "¿Cómo de urgente es?",
-    criteria: ["Puede esperar", "Esta semana", "Hoy"],
+    instructions: "How urgent is it?",
+    criteria: ["It can wait", "This week", "Today"],
   },
 };
 
 const response = await client.systemOne(
-  { ticket: "Me han cobrado dos veces", plan: "pro" },
+  { ticket: "I was charged twice", plan: "pro" },
   questions,
 );
 
@@ -33,9 +33,9 @@ console.log(response.answers.team?.probabilities); // Record<string, number>
 console.log(response.usage.cost);                  // number | undefined
 ```
 
-Desde este repositorio sin publicar, importa desde `./dist/src/index.js`.
+From this repository without publishing, import from `./dist/src/index.js`.
 
-## Opciones del cliente
+## Client options
 
 ```ts
 new JevClient({
@@ -45,22 +45,22 @@ new JevClient({
   timeoutMs,       // default: 30000
   maxRetries,      // default: 2
   backoffMs,       // default: 500
-  maxRetryDelayMs, // default: 10000 (tope del Retry-After)
+  maxRetryDelayMs, // default: 10000 (cap for Retry-After)
 });
 ```
 
-`run()` acepta un request completo (`{ model, state, questions }`) y `raw`
-contiene el cuerpo original de la API.
+`run()` accepts a complete request (`{ model, state, questions }`) and `raw`
+contains the original API body.
 
-## Plantillas
+## Templates
 
-`resolveTemplateBody` resuelve un body con macros y lo valida:
+`resolveTemplateBody` resolves a body with macros and validates it:
 
 ```ts
 import { resolveTemplateBody } from "jev-client";
 
 const request = resolveTemplateBody(
-  '{"model":"jev-1.13","state":"{{estado}}","questions":{"q":{"type":"noul"}}}',
-  { estado: { pedido: 42 } },
+  '{"model":"jev-1.13","state":"{{state}}","questions":{"q":{"type":"noul"}}}',
+  { state: { order: 42 } },
 );
 ```

@@ -3,22 +3,22 @@ import { readFile } from "node:fs/promises";
 
 import type { ImageAsset, ImageFormat, JevRequest } from "./types.js";
 
-/** Límites que impone la API de imágenes de System One. */
+/** Limits imposed by the System One images API. */
 export const IMAGE_LIMITS = {
-  /** Tamaño máximo por fichero, en bytes. */
+  /** Maximum size per file, in bytes. */
   maxFileBytes: 16 * 1024 * 1024,
-  /** Lado mínimo y máximo, en píxeles. */
+  /** Minimum and maximum side, in pixels. */
   minSide: 280,
   maxSide: 1568,
-  /** Total de píxeles mínimo y máximo. */
+  /** Minimum and maximum total pixels. */
   minPixels: 78_400,
   maxPixels: 2_458_624,
 } as const;
 
-/** Formatos admitidos por la API (APNG queda rechazado). */
+/** Formats accepted by the API (APNG is rejected). */
 export const IMAGE_FORMATS: readonly ImageFormat[] = ["png", "jpg", "jpeg"];
 
-/** Cabecera obligatoria cuando un request lleva `assets`. */
+/** Required header when a request carries `assets`. */
 export const IMAGES_HEADER = "TypeSafe-Danger-Zone-Images";
 
 export interface ImageAssetError extends Error {
@@ -39,7 +39,7 @@ function assetError(code: ImageAssetError["code"], message: string): ImageAssetE
   return error;
 }
 
-/** Formato detectado a partir de los magic bytes (no de la extensión). */
+/** Format detected from the magic bytes (not the extension). */
 export function detectImageFormat(buffer: Buffer): ImageFormat | undefined {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
     return "png";
@@ -50,7 +50,7 @@ export function detectImageFormat(buffer: Buffer): ImageFormat | undefined {
   return undefined;
 }
 
-/** Convierte `jpg`/`jpeg`/`png` a la clave `format` canónica de la API. */
+/** Converts `jpg`/`jpeg`/`png` to the API's canonical `format` key. */
 export function canonicalFormat(format: ImageFormat): "png" | "jpg" {
   return format === "png" ? "png" : "jpg";
 }
@@ -61,9 +61,9 @@ export interface ImageSize {
 }
 
 /**
- * Lee las dimensiones de un PNG (IHDR) o JPEG (marcador SOF) sin decodificar
- * la imagen. Devuelve `undefined` cuando el formato no es PNG/JPEG o el
- * contenedor es ilegible.
+ * Reads the dimensions of a PNG (IHDR) or JPEG (SOF marker) without decoding
+ * the image. Returns `undefined` when the format is not PNG/JPEG or the
+ * container is unreadable.
  */
 export function readImageSize(buffer: Buffer): ImageSize | undefined {
   const format = detectImageFormat(buffer);
@@ -90,7 +90,7 @@ function readJpegSize(buffer: Buffer): ImageSize | undefined {
       continue;
     }
     const marker = buffer[offset + 1] as number;
-    // Marcadores SOF que llevan dimensiones (excluye DHT C4, JPG C8 y DAC CC).
+    // SOF markers that carry dimensions (excludes DHT C4, JPG C8 and DAC CC).
     if (
       (marker >= 0xc0 && marker <= 0xc3) ||
       (marker >= 0xc5 && marker <= 0xc7) ||
@@ -120,17 +120,17 @@ export interface ImageLimitsReport {
   reason?: string;
 }
 
-/** Valida los límites de la API y devuelve el motivo del rechazo, si lo hay. */
+/** Validates the API limits and returns the rejection reason, if any. */
 export function assertImageLimits(buffer: Buffer): ImageLimitsReport {
   if (buffer.length > IMAGE_LIMITS.maxFileBytes) {
     return {
       ok: false,
-      reason: `el fichero supera los ${IMAGE_LIMITS.maxFileBytes / (1024 * 1024)} MiB`,
+      reason: `the file exceeds ${IMAGE_LIMITS.maxFileBytes / (1024 * 1024)} MiB`,
     };
   }
   const size = readImageSize(buffer);
   if (size === undefined) {
-    return { ok: false, reason: "no se pudieron leer las dimensiones de la imagen" };
+    return { ok: false, reason: "could not read the image dimensions" };
   }
   const pixels = size.width * size.height;
   if (
@@ -141,7 +141,7 @@ export function assertImageLimits(buffer: Buffer): ImageLimitsReport {
       ok: false,
       width: size.width,
       height: size.height,
-      reason: `la imagen mide ${size.width}×${size.height}; el mínimo por lado es ${IMAGE_LIMITS.minSide} px`,
+      reason: `the image is ${size.width}×${size.height}; the minimum per side is ${IMAGE_LIMITS.minSide} px`,
     };
   }
   if (
@@ -152,7 +152,7 @@ export function assertImageLimits(buffer: Buffer): ImageLimitsReport {
       ok: false,
       width: size.width,
       height: size.height,
-      reason: `la imagen mide ${size.width}×${size.height}; el máximo por lado es ${IMAGE_LIMITS.maxSide} px`,
+      reason: `the image is ${size.width}×${size.height}; the maximum per side is ${IMAGE_LIMITS.maxSide} px`,
     };
   }
   if (pixels < IMAGE_LIMITS.minPixels || pixels > IMAGE_LIMITS.maxPixels) {
@@ -160,18 +160,18 @@ export function assertImageLimits(buffer: Buffer): ImageLimitsReport {
       ok: false,
       width: size.width,
       height: size.height,
-      reason: `la imagen suma ${pixels} px; debe estar entre ${IMAGE_LIMITS.minPixels} y ${IMAGE_LIMITS.maxPixels}`,
+      reason: `the image totals ${pixels} px; it must be between ${IMAGE_LIMITS.minPixels} and ${IMAGE_LIMITS.maxPixels}`,
     };
   }
   return { ok: true, width: size.width, height: size.height };
 }
 
-/** UUID v4 recomendado por la API para que la referencia no colisione con texto. */
+/** UUID v4 recommended by the API so the reference does not collide with text. */
 export function newImageRef(): string {
   return randomUUID();
 }
 
-/** Lee un fichero, detecta su formato por magic bytes y valida sus límites. */
+/** Reads a file, detects its format from the magic bytes and validates its limits. */
 export async function loadImageAsset(
   path: string,
   ref?: string,
@@ -182,7 +182,7 @@ export async function loadImageAsset(
   } catch (error) {
     throw assetError(
       "image_unreadable",
-      `no se pudo leer la imagen ${path}: ${error instanceof Error ? error.message : String(error)}`,
+      `could not read image ${path}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
@@ -190,16 +190,16 @@ export async function loadImageAsset(
   if (format === undefined) {
     throw assetError(
       "unsupported_image_format",
-      `formato de imagen no soportado en ${path} (solo PNG o JPEG)`,
+      `unsupported image format in ${path} (only PNG or JPEG)`,
     );
   }
 
   const report = assertImageLimits(buffer);
   if (!report.ok) {
-    throw assetError("image_too_large", `${path}: ${report.reason ?? "límites de imagen incumplidos"}`);
+    throw assetError("image_too_large", `${path}: ${report.reason ?? "image limits violated"}`);
   }
   if (report.width === undefined || report.height === undefined) {
-    throw assetError("image_size_parsing_failed", `${path}: no se pudieron leer las dimensiones`);
+    throw assetError("image_size_parsing_failed", `${path}: could not read the dimensions`);
   }
 
   return {
@@ -214,35 +214,35 @@ export async function loadImageAsset(
 }
 
 /**
- * Convierte un `data_base64` en un asset validado. Comprueba que no lleve el
- * prefijo `data:` ni caracteres de salto de línea/espacios y que el formato
- * sea `png|jpg|jpeg`.
+ * Converts a `data_base64` into a validated asset. Checks that it has no
+ * `data:` prefix and no line-break/space characters, and that the format
+ * is `png|jpg|jpeg`.
  */
 export function validateImageAsset(ref: string, asset: ImageAsset): ImageAsset {
   if (asset.data_base64 !== undefined) {
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(asset.data_base64)) {
       throw new Error(
-        `el asset ${JSON.stringify(ref)} tiene un data_base64 inválido: ` +
-          "quita el prefijo 'data:' y los saltos de línea/espacios",
+        `asset ${JSON.stringify(ref)} has an invalid data_base64: ` +
+          "remove the 'data:' prefix and the line breaks/spaces",
       );
     }
     if (asset.format === undefined || !IMAGE_FORMATS.includes(asset.format)) {
       throw new Error(
-        `el asset ${JSON.stringify(ref)} necesita un format png|jpg|jpeg junto a data_base64`,
+        `asset ${JSON.stringify(ref)} needs a png|jpg|jpeg format alongside data_base64`,
       );
     }
   }
   return { type: "image", ...asset };
 }
 
-/** Valida un mapa de assets completo antes de gastar una llamada. */
+/** Validates a full assets map before spending a call. */
 export function validateAssets(assets: Record<string, ImageAsset>): void {
   for (const [ref, asset] of Object.entries(assets)) {
     validateImageAsset(ref, asset);
   }
 }
 
-/** Referencias de `assets` que no aparecen en `state`/`instructions`/`criteria`. */
+/** `assets` references that do not appear in `state`/`instructions`/`criteria`. */
 export function orphanAssetRefs(
   request: Pick<JevRequest, "state" | "questions" | "assets">,
 ): string[] {
@@ -260,7 +260,7 @@ export interface RedactedAsset {
   sha256: string;
 }
 
-/** Metadatos de un asset para el historial; nunca incluye `data_base64`. */
+/** Asset metadata for the history; never includes `data_base64`. */
 export function redactAssets(
   assets: Record<string, ImageAsset> | undefined,
 ): Record<string, RedactedAsset> | undefined {
@@ -280,7 +280,7 @@ export function redactAssets(
   return redacted;
 }
 
-/** Reemplaza `data_base64` por metadatos en un body antes de persistirlo. */
+/** Replaces `data_base64` with metadata in a body before persisting it. */
 export function redactRequestAssets(requestBody: unknown): unknown {
   if (!requestBody || typeof requestBody !== "object" || Array.isArray(requestBody)) {
     return requestBody;
@@ -296,7 +296,7 @@ export function redactRequestAssets(requestBody: unknown): unknown {
   return { ...record, assets: redacted };
 }
 
-/** Estimación informativa del coste en tokens (la doc aún no publica la fórmula). */
+/** Informative token cost estimate (the docs do not publish the formula yet). */
 export function estimateImageTokens(bytes: number): number | undefined {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return undefined;

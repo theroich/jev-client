@@ -1,7 +1,7 @@
 {
   "name": "jev-client",
   "version": "1.0.0",
-  "description": "CLI y librería para la API de Jev (System One) vía OpenCode",
+  "description": "CLI and library for the Jev (System One) API via OpenCode",
   "type": "module",
   "license": "MIT",
   "engines": {

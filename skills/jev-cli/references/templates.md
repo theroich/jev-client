@@ -1,179 +1,182 @@
-# Manual de plantillas (`jev template`)
+# Template manual (`jev template`)
 
-Una **plantilla** es un payload de Jev (un request: `model`, `state`,
-`questions`) con **huecos** `{{clave}}` que se resuelven con un mapa de
-contexto. Sirve para reutilizar una misma clasificación sin reescribir el JSON
-cada vez, y para que un agente sepa qué datos de contexto necesita.
+A **template** is a Jev payload (a request: `model`, `state`, `questions`) with
+**placeholders** `{{key}}` that are resolved from a context map. It lets you
+reuse the same classification without rewriting the JSON every time, and lets
+an agent know which context data it needs.
 
-## Anatomía de una plantilla
+## Anatomy of a template
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
-    "pedido": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}",
-    "plan": "{{cliente.plan}}"
+    "order": "{{order_state}}",
+    "customer": "{{customer.name}}",
+    "plan": "{{customer.plan}}"
   },
   "questions": {
-    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+    "urgent": { "type": "noul", "instructions": "Is it urgent?" }
   }
 }
 ```
 
-Reglas de las macros (ver `src/template.ts`):
+Macro rules (see `src/template.ts`):
 
-- **`{{clave}}`** busca la clave en el contexto; admite **rutas anidadas**
-  (`{{cliente.nombre}}`). Si existe una clave literal con puntos, se prefiere a
-  la ruta anidada.
-- **Inserción nativa**: si el string es **exactamente** una macro, se inserta el
-  valor con su tipo (objeto, array, número, booleano). Si va embebida en texto,
-  se interpola como string. Ej.: `"plan": "{{cliente.plan}}"` con
-  `{ "cliente": { "plan": "pro" } }` → `"plan": "pro"`.
-- **Escapado**: `\{{...}}` produce el texto literal `{{...}}` sin resolver.
-- **Si falta una clave**, el comando falla **antes de llamar a la API** y lista
-  todas las claves ausentes:
+- **`{{key}}`** looks the key up in the context; **nested paths** are supported
+  (`{{customer.name}}`). If a literal key containing dots exists, it takes
+  precedence over the nested path.
+- **Native insertion**: if the string is **exactly** one macro, the value is
+  inserted with its type (object, array, number, boolean). If it is embedded in
+  text, it is interpolated as a string. E.g.: `"plan": "{{customer.plan}}"`
+  with `{ "customer": { "plan": "pro" } }` → `"plan": "pro"`.
+- **Escaping**: `\{{...}}` produces the literal text `{{...}}` without
+  resolving it.
+- **If a key is missing**, the command fails **before calling the API** and
+  lists all the missing keys:
 
   ```text
-  error: faltan macros en el contexto: cliente.plan
+  error: missing macros in context: customer.plan
   ```
 
-- El resultado se valida como request (model, state, questions y tipos de
-  pregunta).
+- The result is validated as a request (model, state, questions and question
+  types).
 
-## Ciclo de vida completo
+## Full lifecycle
 
-### `create` (y su alias `add`)
+### `create` (and its alias `add`)
 
-Guardar una plantilla desde un fichero (sobrescribe si el nombre ya existe):
+Save a template from a file (overwrites if the name already exists):
 
 ```sh
-jev template create pedido --description "Pedido con cliente" \
+jev template create order --description "Order with customer" \
   --file examples/template.json \
-  --macro-desc 'estado_de_pedido=Qué pide el cliente, en texto libre' \
-  --macro-desc 'cliente.nombre=Nombre del cliente' \
-  --macro-schema 'cliente.plan={"type":"string","enum":["free","pro","enterprise"]}' \
-  --macro-type 'cliente.nombre=string'
+  --macro-desc 'order_state=What the customer is asking for, in free text' \
+  --macro-desc 'customer.name=Customer name' \
+  --macro-schema 'customer.plan={"type":"string","enum":["free","pro","enterprise"]}' \
+  --macro-type 'customer.name=string'
 ```
 
 ```text
-plantilla guardada: pedido
+template saved: order
 ```
 
-También inline o desde stdin:
+Also inline or from stdin:
 
 ```sh
-jev template create pedido --body '{"model":"jev-1.13", ...}'
-cat body.json | jev template create pedido --body -
+jev template create order --body '{"model":"jev-1.13", ...}'
+cat body.json | jev template create order --body -
 ```
 
-`template add` es sinónimo de `create`; `--body-file <ruta>` es sinónimo de
+`template add` is a synonym for `create`; `--body-file <path>` is a synonym for
 `--file`.
 
-### `list` y `show`
+### `list` and `show`
 
 ```sh
-jev template list                       # pedido - Pedido con cliente
-jev template list --json                # array con descripción, fechas y macros
-jev template show pedido                # body + macros con descripción/esquema
-jev template show pedido --json         # { name, description, body, macros, ... }
+jev template list                       # order - Order with customer
+jev template list --json                # array with description, dates and macros
+jev template show order                 # body + macros with description/schema
+jev template show order --json          # { name, description, body, macros, ... }
 ```
 
-`show` en texto imprime descripción y esquema bajo cada macro:
+`show` in text mode prints the description and schema under each macro:
 
 ```text
-  {{cliente.plan}}
-    Plan contratado por el cliente
+  {{customer.plan}}
+    Plan purchased by the customer
     schema: {"type":"string","enum":["free","pro"]}
 ```
 
 ### `edit`
 
 ```sh
-# Abre $EDITOR (o VISUAL); falla si no está definido
-jev template edit pedido
+# Opens $EDITOR (or VISUAL); fails if neither is defined
+jev template edit order
 
-# O reemplaza el body desde un fichero, sin abrir editor
-jev template edit pedido --file nuevo.json
+# Or replace the body from a file, without opening an editor
+jev template edit order --file new.json
 
-# Ajusta metadatos de macros sin tocar el body
-jev template edit pedido --file nuevo.json \
-  --macro-desc 'ticket=Identificador del pedido (TCK-1042)' \
-  --clear-macro-desc 'cliente.nombre' \
+# Adjust macro metadata without touching the body
+jev template edit order --file new.json \
+  --macro-desc 'ticket=Order identifier (TCK-1042)' \
+  --clear-macro-desc 'customer.name' \
   --macro-type 'ticket=string' \
-  --clear-macro-schema 'cliente.plan'
+  --clear-macro-schema 'customer.plan'
 ```
 
-Sin flags de macros, `edit` conserva descripciones y esquemas existentes.
+Without macro flags, `edit` preserves existing descriptions and schemas.
 
 ### `validate`
 
-Valida una plantilla guardada o un fichero **sin enviar nada** a la API:
+Validates a saved template or a file **without sending anything** to the API:
 
 ```sh
-jev template validate pedido
+jev template validate order
 jev template validate --file examples/template.json
 ```
 
 ```text
-plantilla válida: pedido
+valid template: order
 ```
 
-Útil en CI para comprobar que los bodies del repo son requests válidos.
+Useful in CI to check that the bodies committed in the repo are valid requests.
 
 ### `render`
 
-Previsualiza el request resuelto **sin llamar a Jev** (no gasta tokens):
+Previews the resolved request **without calling Jev** (spends no tokens):
 
 ```sh
-jev template render pedido --context-file examples/context.json
+jev template render order --context-file examples/context.json
 ```
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
-    "pedido": "Me han cobrado dos veces y quiero el reembolso.",
-    "cliente": "Ana",
+    "order": "I was charged twice and I want a refund.",
+    "customer": "Ana",
     "plan": "pro"
   },
   "questions": {
-    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+    "urgent": { "type": "noul", "instructions": "Is it urgent?" }
   }
 }
 ```
 
-También con el contexto inline: `jev template render pedido --context '{"estado_de_pedido":"pendiente","cliente":{"nombre":"Ana","plan":"pro"}}'`.
+Also with the context inline: `jev template render order --context '{"order_state":"pending","customer":{"name":"Ana","plan":"pro"}}'`.
 
-### `delete` (y su alias `remove`)
+### `delete` (and its alias `remove`)
 
 ```sh
-jev template delete pedido       # pide confirmación
-jev template delete pedido --yes # sin confirmación
-jev template remove pedido       # alias de delete sin confirmación
+jev template delete order       # asks for confirmation
+jev template delete order --yes # no confirmation
+jev template remove order       # alias of delete without confirmation
 ```
 
-## Metadatos de macros
+## Macro metadata
 
-Cada macro puede llevar **descripción** y **JSON Schema** (informativo). No se
-envían a Jev ni alteran el renderizado: solo ayudan a humanos y agentes.
+Each macro can carry a **description** and a **JSON Schema** (informational).
+They are not sent to Jev and do not alter rendering: they only help humans and
+agents.
 
-| Flag | Efecto |
+| Flag | Effect |
 | --- | --- |
-| `--macro-desc <clave>=<texto>` | describe la macro (repetible; máx. 500 chars) |
-| `--clear-macro-desc <clave>` | vacía la descripción |
-| `--macro-schema <clave>=<json>` | guarda un JSON Schema completo (objeto o booleano) |
-| `--macro-type <clave>=<tipo>` | atajo de `{"type":"<tipo>"}` |
-| `--clear-macro-schema <clave>` | elimina el esquema conservando la descripción |
+| `--macro-desc <key>=<text>` | describes the macro (repeatable; max. 500 chars) |
+| `--clear-macro-desc <key>` | clears the description |
+| `--macro-schema <key>=<json>` | stores a complete JSON Schema (object or boolean) |
+| `--macro-type <key>=<type>` | shortcut for `{"type":"<type>"}` |
+| `--clear-macro-schema <key>` | removes the schema while keeping the description |
 
-Tipos admitidos por `--macro-type`: `string`, `number`, `integer`, `boolean`,
+Types accepted by `--macro-type`: `string`, `number`, `integer`, `boolean`,
 `object`, `array`, `null`.
 
-## Plantilla mínima por cada tipo de pregunta
+## Minimal template for each question type
 
-Los starters de `src/template-starters.ts` comparten el mismo `state` con macros
-(`{{estado_de_pedido}}`, `{{cliente.nombre}}`, `{{cliente.plan}}`) que resuelve
-`examples/context.json`, de modo que se pueden renderizar nada más crearlos.
+The starters in `src/template-starters.ts` share the same `state` with macros
+(`{{order_state}}`, `{{customer.name}}`, `{{customer.plan}}`) that
+`examples/context.json` resolves, so they can be rendered right after being
+created.
 
 ### `noul`
 
@@ -181,12 +184,12 @@ Los starters de `src/template-starters.ts` comparten el mismo `state` con macros
 {
   "model": "jev-1.13",
   "state": {
-    "ticket": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}",
-    "plan": "{{cliente.plan}}"
+    "ticket": "{{order_state}}",
+    "customer": "{{customer.name}}",
+    "plan": "{{customer.plan}}"
   },
   "questions": {
-    "urgent": { "type": "noul", "instructions": "¿Es urgente?" }
+    "urgent": { "type": "noul", "instructions": "Is it urgent?" }
   }
 }
 ```
@@ -197,18 +200,18 @@ Los starters de `src/template-starters.ts` comparten el mismo `state` con macros
 {
   "model": "jev-1.13",
   "state": {
-    "ticket": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}",
-    "plan": "{{cliente.plan}}"
+    "ticket": "{{order_state}}",
+    "customer": "{{customer.name}}",
+    "plan": "{{customer.plan}}"
   },
   "questions": {
     "team": {
       "type": "choice",
-      "instructions": "¿Qué equipo debería gestionar la incidencia?",
+      "instructions": "Which team should handle the issue?",
       "criteria": {
-        "billing": "Cobros, facturas o pagos",
-        "infra": "Caídas, errores 500 o problemas de plataforma",
-        "sales": "Precios o dudas comerciales"
+        "billing": "Charges, invoices or payments",
+        "infra": "Outages, 500 errors or platform problems",
+        "sales": "Pricing or sales questions"
       }
     }
   }
@@ -221,147 +224,147 @@ Los starters de `src/template-starters.ts` comparten el mismo `state` con macros
 {
   "model": "jev-1.13",
   "state": {
-    "ticket": "{{estado_de_pedido}}",
-    "cliente": "{{cliente.nombre}}",
-    "plan": "{{cliente.plan}}"
+    "ticket": "{{order_state}}",
+    "customer": "{{customer.name}}",
+    "plan": "{{customer.plan}}"
   },
   "questions": {
     "urgency": {
       "type": "score",
-      "instructions": "¿Cómo de urgente es la incidencia?",
-      "criteria": ["Puede esperar", "Esta semana", "Hoy mismo"]
+      "instructions": "How urgent is the issue?",
+      "criteria": ["It can wait", "This week", "Today"]
     }
   }
 }
 ```
 
-## Casos reales end-to-end
+## Real end-to-end cases
 
-### Caso 1: clasificación de tickets de soporte
+### Case 1: support ticket classification
 
-Crea la plantilla, valida, renderiza en seco y ejecuta:
+Create the template, validate it, render it as a dry run and run it:
 
 ```sh
-# 1. Guardar la plantilla
-jev template create soporte --description "Clasifica un ticket de soporte" \
+# 1. Save the template
+jev template create support --description "Classify a support ticket" \
   --file examples/template.json \
-  --macro-desc 'estado_de_pedido=Descripción del ticket en texto libre' \
-  --macro-desc 'cliente.nombre=Nombre del cliente' \
-  --macro-desc 'cliente.plan=Plan del cliente'
+  --macro-desc 'order_state=Ticket description in free text' \
+  --macro-desc 'customer.name=Customer name' \
+  --macro-desc 'customer.plan=Customer plan'
 
-# 2. Validar en seco (sin gastar tokens)
-jev template validate soporte
+# 2. Dry-run validation (no tokens spent)
+jev template validate support
 
-# 3. Renderizar en seco para revisar el request resuelto
-jev template render soporte --context-file examples/context.json
+# 3. Dry-run render to review the resolved request
+jev template render support --context-file examples/context.json
 
-# 4. Ejecutar de verdad
-jev template render soporte --context-file examples/context.json > /tmp/req.json
+# 4. Actually run it
+jev template render support --context-file examples/context.json > /tmp/req.json
 jev ask --request-file /tmp/req.json --json 2>/dev/null | jq '.answers'
 ```
 
-### Caso 2: triaje de incidencias en lote (`batch`)
+### Case 2: batch issue triage (`batch`)
 
-Con `examples/contexts.json` (array de tres contextos) ejecuta la plantilla una
-vez por contexto:
+With `examples/contexts.json` (an array of three contexts) run the template
+once per context:
 
 ```sh
-jev batch soporte --contexts examples/contexts.json
+jev batch support --contexts examples/contexts.json
 ```
 
 ```text
-batch: soporte — 3 peticiones (batch 4f3c…)
+batch: support — 3 requests (batch 4f3c…)
   1: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
   2: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
   3: ok    jev-1.13  12 in / 3 out  cost=1.5e-6
-resumen: 3 ok, 0 error
+summary: 3 ok, 0 error
 tokens: 36 in / 9 out
-coste: 4.5e-6
+cost: 4.5e-6
 ```
 
-Con concurrencia, `--fail-fast` y `--json`:
+With concurrency, `--fail-fast` and `--json`:
 
 ```sh
-jev batch soporte --contexts examples/contexts.json \
+jev batch support --contexts examples/contexts.json \
   --concurrency 3 --fail-fast --json 2>/dev/null | jq '.ok, .errors'
 ```
 
-El `--json` de `batch` imprime un único objeto con `batch_id`, `template`,
+The `batch` `--json` prints a single object with `batch_id`, `template`,
 `total`, `processed`, `skipped`, `ok`, `errors`, `input_tokens`,
-`output_tokens`, `cost`, `cost_unknown` y `items` (uno por contexto, en orden,
-con `index`, `ok`, `model`, tokens, `cost`, `error` y `response` cruda).
+`output_tokens`, `cost`, `cost_unknown` and `items` (one per context, in order,
+with `index`, `ok`, `model`, tokens, `cost`, `error` and the raw `response`).
 
-Reglas de `batch`:
+`batch` rules:
 
-- `--contexts <fichero.json>` espera un array de mapas de contexto; `-` lee de
+- `--contexts <file.json>` expects an array of context maps; `-` reads from
   stdin.
-- `--concurrency <n>` peticiones simultáneas (default `1`, máx. `10`).
-- `--continue-on-error` (default) sigue con el resto; `--fail-fast` se detiene
-  ante el primer error. Con errores, el proceso sale con código `1`.
-- Cada petición genera una fila en el historial con el mismo `batch_id` y su
+- `--concurrency <n>` simultaneous requests (default `1`, max. `10`).
+- `--continue-on-error` (default) keeps going with the rest; `--fail-fast`
+  stops on the first error. With errors, the process exits with code `1`.
+- Each request writes a row to the history with the same `batch_id` and its
   `template_name`.
 
-### Caso 3: priorización de leads
+### Case 3: lead prioritization
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
-    "empresa": "{{empresa}}",
+    "company": "{{company}}",
     "sector": "{{sector}}",
-    "mensaje": "{{mensaje}}"
+    "message": "{{message}}"
   },
   "questions": {
-    "prioridad": {
+    "priority": {
       "type": "score",
-      "instructions": "¿Cómo de prioritario es este lead?",
-      "criteria": ["Baja", "Media", "Alta"]
+      "instructions": "How high a priority is this lead?",
+      "criteria": ["Low", "Medium", "High"]
     },
-    "interes": {
+    "interest": {
       "type": "noul",
-      "instructions": "¿Muestra intención de compra?"
+      "instructions": "Do they show purchase intent?"
     }
   }
 }
 ```
 
-### Caso 4: moderación de contenido
+### Case 4: content moderation
 
 ```json
 {
   "model": "jev-1.13",
   "state": {
-    "texto": "{{texto}}"
+    "text": "{{text}}"
   },
   "questions": {
     "decision": {
       "type": "choice",
-      "instructions": "¿El contenido es publicable?",
+      "instructions": "Is the content publishable?",
       "criteria": {
-        "ok": "Publicable tal cual",
-        "revisar": "Necesita revisión humana",
-        "bloquear": "Infringe las normas"
+        "ok": "Publishable as is",
+        "review": "Needs human review",
+        "block": "Violates the rules"
       }
     }
   }
 }
 ```
 
-## `render` como dry-run y `validate` en CI
+## `render` as a dry run and `validate` in CI
 
-- **`render`** resuelve las macros y previsualiza el request **sin gastar
-  tokens**. Es el paso previo recomendado antes de cualquier ejecución real.
-- **`validate`** comprueba la estructura del body (o de un fichero) sin enviar
-  nada; encaja en CI para que los bodies versionados en el repo no se rompan:
+- **`render`** resolves the macros and previews the request **without spending
+  tokens**. It is the recommended step before any real execution.
+- **`validate`** checks the structure of the body (or of a file) without sending
+  anything; it fits in CI so that the bodies versioned in the repo do not break:
 
   ```sh
-  jev template validate --file templates/soporte.json
+  jev template validate --file templates/support.json
   ```
 
-## Plantillas + scripts bash
+## Templates + bash scripts
 
-Crear/actualizar la plantilla desde un fichero, renderizar, ejecutar y filtrar
-con `jq`, todo no interactivo:
+Create/update the template from a file, render, run and filter with `jq`, all
+non-interactively:
 
 ```bash
 #!/usr/bin/env bash
@@ -370,51 +373,53 @@ set -uo pipefail
 DB="$(mktemp -d)/jev.db"
 trap 'rm -rf "$(dirname "$DB")"' EXIT
 
-TICKET="${1:-El checkout lleva caído 30 minutos y perdemos ventas.}"
+TICKET="${1:-The checkout has been down for 30 minutes and we are losing sales.}"
 
-# 1. Crear la plantilla desde un body inline con una macro {{ticket}}.
-jev template create moderacion --description "Modera un texto" --db "$DB" \
+# 1. Create the template from an inline body with a {{ticket}} macro.
+jev template create moderation --description "Moderate a text" --db "$DB" \
   --body '{
     "model": "jev-1.13",
-    "state": { "texto": "{{ticket}}" },
+    "state": { "text": "{{ticket}}" },
     "questions": {
       "decision": {
         "type": "choice",
-        "instructions": "¿El contenido es publicable?",
-        "criteria": { "ok": "Publicable", "revisar": "Revisar", "bloquear": "Bloquear" }
+        "instructions": "Is the content publishable?",
+        "criteria": { "ok": "Publishable", "review": "Review", "block": "Block" }
       }
     }
   }' \
-  --macro-desc 'ticket=Texto a moderar'
+  --macro-desc 'ticket=Text to moderate'
 
-# 2. Renderizar en seco y comprobar que resuelve (sin gastar tokens).
-if ! jev template render moderacion --db "$DB" \
+# 2. Dry-run render and check that it resolves (no tokens spent).
+if ! jev template render moderation --db "$DB" \
      --context "$(jq -nc --arg t "$TICKET" '{ticket:$t}')" > /tmp/req.json; then
-  echo "error: el render falló (faltan macros o body inválido)" >&2
+  echo "error: render failed (missing macros or invalid body)" >&2
   exit 1
 fi
 
-# 3. Ejecutar y quedarnos solo con la decisión.
+# 3. Run and keep only the decision.
 jev ask --db "$DB" --no-save --json --request-file /tmp/req.json 2>/dev/null \
   | jq -r '.answers.decision.choice'
 ```
 
-## Buenas prácticas
+## Best practices
 
-- **Versiona los bodies en el repo** (p. ej. `templates/*.json`) y créalos en
-  CI con `jev template create --file`; así la plantilla es reproducible y
-  auditable.
-- **Una macro por variable de contexto**: `{{estado_de_pedido}}` y
-  `{{cliente.nombre}}` por separado, en lugar de un único `{{todo}}` concatenado.
-  Facilita documentar y tipar cada macro con `--macro-desc`/`--macro-type`.
-- **`state` estructurado en lugar de concatenar texto**: un objeto con campos
-  separados se evalúa mejor que un párrafo plano, y permite rutas anidadas.
-- **Describe las macros** (`--macro-desc`) y, si hay un dominio finito,
-  **tipa con `--macro-type` o `--macro-schema`**: ayuda a los agentes a generar
-  contextos válidos (y a la tool MCP por plantilla).
-- **`render` antes de gastar tokens**: resuelve y valida sin llamar a la API;
-  es el dry-run barato.
-- **`--no-save` y `--db` temporal en scripts** para no contaminar el historial
-  ni la base del usuario.
-- Recuerda que descripción y esquema de macro **no se envían a Jev**: son
-  metadatos locales, no cambian el resultado.
+- **Version the bodies in the repo** (e.g. `templates/*.json`) and create them
+  in CI with `jev template create --file`; that way the template is
+  reproducible and auditable.
+- **One macro per context variable**: `{{order_state}}` and
+  `{{customer.name}}` separately, instead of a single concatenated `{{all}}`.
+  It makes it easier to document and type each macro with
+  `--macro-desc`/`--macro-type`.
+- **Structured `state` instead of concatenating text**: an object with separate
+  fields is evaluated better than a flat paragraph, and it enables nested
+  paths.
+- **Describe the macros** (`--macro-desc`) and, if there is a finite domain,
+  **type them with `--macro-type` or `--macro-schema`**: it helps agents
+  generate valid contexts (and the per-template MCP tool).
+- **`render` before spending tokens**: it resolves and validates without
+  calling the API; it is the cheap dry run.
+- **`--no-save` and a temporary `--db` in scripts** to avoid polluting the
+  history or the user's database.
+- Remember that a macro's description and schema **are not sent to Jev**: they
+  are local metadata and do not change the result.

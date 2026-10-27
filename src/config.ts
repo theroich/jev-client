@@ -1,10 +1,10 @@
 import type { ConfigValues } from "./config-repository.js";
 
-/** Endpoint de OpenCode para la API System One de TypeSafe. */
+/** OpenCode endpoint for the TypeSafe System One API. */
 export const DEFAULT_ENDPOINT =
   "https://opencode.ai/inference/systemone/v1/systemone";
 
-/** Modelo de pago; usa "jev-1.13-free" para el gratuito. */
+/** Paid model; use "jev-1.13-free" for the free one. */
 export const DEFAULT_MODEL = "jev-1.13";
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_RETRIES = 2;
@@ -28,8 +28,8 @@ export interface ResolvedConfig {
 }
 
 /**
- * Precedencia: flag > variable de entorno > base de datos > valor por defecto.
- * Las cadenas vacías se tratan como "no definido".
+ * Precedence: flag > environment variable > database > default value.
+ * Empty strings are treated as "undefined".
  */
 export function resolveConfig(
   flags: ConfigFlags = {},
@@ -47,10 +47,10 @@ export function resolveConfig(
     DEFAULT_RETRIES;
 
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error("timeout debe ser un número positivo en segundos");
+    throw new Error("timeout must be a positive number of seconds");
   }
   if (!Number.isInteger(retries) || retries < 0) {
-    throw new Error("retries debe ser un entero >= 0");
+    throw new Error("retries must be an integer >= 0");
   }
 
   return {
@@ -70,8 +70,8 @@ export function resolveConfig(
 }
 
 /**
- * Precedencia: flag > entorno > modelo del request > base de datos > defecto.
- * El modelo explícito del request se conserva por compatibilidad.
+ * Precedence: flag > environment > request model > database > default.
+ * The explicit request model is preserved for compatibility.
  */
 export function resolveModel(
   flagModel: string | undefined,

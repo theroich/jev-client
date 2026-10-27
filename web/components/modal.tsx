@@ -97,7 +97,7 @@ export function Modal({
       >
         <div className="modal-head">
           <h2 id={titleId}>{title}</h2>
-          <IconButton label="Cerrar" onClick={onClose}><Icon name="close" /></IconButton>
+          <IconButton label="Close" onClick={onClose}><Icon name="close" /></IconButton>
         </div>
         <div className="modal-body">{children}</div>
         {footer ? <div className="modal-foot">{footer}</div> : null}
@@ -129,9 +129,9 @@ export function ConfirmModal({
       title={title}
       onClose={onClose}
       footer={<>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
         <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} disabled={busy}>
-          {busy ? "Aplicando…" : confirmLabel}
+          {busy ? "Applying…" : confirmLabel}
         </Button>
       </>}
     >

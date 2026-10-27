@@ -18,8 +18,8 @@ import { TemplateRepository } from "../src/template-repository.js";
 
 const TEMPLATE_BODY = JSON.stringify({
   model: "jev-1.13",
-  state: { ticket: "{{ticket}}", cliente: "{{cliente.nombre}}" },
-  questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  state: { ticket: "{{ticket}}", customer: "{{customer.name}}" },
+  questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
 });
 
 function fakeFetch(): FetchLike {
@@ -90,40 +90,40 @@ async function callText(
   return { isError: result.isError as boolean | undefined, json: JSON.parse(text) };
 }
 
-test("tools/list publica las tools fijas y una por plantilla", async (t) => {
+test("tools/list publishes the built-in tools and one per template", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "Pedido de soporte", TEMPLATE_BODY, [
-    { name: "ticket", description: "Identificador del pedido" },
-    { name: "cliente.nombre", description: "Nombre del cliente" },
+  new TemplateRepository(ctx.service.db).save("order", "Order request", TEMPLATE_BODY, [
+    { name: "ticket", description: "Order identifier" },
+    { name: "customer.name", description: "Customer name" },
   ]);
 
   const list = (await client.listTools()) as ListToolsResult;
   const names = list.tools.map((tool) => tool.name);
   assert.ok(names.includes("jev_overview"));
-  assert.ok(names.includes("pedido"));
+  assert.ok(names.includes("order"));
 
-  const dynamic = list.tools.find((tool) => tool.name === "pedido");
+  const dynamic = list.tools.find((tool) => tool.name === "order");
   assert.ok(dynamic);
-  assert.equal(dynamic.description, "Pedido de soporte");
+  assert.equal(dynamic.description, "Order request");
   const schema = dynamic.inputSchema as unknown as {
     additionalProperties: boolean;
     required: string[];
     properties: Record<string, { description?: string }>;
   };
   assert.equal(schema.additionalProperties, false);
-  assert.deepEqual(schema.required, ["cliente.nombre", "ticket"]);
-  assert.equal(schema.properties["cliente.nombre"]?.description, "Nombre del cliente");
+  assert.deepEqual(schema.required, ["customer.name", "ticket"]);
+  assert.equal(schema.properties["customer.name"]?.description, "Customer name");
 });
 
-test("invocar la tool de una plantilla ejecuta y guarda con source=mcp", async (t) => {
+test("invoking a template tool executes and stores with source=mcp", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
 
-  const result = await callText(client, "pedido", {
+  const result = await callText(client, "order", {
     ticket: "TCK-1",
-    "cliente.nombre": "Ana",
+    "customer.name": "Ana",
   });
   assert.equal(result.isError, undefined);
   const payload = result.json as { requestId: number; answers: Record<string, unknown> };
@@ -131,25 +131,25 @@ test("invocar la tool de una plantilla ejecuta y guarda con source=mcp", async (
   assert.equal((payload.answers as { urgent: { noul: number } }).urgent.noul, 0.9);
 
   const row = new RequestRepository(ctx.service.db).get(payload.requestId);
-  assert.equal(row?.templateName, "pedido");
+  assert.equal(row?.templateName, "order");
   assert.equal(row?.source, "mcp");
 });
 
-test("jev_ask y jev_batch persisten y devuelven requestId/batch_id", async (t) => {
+test("jev_ask and jev_batch persist and return requestId/batch_id", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
 
   const ask = await callText(client, "jev_ask", {
-    state: "hola",
-    questions: { q: { type: "noul", instructions: "¿?" } },
+    state: "hello",
+    questions: { q: { type: "noul", instructions: "?" } },
   });
   assert.equal(ask.isError, undefined);
   assert.equal(typeof (ask.json as { requestId: number }).requestId, "number");
 
   const batch = await callText(client, "jev_batch", {
-    template: "pedido",
-    contexts: [{ ticket: "a", "cliente.nombre": "Ana" }, { ticket: "b", "cliente.nombre": "Luis" }],
+    template: "order",
+    contexts: [{ ticket: "a", "customer.name": "Ana" }, { ticket: "b", "customer.name": "Luis" }],
   });
   assert.equal(batch.isError, undefined);
   const batchJson = batch.json as { batchId: string; items: Array<{ requestId: number }> };
@@ -159,7 +159,7 @@ test("jev_ask y jev_batch persisten y devuelven requestId/batch_id", async (t) =
   assert.equal(new RequestRepository(ctx.service.db).get(firstItem.requestId)?.batchId, batchJson.batchId);
 });
 
-test("las mutaciones emiten tools/list_changed", async (t) => {
+test("mutations emit tools/list_changed", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
   const changed: string[] = [];
@@ -168,39 +168,39 @@ test("las mutaciones emiten tools/list_changed", async (t) => {
   });
 
   await callText(client, "jev_template_create", {
-    name: "nueva",
+    name: "draft",
     body: TEMPLATE_BODY,
   });
   assert.equal(changed.length, 1);
 
-  await callText(client, "jev_template_update", { name: "nueva", renameTo: "renombrada" });
+  await callText(client, "jev_template_update", { name: "draft", renameTo: "renamed" });
   assert.equal(changed.length, 2);
 
   const list = (await client.listTools()) as ListToolsResult;
-  assert.ok(list.tools.some((tool) => tool.name === "renombrada"));
-  assert.ok(!ctx.templates.get("nueva"));
+  assert.ok(list.tools.some((tool) => tool.name === "renamed"));
+  assert.ok(!ctx.templates.get("draft"));
 });
 
-test("jev_template_render no llama a Jev y falla listando ausentes", async (t) => {
+test("jev_template_render does not call Jev and fails listing missing macros", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
 
   const ok = await callText(client, "jev_template_render", {
-    name: "pedido",
-    context: { ticket: "x", "cliente.nombre": "Ana" },
+    name: "order",
+    context: { ticket: "x", "customer.name": "Ana" },
   });
   assert.equal(ok.isError, undefined);
 
   const missing = await callText(client, "jev_template_render", {
-    name: "pedido",
+    name: "order",
     context: { ticket: "x" },
   });
   assert.equal(missing.isError, true);
   assert.equal((missing.json as { code: string }).code, "invalid_render");
 });
 
-test("jev_config_get enmascara la API key", async (t) => {
+test("jev_config_get masks the API key", async (t) => {
   const { client, ctx, close } = await connect({}, {});
   t.after(close);
   new ConfigRepository(ctx.service.db).set("api_key", "sk-super-secret-key-123456");
@@ -212,20 +212,20 @@ test("jev_config_get enmascara la API key", async (t) => {
   assert.ok(payload.apiKeyMasked.includes("…"));
 });
 
-test("--no-execute oculta las tools de ejecución y las dinámicas", async (t) => {
+test("--no-execute hides the execution and dynamic tools", async (t) => {
   const { client, ctx, close } = await connect({ noExecute: true });
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
 
   const list = (await client.listTools()) as ListToolsResult;
   const names = list.tools.map((tool) => tool.name);
   assert.ok(!names.includes("jev_ask"));
   assert.ok(!names.includes("jev_batch"));
-  assert.ok(!names.includes("pedido"));
+  assert.ok(!names.includes("order"));
   assert.ok(names.includes("jev_template_list"));
 });
 
-test("--read-only deshabilita mutaciones; --allow-destructive habilita delete", async (t) => {
+test("--read-only disables mutations; --allow-destructive enables delete", async (t) => {
   const readOnly = await connect({ readOnly: true });
   t.after(readOnly.close);
   const readOnlyList = (await readOnly.client.listTools()) as ListToolsResult;
@@ -239,41 +239,41 @@ test("--read-only deshabilita mutaciones; --allow-destructive habilita delete", 
   assert.ok(destructiveList.tools.some((tool) => tool.name === "jev_template_delete"));
 });
 
-test("borrar exige confirm y no está disponible sin --allow-destructive", async (t) => {
+test("delete requires confirm and is unavailable without --allow-destructive", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
-  new TemplateRepository(ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
 
-  const notFound = await callText(client, "jev_template_delete", { name: "pedido", confirm: true });
+  const notFound = await callText(client, "jev_template_delete", { name: "order", confirm: true });
   assert.equal(notFound.isError, true);
   assert.equal((notFound.json as { code: string }).code, "tool_not_found");
 
   const destructive = await connect({ allowDestructive: true });
   t.after(destructive.close);
-  new TemplateRepository(destructive.ctx.service.db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(destructive.ctx.service.db).save("order", "", TEMPLATE_BODY);
 
-  const noConfirm = await callText(destructive.client, "jev_template_delete", { name: "pedido" });
+  const noConfirm = await callText(destructive.client, "jev_template_delete", { name: "order" });
   assert.equal(noConfirm.isError, true);
   assert.equal((noConfirm.json as { code: string }).code, "confirmation_required");
 
-  const confirmed = await callText(destructive.client, "jev_template_delete", { name: "pedido", confirm: true });
+  const confirmed = await callText(destructive.client, "jev_template_delete", { name: "order", confirm: true });
   assert.equal(confirmed.isError, undefined);
 });
 
-test("errores de plantilla llegan como isError con código", async (t) => {
+test("template errors come back as isError with a code", async (t) => {
   const { client, close } = await connect();
   t.after(close);
 
-  const result = await callText(client, "jev_template_get", { name: "inexistente" });
+  const result = await callText(client, "jev_template_get", { name: "missing" });
   assert.equal(result.isError, true);
   assert.equal((result.json as { code: string }).code, "template_not_found");
 });
 
-test("jev_history_list y jev_history_get exponen source", async (t) => {
+test("jev_history_list and jev_history_get expose source", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
 
-  await callText(client, "jev_ask", { state: "hola", questions: { q: { type: "noul", instructions: "¿?" } } });
+  await callText(client, "jev_ask", { state: "hello", questions: { q: { type: "noul", instructions: "?" } } });
   const list = await callText(client, "jev_history_list");
   const rows = list.json as Array<{ id: number; source: string }>;
   assert.ok(rows.length >= 1);
@@ -295,13 +295,13 @@ function pngBase64(width: number, height: number): string {
   return buffer.toString("base64");
 }
 
-test("jev_ask acepta assets y los redacta al persistir", async (t) => {
+test("jev_ask accepts assets and redacts them when persisting", async (t) => {
   const { client, ctx, close } = await connect();
   t.after(close);
 
   const result = await callText(client, "jev_ask", {
-    state: { foto: "ref-1" },
-    questions: { animal: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+    state: { photo: "ref-1" },
+    questions: { animal: { type: "noul", instructions: "What is in ref-1?" } },
     assets: { "ref-1": { data_base64: pngBase64(300, 300), format: "png" } },
   });
   assert.equal(result.isError, undefined);
@@ -311,7 +311,7 @@ test("jev_ask acepta assets y los redacta al persistir", async (t) => {
   assert.equal((row.requestJson ?? "").includes("data_base64"), false);
 });
 
-test("jev_image_check devuelve dimensiones y el motivo del rechazo", async (t) => {
+test("jev_image_check returns dimensions and the rejection reason", async (t) => {
   const { client, close } = await connect();
   t.after(close);
 
@@ -332,10 +332,10 @@ test("jev_image_check devuelve dimensiones y el motivo del rechazo", async (t) =
   });
   const smallJson = small.json as { ok: boolean; reason: string | null };
   assert.equal(smallJson.ok, false);
-  assert.match(smallJson.reason ?? "", /mínimo por lado/);
+  assert.match(smallJson.reason ?? "", /minimum per side/);
 });
 
-test("jev_image_check valida el base64 antes de decodificar", async (t) => {
+test("jev_image_check validates base64 before decoding", async (t) => {
   const { client, close } = await connect();
   t.after(close);
 

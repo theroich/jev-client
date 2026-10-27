@@ -24,7 +24,7 @@ function formValues(snapshot: ConfigSnapshot): Record<ConfigKey, string> {
 
 function entry(snapshot: ConfigSnapshot, key: ConfigKey): ConfigEntryDto {
   const found = snapshot.entries.find((item) => item.key === key);
-  if (!found) throw new Error(`Falta ${key} en el DTO de configuración`);
+  if (!found) throw new Error(`Missing ${key} in the configuration DTO`);
   return found;
 }
 
@@ -33,14 +33,14 @@ function validate(values: Record<ConfigKey, string>): string[] {
   if (values.api_url) {
     try {
       const url = new URL(values.api_url);
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error("protocolo");
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error("protocol");
     } catch {
-      errors.push("api_url debe ser una URL completa http(s)://…");
+      errors.push("api_url must be a complete http(s)://… URL");
     }
   }
-  if (values.timeout && (!Number.isFinite(Number(values.timeout)) || Number(values.timeout) <= 0)) errors.push("timeout debe ser un número positivo en segundos.");
-  if (values.retries && (!Number.isInteger(Number(values.retries)) || Number(values.retries) < 0)) errors.push("retries debe ser un entero ≥ 0.");
-  if (values.model && !values.model.trim()) errors.push("model no puede contener solo espacios.");
+  if (values.timeout && (!Number.isFinite(Number(values.timeout)) || Number(values.timeout) <= 0)) errors.push("timeout must be a positive number of seconds.");
+  if (values.retries && (!Number.isInteger(Number(values.retries)) || Number(values.retries) < 0)) errors.push("retries must be an integer ≥ 0.");
+  if (values.model && !values.model.trim()) errors.push("model cannot be only spaces.");
   return errors;
 }
 
@@ -75,7 +75,7 @@ export function ConfigScreen({ initialSnapshot }: { initialSnapshot: ConfigSnaps
       const result = await request<{ value: string }>("/api/config/api_key/reveal", { method: "POST", body: "{}" });
       setValues((current) => ({ ...current, api_key: result.value }));
       setRevealed(true);
-      notify("API key revelada solo en este formulario; no se guarda en localStorage");
+      notify("API key revealed in this form only; it is not stored in localStorage");
     } catch (caught) {
       setError(describeApiError(caught));
     } finally {
@@ -94,7 +94,7 @@ export function ConfigScreen({ initialSnapshot }: { initialSnapshot: ConfigSnaps
       setValues(formValues(next));
       setDirty(new Set());
       setRevealed(false);
-      notify("Configuración guardada en SQLite");
+      notify("Settings saved to SQLite");
       router.refresh();
     } catch (caught) {
       setError(describeApiError(caught));
@@ -114,7 +114,7 @@ export function ConfigScreen({ initialSnapshot }: { initialSnapshot: ConfigSnaps
       setRevealed(false);
       setResetOpen(false);
       setLastCommand("jev config list --json");
-      notify("Valores SQLite eliminados; vuelve a aplicar entorno y defaults");
+      notify("SQLite values removed; environment and defaults apply again");
       router.refresh();
     } catch (caught) {
       setError(describeApiError(caught));
@@ -129,55 +129,55 @@ export function ConfigScreen({ initialSnapshot }: { initialSnapshot: ConfigSnaps
   return (
     <section>
       <ScreenHead
-        eyebrow="Sistema · jev config"
-        title="Configuración"
-        description={<>Precedencia: <strong>flag &gt; entorno &gt; SQLite &gt; defecto</strong>. Las cadenas vacías hacen <code>unset</code>; no se escriben defaults al restablecer.</>}
-        actions={<Button variant="primary" onClick={() => void save()} disabled={saving || dirty.size === 0 || errors.length > 0}>{saving ? "Guardando…" : `Guardar cambios${dirty.size ? ` (${dirty.size})` : ""}`}</Button>}
+        eyebrow="System · jev config"
+        title="Settings"
+        description={<>Precedence: <strong>flag &gt; environment &gt; SQLite &gt; default</strong>. Empty strings <code>unset</code> the key; defaults are not written on reset.</>}
+        actions={<Button variant="primary" onClick={() => void save()} disabled={saving || dirty.size === 0 || errors.length > 0}>{saving ? "Saving…" : `Save changes${dirty.size ? ` (${dirty.size})` : ""}`}</Button>}
       />
-      {error ? <div className="mt-12"><Callout tone="danger">{error.message}{error.hint ? <><br /><strong>pista:</strong> {error.hint}</> : null}</Callout></div> : null}
+      {error ? <div className="mt-12"><Callout tone="danger">{error.message}{error.hint ? <><br /><strong>hint:</strong> {error.hint}</> : null}</Callout></div> : null}
       <div className="grid grid-config">
         <div className="stack">
-          <Panel title="Provider" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>tabla config</span>}>
+          <Panel title="Provider" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>config table</span>}>
             <div className="stack" style={{ gap: 12 }}>
-              <ConfigField label="api_url · endpoint completo" keyName="api_url" value={values.api_url} source={source("api_url")} readOnly={readOnly("api_url")} onChange={update} />
+              <ConfigField label="api_url · full endpoint" keyName="api_url" value={values.api_url} source={source("api_url")} readOnly={readOnly("api_url")} onChange={update} />
               <div className="field">
                 <label htmlFor="config-api_key">api_key</label>
-                <div className="row" style={{ gap: 8 }}><input id="config-api_key" className="input mono" spellCheck={false} autoComplete="off" value={values.api_key} readOnly={readOnly("api_key")} onChange={(event) => update("api_key", event.target.value)} /><Button size="sm" onClick={() => void reveal()} disabled={saving || dirty.has("api_key")} title={dirty.has("api_key") ? "Guarda o descarta la nueva key antes de revelar" : "Revelado explícito con Cache-Control: no-store"}>{revealed ? "Ocultar" : "Revelar"}</Button></div>
-                <p className="hint">origen: {sourceLabel(source("api_key"))}{readOnly("api_key") ? " · solo lectura por flag" : ""}</p>
-                <Callout>La key se guarda <strong>en claro</strong> en SQLite. Para no persistirla, usa <code>--key</code> o <code>OPENCODE_API_KEY</code>/<code>JEV_API_KEY</code>. Nunca se usa localStorage.</Callout>
+                <div className="row" style={{ gap: 8 }}><input id="config-api_key" className="input mono" spellCheck={false} autoComplete="off" value={values.api_key} readOnly={readOnly("api_key")} onChange={(event) => update("api_key", event.target.value)} /><Button size="sm" onClick={() => void reveal()} disabled={saving || dirty.has("api_key")} title={dirty.has("api_key") ? "Save or discard the new key before revealing" : "Explicit reveal with Cache-Control: no-store"}>{revealed ? "Hide" : "Reveal"}</Button></div>
+                <p className="hint">source: {sourceLabel(source("api_key"))}{readOnly("api_key") ? " · read-only from flag" : ""}</p>
+                <Callout>The key is stored <strong>in clear text</strong> in SQLite. To avoid persisting it, use <code>--key</code> or <code>OPENCODE_API_KEY</code>/<code>JEV_API_KEY</code>. localStorage is never used.</Callout>
               </div>
               <div className="inline-fields">
-                <ConfigField label="model · valor libre" keyName="model" value={values.model} source={source("model")} readOnly={readOnly("model")} onChange={update} />
+                <ConfigField label="model · free value" keyName="model" value={values.model} source={source("model")} readOnly={readOnly("model")} onChange={update} />
                 <ConfigField label="timeout (s)" keyName="timeout" value={values.timeout} source={source("timeout")} readOnly={readOnly("timeout")} onChange={update} type="number" />
                 <ConfigField label="retries" keyName="retries" value={values.retries} source={source("retries")} readOnly={readOnly("retries")} onChange={update} type="number" />
               </div>
-              {errors.length ? <div className="form-error" role="alert">{errors.map((message) => <p key={message}>{message}</p>)}</div> : <p className="hint">Valores válidos. Solo se envían las claves modificadas.</p>}
-              <div className="row-between"><span className="hint">{dirty.size ? `${dirty.size} claves modificadas` : "Sin cambios"}</span><Button variant="ghost" size="sm" onClick={() => setResetOpen(true)}>Restablecer por defecto</Button></div>
+              {errors.length ? <div className="form-error" role="alert">{errors.map((message) => <p key={message}>{message}</p>)}</div> : <p className="hint">Valid values. Only modified keys are sent.</p>}
+              <div className="row-between"><span className="hint">{dirty.size ? `${dirty.size} keys modified` : "No changes"}</span><Button variant="ghost" size="sm" onClick={() => setResetOpen(true)}>Reset to defaults</Button></div>
             </div>
           </Panel>
-          <Panel title="Petición HTTP">
-            <KvList items={[["reintenta en", "429, 5xx y errores de red"], ["backoffMs", <span className="code-value" key="backoff">500 ms</span>], ["tope Retry-After", <span className="code-value" key="retry">10 s</span>], ["401", "no se reintenta"]]} />
-            <div className="mt-12"><Callout tone="info">El Retry-After se capa a 10 s. Los reintentos se cuentan por intento HTTP, no por pregunta.</Callout></div>
+          <Panel title="HTTP request">
+            <KvList items={[["retries on", "429, 5xx and network errors"], ["backoffMs", <span className="code-value" key="backoff">500 ms</span>], ["Retry-After cap", <span className="code-value" key="retry">10 s</span>], ["401", "no retry"]]} />
+            <div className="mt-12"><Callout tone="info">Retry-After is capped at 10 s. Retries are counted per HTTP attempt, not per question.</Callout></div>
           </Panel>
         </div>
 
         <div className="stack">
-          <Panel title="Precedencia resuelta" tight>
-            {snapshot.entries.map((item) => <div className="prec-row" key={item.key}><span className="k">{item.key}</span><span className="v" title={item.masked}>{item.masked || "—"}</span><span className={`chip${item.source === "flag" ? "" : " chip-soft"}`}>{sourceLabel(item.source)}{!item.editable ? " · bloqueada" : ""}</span></div>)}
-            <div className="panel-body"><p className="hint">flag fija solo esta sesión. Un valor de entorno permite editar SQLite, pero seguirá teniendo prioridad hasta retirar la variable.</p></div>
+          <Panel title="Resolved precedence" tight>
+            {snapshot.entries.map((item) => <div className="prec-row" key={item.key}><span className="k">{item.key}</span><span className="v" title={item.masked}>{item.masked || "—"}</span><span className={`chip${item.source === "flag" ? "" : " chip-soft"}`}>{sourceLabel(item.source)}{!item.editable ? " · locked" : ""}</span></div>)}
+            <div className="panel-body"><p className="hint">flag only fixes this session. An environment value allows editing SQLite, but keeps priority until the variable is removed.</p></div>
           </Panel>
-          <Panel title="Base de datos" action={<span className="pill pill-info">esquema {snapshot.database.schemaVersion}</span>}>
-            <div className="row" style={{ gap: 6 }}><code className="code-value" style={{ flex: 1 }}>{snapshot.database.path}</code><IconButton label="Copiar ruta" onClick={() => void copy(snapshot.database.path)}><Icon name="copy" /></IconButton></div>
-            <div className="mt-12"><KvList items={[["permisos", <span className="code-value" key="permissions">{snapshot.database.directoryMode} / {snapshot.database.fileMode}</span>], ["migraciones", <span className="code-value" key="migrations">PRAGMA user_version</span>], ["tablas", <span className="code-value" key="tables">{snapshot.database.tables.join(" · ")}</span>]]} /></div>
-            <p className="hint mt-12">La CLI y Next comparten conexión lógica, migraciones y repositorios parametrizados sobre esta misma base.</p>
+          <Panel title="Database" action={<span className="pill pill-info">schema {snapshot.database.schemaVersion}</span>}>
+            <div className="row" style={{ gap: 6 }}><code className="code-value" style={{ flex: 1 }}>{snapshot.database.path}</code><IconButton label="Copy path" onClick={() => void copy(snapshot.database.path)}><Icon name="copy" /></IconButton></div>
+            <div className="mt-12"><KvList items={[["permissions", <span className="code-value" key="permissions">{snapshot.database.directoryMode} / {snapshot.database.fileMode}</span>], ["migrations", <span className="code-value" key="migrations">PRAGMA user_version</span>], ["tables", <span className="code-value" key="tables">{snapshot.database.tables.join(" · ")}</span>]]} /></div>
+            <p className="hint mt-12">The CLI and Next share the same logical connection, migrations and parameterized repositories on this database.</p>
           </Panel>
-          <Panel title="Códigos de salida">
-            <div className="stack" style={{ gap: 7 }}>{[["0", "correcto"], ["1", "error de API, red o configuración"], ["2", "uso incorrecto"]].map(([code, label]) => <div className="row-between" key={code}><span className="mono">{code}</span><span className="text-muted">{label}</span></div>)}</div>
+          <Panel title="Exit codes">
+            <div className="stack" style={{ gap: 7 }}>{[["0", "success"], ["1", "API, network or configuration error"], ["2", "misuse"]].map(([code, label]) => <div className="row-between" key={code}><span className="mono">{code}</span><span className="text-muted">{label}</span></div>)}</div>
           </Panel>
         </div>
       </div>
       <CliBar command={lastCommand} />
-      {resetOpen ? <ConfirmModal title="Restablecer configuración" description="Se hará unset de las claves editables en SQLite. No se escriben valores por defecto y no se tocan flags de esta sesión; entorno y defaults vuelven a aplicar según la precedencia." confirmLabel="Restablecer" busy={saving} onClose={() => setResetOpen(false)} onConfirm={() => void reset()} /> : null}
+      {resetOpen ? <ConfirmModal title="Reset settings" description="Editable keys will be unset in SQLite. Default values are not written and this session flags are untouched; environment and defaults apply again following the precedence." confirmLabel="Reset" busy={saving} onClose={() => setResetOpen(false)} onConfirm={() => void reset()} /> : null}
     </section>
   );
 }
@@ -191,9 +191,9 @@ function ConfigField({ label, keyName, value, source, readOnly, onChange, type =
   onChange(key: ConfigKey, value: string): void;
   type?: "text" | "number";
 }) {
-  return <div className="field"><label htmlFor={`config-${keyName}`}>{label}</label><input id={`config-${keyName}`} className="input mono" type={type} min={keyName === "retries" ? 0 : keyName === "timeout" ? 0.001 : undefined} step={keyName === "retries" ? 1 : "any"} value={value} readOnly={readOnly} onChange={(event) => onChange(keyName, event.target.value)} /><p className="hint">origen: {sourceLabel(source)}{readOnly ? " · cambio en SQLite sin efecto esta sesión" : ""}</p></div>;
+  return <div className="field"><label htmlFor={`config-${keyName}`}>{label}</label><input id={`config-${keyName}`} className="input mono" type={type} min={keyName === "retries" ? 0 : keyName === "timeout" ? 0.001 : undefined} step={keyName === "retries" ? 1 : "any"} value={value} readOnly={readOnly} onChange={(event) => onChange(keyName, event.target.value)} /><p className="hint">source: {sourceLabel(source)}{readOnly ? " · SQLite change has no effect this session" : ""}</p></div>;
 }
 
 function sourceLabel(source: ConfigEntryDto["source"]): string {
-  return { flag: "flag", env: "entorno", sqlite: "SQLite", default: "defecto" }[source];
+  return { flag: "flag", env: "environment", sqlite: "SQLite", default: "default" }[source];
 }

@@ -1,7 +1,7 @@
 {
-  "estado_de_pedido": "Me han cobrado dos veces y quiero el reembolso.",
-  "cliente": {
-    "nombre": "Ana",
+  "order_state": "I was charged twice and I want a refund.",
+  "customer": {
+    "name": "Ana",
     "plan": "pro"
   }
 }

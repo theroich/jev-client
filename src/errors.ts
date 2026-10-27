@@ -1,4 +1,4 @@
-/** Error devuelto por la API de Jev. */
+/** Error returned by the Jev API. */
 export class JevApiError extends Error {
   override readonly name = "JevApiError";
 
@@ -12,18 +12,18 @@ export class JevApiError extends Error {
   }
 }
 
-/** Pista compartida por CLI, API local y resultados de lotes. */
+/** Hint shared by the CLI, the local API and batch results. */
 export function jevErrorHint(error: JevApiError): string | undefined {
   if (error.statusCode === 401 || error.code === "api_key_expired") {
     return (
-      "la API key no es válida o ha caducado. Crea una nueva en " +
-      "https://opencode.ai/console y expórtala como OPENCODE_API_KEY."
+      "the API key is not valid or has expired. Create a new one at " +
+      "https://opencode.ai/console and export it as OPENCODE_API_KEY."
     );
   }
   if (error.code === "FreeUsageLimitError" || error.statusCode === 429) {
     return (
-      "jev-1.13-free tiene límite de uso. Prueba con 'jev-1.13' " +
-      "o revisa https://opencode.ai/go."
+      "jev-1.13-free has a usage limit. Try 'jev-1.13' " +
+      "or check https://opencode.ai/go."
     );
   }
   if (
@@ -32,8 +32,8 @@ export function jevErrorHint(error: JevApiError): string | undefined {
     error.statusCode === 422
   ) {
     return (
-      "un 422 suele ser una pregunta mal formada (falta criteria, " +
-      "tipo inválido) o un fallo del upstream. Revisa " +
+      "a 422 is usually a malformed question (missing criteria, " +
+      "invalid type) or an upstream failure. Check " +
       "https://docs.typesafe.ai/primitives"
     );
   }

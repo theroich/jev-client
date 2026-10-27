@@ -1,114 +1,116 @@
-# Consola web local
+# Local web console
 
-La consola web es una interfaz sobre el mismo dominio que la CLI y la TUI: usa
-**Next.js 16.4.3 + React 19.3.1**, App Router y route handlers como BFF local.
-No sustituye `jev tui` ni requiere cuenta ni telemetría.
+The web console is an interface over the same domain as the CLI and the TUI: it
+uses **Next.js 16.4.3 + React 19.3.1**, the App Router and route handlers as a
+local BFF. It does not replace `jev tui` and requires no account and no
+telemetry.
 
 ```sh
 jev web-console
-jev --web-console                 # alias con los mismos flags
+jev --web-console                 # alias with the same flags
 jev web-console --port 0 --no-open
 ```
 
-Al arrancar migra la misma SQLite, espera `GET /api/health`, imprime URL, base,
-versión, esquema, PID y modo, y queda en primer plano. `Ctrl-C`/`SIGTERM` cierra
-el hijo y libera el puerto con salida `0`. Un puerto ocupado o un build ausente
-produce un error explícito; nunca elige otro puerto fijo en silencio.
+On startup it migrates the same SQLite database, waits for `GET /api/health`,
+prints URL, database, version, schema, PID and mode, and stays in the foreground.
+`Ctrl-C`/`SIGTERM` closes the child and frees the port with exit code `0`. A busy
+port or a missing build produces an explicit error; it never silently picks
+another fixed port.
 
 ## Flags
 
-| Flag | Default | Descripción |
+| Flag | Default | Description |
 | --- | --- | --- |
-| `--port <n>` | `7411` | Puerto de escucha; `0` elige uno libre. |
-| `--host <addr>` | `127.0.0.1` | Loopback salvo decisión explícita. |
-| `--allow-remote` | off | Necesario para LAN/`0.0.0.0`; mantiene token y aviso de seguridad. |
-| `--open` / `--no-open` | abrir con TTY | No abre con CI/SSH; `--no-open` es apto para headless. |
-| `--dev` | off | Usa `next dev` desde el checkout, no desde un paquete instalado. |
-| `--db <ruta>` | `JEV_DB` / ruta habitual | Base compartida con el resto de comandos. |
-| `--key`, `--url`, `--model` | — | Flags de sesión; prioridad máxima y no se persisten. |
-| `--timeout`, `--retries` | — | Segundos y reintentos de esta sesión. |
-| `-h`, `--help` | — | Ayuda específica de la consola. |
+| `--port <n>` | `7411` | Listening port; `0` picks a free one. |
+| `--host <addr>` | `127.0.0.1` | Loopback unless explicitly decided otherwise. |
+| `--allow-remote` | off | Required for LAN/`0.0.0.0`; keeps the token and the security warning. |
+| `--open` / `--no-open` | open with a TTY | Does not open with CI/SSH; `--no-open` is headless-friendly. |
+| `--dev` | off | Uses `next dev` from the checkout, not from an installed package. |
+| `--db <path>` | `JEV_DB` / usual path | Database shared with the other commands. |
+| `--key`, `--url`, `--model` | — | Session flags; highest priority and not persisted. |
+| `--timeout`, `--retries` | — | Seconds and retries for this session. |
+| `-h`, `--help` | — | Console-specific help. |
 
-`JEV_CONSOLE_DIR` permite indicar el directorio del standalone o, con `--dev`,
-el checkout web.
+`JEV_CONSOLE_DIR` lets you point to the standalone directory or, with `--dev`,
+to the web checkout.
 
-## Pantallas
+## Screens
 
-- **Resumen**: métricas reales de `requests`, últimas peticiones, precedencia del
-  provider y prueba de conexión real mínima (`state: "ping"`, `--no-save`).
-- **Evaluar**: `noul`, `choice` y `score`, state texto/JSON estricto, demo real,
-  `--no-save`, cancelación, informe de probabilidades y JSON crudo seguro. Las
-  respuestas siguen el orden de las preguntas del request. El selector admite el
-  modelo efectivo, los dos modelos conocidos y un valor libre.
-- **Plantillas**: búsqueda, crear/editar/validar/renderizar/renombrar/borrar,
-  macros anidadas y escapadas, cambios sin guardar, renombrado transaccional y
-  pestaña **Macros** con una descripción y un JSON Schema opcionales por macro.
-  Cada fila ofrece un selector de tipo básico y un editor avanzado de JSON
-  (formatear, validación en vivo y bloqueo del guardado si es inválido), con
-  resumen `N de M descritas · K con tipo`, guardado atómico con el body y aviso
-  al quitar una macro descrita o con esquema. Los metadatos se persisten en
-  `template_macros` (`description`, `schema_json`) y nunca se envían a Jev.
-  **Nueva plantilla** abre el modal **Empezar plantilla** con ejemplos válidos de
-  `noul`, `choice` y `score` (`src/template-starters.ts`); `noul` llega
-  preseleccionado, `choice` usa `criteria` como objeto de descripciones y `score`
-  como array ordenado. El editor queda libre después. Renderizar nunca llama a
-  Jev.
-- **Lotes**: el editor de contextos arranca con un esqueleto JSON a 2 espacios que
-  contiene una clave plana por macro de la plantilla activa (orden de
-  `detectMacros`), listo para rellenar. Al cambiar de plantilla se regenera solo
-  si no había ediciones; si las hay se conserva el texto y aparece la acción
-  **Rellenar con las macros de <plantilla>** (con confirmación). Un desplegable
-  **Macros de la plantilla** muestra `{{clave}}` y su descripción cuando existe,
-  y los valores todavía vacíos piden confirmación antes de ejecutar. Después,
-  pool real de 1–10 workers, progreso NDJSON por item, `fail-fast`, `--no-save`
-  y `batch_id` de servidor. Cancelar detiene el scheduling **y aborta las
-  peticiones en vuelo**, conservando las filas ya escritas y marcando el resto
-  como omitido.
-- **Historial**: filtros `since/status/model/template/batch/limit`, detalle por
-  pestañas y export `application/x-ndjson` con exactamente
-  `historyRecordToJson`. Los filtros viven en la URL. Límite 1–200, sin cursor
-  adicional en esta versión.
-- **Configuración**: guarda solo claves modificadas, enmascara/revela la key bajo
-  acción explícita y muestra `flag > entorno > SQLite > defecto`. Los campos
-  fijados por flag son de solo lectura. **Restablecer hace `unset`**, no escribe
-  defaults. Una cadena vacía también equivale a `unset`.
+- **Overview**: real metrics from `requests`, latest requests, provider
+  precedence and a minimal real connection test (`state: "ping"`, `--no-save`).
+- **Evaluate**: `noul`, `choice` and `score`, strict text/JSON state, real demo,
+  `--no-save`, cancellation, probability report and safe raw JSON. Responses
+  follow the order of the questions in the request. The selector accepts the
+  effective model, the two known models and a free value.
+- **Templates**: search, create/edit/validate/render/rename/delete, nested and
+  escaped macros, unsaved changes, transactional rename and a **Macros** tab with
+  an optional description and JSON Schema per macro. Each row offers a basic type
+  selector and an advanced JSON editor (format, live validation and blocked
+  saving if invalid), with the summary `N of M described · K typed`, atomic
+  saving together with the body and a warning when removing a described macro or
+  one with a schema. The metadata is persisted in `template_macros`
+  (`description`, `schema_json`) and never sent to Jev. **New template** opens the
+  **Start template** modal with valid examples of `noul`, `choice` and `score`
+  (`src/template-starters.ts`); `noul` is preselected, `choice` uses `criteria` as
+  an object of descriptions and `score` as an ordered array. The editor is free
+  afterwards. Rendering never calls Jev.
+- **Batches**: the context editor starts from a 2-space JSON skeleton containing
+  one flat key per macro of the active template (order of `detectMacros`), ready
+  to fill in. When switching templates it is regenerated only if there were no
+  edits; if there were, the text is kept and the action **Fill with the macros of
+  <template>** appears (with confirmation). A **Template macros** dropdown shows
+  `{{key}}` and its description when it exists, and values that are still empty
+  ask for confirmation before running. Then: real pool of 1–10 workers, NDJSON
+  progress per item, `fail-fast`, `--no-save` and a server-side `batch_id`.
+  Cancelling stops the scheduling **and aborts in-flight requests**, keeping the
+  rows already written and marking the rest as skipped.
+- **History**: `since/status/model/template/batch/limit` filters, detail by tabs
+  and `application/x-ndjson` export using exactly `historyRecordToJson`. Filters
+  live in the URL. Limit 1–200, with no additional cursor in this version.
+- **Settings**: saves only modified keys, masks/reveals the key under an explicit
+  action and shows `flag > environment > SQLite > default`. Fields fixed by a flag
+  are read-only. **Reset performs `unset`**, it does not write defaults. An empty
+  string is also equivalent to `unset`.
 
-Cada pantalla genera su tira **CLI equivalente** con comillas POSIX. La paleta
-`⌘K`/`Ctrl+K`, referencia CLI, toasts, modales con foco atrapado, estados
-loading/empty/error/success y los breakpoints del prototipo están incluidos. No
-se guardan secretos ni borradores en `localStorage`; solo se usan URLs para
-filtros/acciones. Las rutas permanecen en español por paridad con la UI.
+Each screen generates its **equivalent CLI** strip with POSIX quoting. The
+`⌘K`/`Ctrl+K` palette, CLI reference, toasts, modals with trapped focus,
+loading/empty/error/success states and the prototype breakpoints are included.
+No secrets or drafts are stored in `localStorage`; URLs are only used for
+filters/actions. Routes are in English: `/evaluate`, `/templates`, `/batches`,
+`/history` and `/settings`.
 
-## Seguridad local
+## Local security
 
-La URL impresa contiene un bootstrap aleatorio en el **fragmento**, que no viaja
-en peticiones HTTP. El navegador lo intercambia una sola vez por una cookie
-`HttpOnly; SameSite=Strict` y un token CSRF en memoria. Las mutaciones exigen
-cookie, `X-Jev-Console-Token` y validación de `Origin`/`Host`; la API vuelve a
-exigir sesión en cada handler. `/api/health` es la única lectura pública y no
-incluye secretos.
+The printed URL contains a random bootstrap in the **fragment**, which does not
+travel in HTTP requests. The browser exchanges it once for an
+`HttpOnly; SameSite=Strict` cookie and an in-memory CSRF token. Mutations require
+the cookie, `X-Jev-Console-Token` and `Origin`/`Host` validation; the API
+requires the session again in every handler. `/api/health` is the only public
+read and does not include secrets.
 
-La key nunca aparece en HTML inicial, listados, logs, URLs ni `localStorage`.
-Solo `POST /api/config/api_key/reveal`, con CSRF y `Cache-Control: no-store`, la
-devuelve. Se aplican CSP con nonce/`strict-dynamic`, `frame-ancestors 'none'`,
-`nosniff`, `Referrer-Policy: no-referrer`, límites de body/contextos y consultas
-SQLite parametrizadas. Fuentes, iconos, CSS y ejemplos se sirven localmente, sin
-CDN ni llamadas externas salvo Jev.
+The key never appears in the initial HTML, listings, logs, URLs or
+`localStorage`. Only `POST /api/config/api_key/reveal`, with CSRF and
+`Cache-Control: no-store`, returns it. CSP with nonce/`strict-dynamic`,
+`frame-ancestors 'none'`, `nosniff`, `Referrer-Policy: no-referrer`,
+body/context limits and parameterized SQLite queries are applied. Fonts, icons,
+CSS and examples are served locally, without a CDN or external calls other than
+Jev.
 
-`--allow-remote` no añade cuentas ni autorización multiusuario: expone una consola
-de administración local a clientes que tengan la URL inicial. Úsalo solo en redes
-de confianza.
+`--allow-remote` does not add accounts or multi-user authorization: it exposes a
+local administration console to clients that have the initial URL. Use it only
+on trusted networks.
 
-## Endpoints de documentación
+## Documentation endpoints
 
-La consola publica el mismo catálogo que usa MCP (requieren sesión de consola):
+The console publishes the same catalog used by MCP (they require a console
+session):
 
-- `GET /api/docs` — documento de la app.
-- `GET /api/docs/tools` y `GET /api/docs/tools/[name]` — catálogo de tools.
-- `GET /api/docs/mcp` — configuración del servidor.
-- `GET /api/docs/examples` — ejemplos end-to-end.
+- `GET /api/docs` — app document.
+- `GET /api/docs/tools` and `GET /api/docs/tools/[name]` — catalog of tools.
+- `GET /api/docs/mcp` — server configuration.
+- `GET /api/docs/examples` — end-to-end examples.
 
-## Desarrollo de la consola
+## Console development
 
 ```sh
 npm install

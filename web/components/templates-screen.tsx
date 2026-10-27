@@ -39,7 +39,7 @@ interface Draft {
   description: string;
   bodyJson: string;
   macroDescriptions: Record<string, string>;
-  /** Esquema compacto (o formateado) por macro; `""` = sin esquema. */
+  /** Compact (or formatted) schema per macro; `""` = no schema. */
   macroSchemas: Record<string, string>;
 }
 
@@ -55,7 +55,7 @@ function schemasFromMacros(macros: TemplateMacro[]): Record<string, string> {
   return Object.fromEntries(macros.map((macro) => [macro.name, schemaText(macro.schema)]));
 }
 
-/** Parsea y valida el texto de una fila; `null` si está vacío. */
+/** Parses and validates a row text; `null` when empty. */
 function parseMacroSchemaField(text: string): MacroSchema | null {
   if (text.trim() === "") return null;
   return validateMacroSchema(JSON.parse(text));
@@ -86,7 +86,7 @@ function macroSchemaTypeLabel(text: string): string | null {
   return null;
 }
 
-/** Valor comparable para `dirty`: objeto válido o texto tal cual si es inválido. */
+/** Comparable value for `dirty`: valid object or the raw text when invalid. */
 function macroSchemaForComparison(text: string): unknown {
   try {
     return parseMacroSchemaField(text);
@@ -95,7 +95,7 @@ function macroSchemaForComparison(text: string): unknown {
   }
 }
 
-/** Esquema compacto para guardar o copiar a la CLI; `null` si está vacío. */
+/** Compact schema to save or copy to the CLI; `null` when empty. */
 function macroSchemaValue(text: string): MacroSchema | null {
   try {
     return parseMacroSchemaField(text);
@@ -115,10 +115,10 @@ function macroSchemaHintId(macro: string): string {
 
 function uniqueDraftName(templates: TemplateSummary[]): string {
   const used = new Set(templates.map((template) => template.name));
-  if (!used.has("nueva-plantilla")) return "nueva-plantilla";
+  if (!used.has("new-template")) return "new-template";
   let index = 2;
-  while (used.has(`nueva-plantilla-${index}`)) index += 1;
-  return `nueva-plantilla-${index}`;
+  while (used.has(`new-template-${index}`)) index += 1;
+  return `new-template-${index}`;
 }
 
 function starterBodyJson(id: TemplateStarterId, model: string): string {
@@ -225,9 +225,9 @@ export function TemplatesScreen({
   );
   const nameError = useMemo(() => {
     if (!draft) return null;
-    if (!draft.name.trim()) return "El nombre no puede estar vacío.";
+    if (!draft.name.trim()) return "The name cannot be empty.";
     if (templates.some((template) => template.name === draft.name.trim() && template.name !== draft.originalName)) {
-      return "Ya existe una plantilla con ese nombre.";
+      return "A template with that name already exists.";
     }
     return null;
   }, [draft, templates]);
@@ -263,7 +263,7 @@ export function TemplatesScreen({
       if (!anchor || anchor.hasAttribute("download")) return;
       const href = anchor.getAttribute("href") ?? "";
       if (href.startsWith("#") || href.startsWith("mailto:")) return;
-      if (!window.confirm("Hay cambios sin guardar. ¿Salir y descartarlos?")) {
+      if (!window.confirm("There are unsaved changes. Leave and discard them?")) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -286,7 +286,7 @@ export function TemplatesScreen({
     setFocusName(false);
   }, [focusName]);
 
-  const filtered = templates.filter((template) => `${template.name} ${template.description}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
+  const filtered = templates.filter((template) => `${template.name} ${template.description}`.toLocaleLowerCase("en").includes(search.toLocaleLowerCase("en")));
   const updateSearch = (value: string) => {
     setSearch(value);
     const params = new URLSearchParams(window.location.search);
@@ -296,10 +296,10 @@ export function TemplatesScreen({
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
-  const confirmDiscard = () => !dirty || window.confirm("Hay cambios sin guardar. ¿Salir y descartarlos?");
+  const confirmDiscard = () => !dirty || window.confirm("There are unsaved changes. Leave and discard them?");
   const openTemplate = (name: string) => {
     if (!confirmDiscard()) return;
-    router.push(`/plantillas/${encodeURIComponent(name)}${search ? `?q=${encodeURIComponent(search)}` : ""}`);
+    router.push(`/templates/${encodeURIComponent(name)}${search ? `?q=${encodeURIComponent(search)}` : ""}`);
   };
   const startNew = () => {
     if (!confirmDiscard()) return;
@@ -313,7 +313,7 @@ export function TemplatesScreen({
     setTab("editor");
     setStarterOpen(false);
     setFocusName(true);
-    router.replace(`/plantillas?new=1&starter=${id}`, { scroll: false });
+    router.replace(`/templates?new=1&starter=${id}`, { scroll: false });
   };
 
   const save = async () => {
@@ -343,8 +343,8 @@ export function TemplatesScreen({
         }),
       });
       setDraft(fromDetail(saved));
-      notify(originalName ? "Plantilla guardada en SQLite" : "Plantilla creada en SQLite");
-      router.push(`/plantillas/${encodeURIComponent(name)}`);
+      notify(originalName ? "Template saved to SQLite" : "Template created in SQLite");
+      router.push(`/templates/${encodeURIComponent(name)}`);
       router.refresh();
     } catch (caught) {
       setError(describeApiError(caught));
@@ -358,9 +358,9 @@ export function TemplatesScreen({
     setSaving(true);
     try {
       await request(`/api/templates/${encodeURIComponent(draft.originalName)}`, { method: "DELETE" });
-      notify("Plantilla eliminada");
+      notify("Template deleted");
       setDeleteOpen(false);
-      router.push("/plantillas");
+      router.push("/templates");
       router.refresh();
     } catch (caught) {
       setError(describeApiError(caught));
@@ -373,7 +373,7 @@ export function TemplatesScreen({
     if (!draft || bodyError) return;
     const context = parseJsonObject(contextText);
     if (context.error || !context.value) {
-      setError({ message: `Contexto inválido: ${context.error}` });
+      setError({ message: `Invalid context: ${context.error}` });
       return;
     }
     setSaving(true);
@@ -384,7 +384,7 @@ export function TemplatesScreen({
         body: JSON.stringify({ bodyJson: draft.bodyJson, context: context.value }),
       });
       setRendered(result.request);
-      notify("Request resuelto sin llamar a la API");
+      notify("Request resolved without calling the API");
     } catch (caught) {
       setRendered(null);
       setError(describeApiError(caught));
@@ -417,7 +417,7 @@ export function TemplatesScreen({
         next = parsed as Record<string, unknown>;
       }
     } catch {
-      // Un borrador inválido se reemplaza por el tipo elegido.
+      // An invalid draft is replaced by the chosen type.
     }
     updateMacroSchema(name, JSON.stringify({ ...next, type }));
   };
@@ -427,7 +427,7 @@ export function TemplatesScreen({
     try {
       updateMacroSchema(name, JSON.stringify(JSON.parse(text), null, 2));
     } catch {
-      // El error en vivo ya informa del JSON inválido.
+      // The live error already reports the invalid JSON.
     }
   };
 
@@ -458,61 +458,61 @@ export function TemplatesScreen({
   const command = !draft ? "jev template list" : tab === "render"
     ? `jev template render ${shellQuote(draft.name)} --context-file context.json`
     : draft.originalName
-      ? withMacroFlags(`jev template edit ${shellQuote(draft.name)} --file plantilla.json`)
+      ? withMacroFlags(`jev template edit ${shellQuote(draft.name)} --file template.json`)
       : withMacroFlags(`jev template create ${shellQuote(draft.name)} --description ${shellQuote(draft.description)} --body ${shellQuote(createBody)}`);
 
   return (
     <section>
       <ScreenHead
-        eyebrow="Biblioteca · jev template"
-        title="Plantillas"
-        description={<>Requests de Jev con huecos <code>{"{{clave}}"}</code>. Se guardan en la tabla <code>templates</code> y usa las mismas macros que <code>jev batch</code>.</>}
-        actions={<Button onClick={startNew}><Icon name="plus" />Nueva plantilla</Button>}
+        eyebrow="Library · jev template"
+        title="Templates"
+        description={<>Jev requests with <code>{"{{key}}"}</code> placeholders. They are stored in the <code>templates</code> table and use the same macros as <code>jev batch</code>.</>}
+        actions={<Button onClick={startNew}><Icon name="plus" />New template</Button>}
       />
-      {missingName ? <div className="mt-12"><Callout tone="danger">No existe la plantilla «{missingName}». Puedes crear una nueva o elegir otra.</Callout></div> : null}
-      {error ? <div className="mt-12"><Callout tone="danger">{error.message}{error.hint ? <><br /><strong>pista:</strong> {error.hint}</> : null}</Callout></div> : null}
+      {missingName ? <div className="mt-12"><Callout tone="danger">The template “{missingName}” does not exist. You can create a new one or pick another.</Callout></div> : null}
+      {error ? <div className="mt-12"><Callout tone="danger">{error.message}{error.hint ? <><br /><strong>hint:</strong> {error.hint}</> : null}</Callout></div> : null}
       <div className="grid grid-tpl">
         <Panel tight>
-          <div className="search-wrap"><Icon name="search" /><input className="input" placeholder="Buscar plantilla…" aria-label="Buscar plantilla" value={search} onChange={(event) => updateSearch(event.target.value)} /></div>
-          <div className="tpl-list" role="listbox" aria-label="Plantillas">
+          <div className="search-wrap"><Icon name="search" /><input className="input" placeholder="Search templates…" aria-label="Search templates" value={search} onChange={(event) => updateSearch(event.target.value)} /></div>
+          <div className="tpl-list" role="listbox" aria-label="Templates">
             {filtered.map((template) => <button type="button" role="option" aria-selected={draft?.originalName === template.name} className="tpl-item" key={template.name} onClick={() => openTemplate(template.name)}>
-              <span className="t-name">{template.name}{draft?.originalName === template.name && dirty ? <span className="dirty-badge">sin guardar</span> : null}</span>
-              <span className="t-desc">{template.description || "Sin descripción"}</span>
+              <span className="t-name">{template.name}{draft?.originalName === template.name && dirty ? <span className="dirty-badge">unsaved</span> : null}</span>
+              <span className="t-desc">{template.description || "No description"}</span>
               <span className="t-meta"><span>{template.macros.length} macros</span><span suppressHydrationWarning>{relativeDate(template.updatedAt)}</span></span>
             </button>)}
-            {filtered.length === 0 ? <EmptyState title={templates.length === 0 ? "No hay plantillas" : "Sin coincidencias"} action={<Button size="sm" onClick={startNew}>Crear plantilla</Button>}>{templates.length === 0 ? "Crea la primera para reutilizar requests y ejecutar lotes." : "Prueba otra búsqueda por nombre o descripción."}</EmptyState> : null}
+            {filtered.length === 0 ? <EmptyState title={templates.length === 0 ? "No templates" : "No matches"} action={<Button size="sm" onClick={startNew}>Create template</Button>}>{templates.length === 0 ? "Create the first one to reuse requests and run batches." : "Try another search by name or description."}</EmptyState> : null}
           </div>
-          <div className="panel-foot"><span>{filtered.length} de {templates.length} plantillas</span><span className="mono" style={{ fontSize: 10.5 }}>templates</span></div>
+          <div className="panel-foot"><span>{filtered.length} of {templates.length} templates</span><span className="mono" style={{ fontSize: 10.5 }}>templates</span></div>
         </Panel>
 
-        {!draft ? <Panel><EmptyState title="Selecciona una plantilla" action={<Button variant="primary" onClick={startNew}>Nueva plantilla</Button>}>Elige una de la biblioteca para editar, validar o renderizar.</EmptyState></Panel> : (
+        {!draft ? <Panel><EmptyState title="Select a template" action={<Button variant="primary" onClick={startNew}>New template</Button>}>Pick one from the library to edit, validate or render.</EmptyState></Panel> : (
           <Panel tight>
             <div className="panel-body" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="inline-fields">
-                <div className="field"><label htmlFor="template-name">Nombre</label><input id="template-name" className="input mono" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} aria-invalid={Boolean(nameError)} /></div>
-                <div className="field" style={{ flexGrow: 2 }}><label htmlFor="template-description">Descripción</label><input id="template-description" className="input" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
+                <div className="field"><label htmlFor="template-name">Name</label><input id="template-name" className="input mono" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} aria-invalid={Boolean(nameError)} /></div>
+                <div className="field" style={{ flexGrow: 2 }}><label htmlFor="template-description">Description</label><input id="template-description" className="input" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
               </div>
               {nameError ? <p className="form-error">{nameError}</p> : null}
-              <div className="row-between mt-8"><span className="hint" suppressHydrationWarning>{draft.originalName && selected ? `creada ${new Date(selected.createdAt).toLocaleString("es-ES")} · actualizada ${new Date(selected.updatedAt).toLocaleString("es-ES")}` : "borrador nuevo"}{dirty ? " · cambios sin guardar" : ""}</span><span className="chip">{macros.length} macros</span></div>
+              <div className="row-between mt-8"><span className="hint" suppressHydrationWarning>{draft.originalName && selected ? `created ${new Date(selected.createdAt).toLocaleString("en-US")} · updated ${new Date(selected.updatedAt).toLocaleString("en-US")}` : "new draft"}{dirty ? " · unsaved changes" : ""}</span><span className="chip">{macros.length} macros</span></div>
             </div>
-            <Tabs label="Herramientas de plantilla" value={tab} onChange={(value) => { setTab(value); setError(null); }} items={[{ id: "editor", label: "Editor" }, { id: "render", label: "Renderizar" }, { id: "macros", label: "Macros" }]} />
+            <Tabs label="Template tools" value={tab} onChange={(value) => { setTab(value); setError(null); }} items={[{ id: "editor", label: "Editor" }, { id: "render", label: "Render" }, { id: "macros", label: "Macros" }]} />
             <div className="panel-body">
               {tab === "editor" ? <div className="stack" style={{ gap: 10 }}>
-                <textarea className="textarea" style={{ minHeight: 330 }} spellCheck={false} aria-label="Body JSON de la plantilla" aria-invalid={Boolean(bodyError)} value={draft.bodyJson} onChange={(event) => { setDraft({ ...draft, bodyJson: event.target.value }); setRendered(null); }} />
-                {bodyError ? <p className="form-error" role="alert">{bodyError}</p> : <p className="hint">Body válido: objeto con model, state y preguntas noul/choice/score. La validación usa validateTemplateBody.</p>}
+                <textarea className="textarea" style={{ minHeight: 330 }} spellCheck={false} aria-label="Template body JSON" aria-invalid={Boolean(bodyError)} value={draft.bodyJson} onChange={(event) => { setDraft({ ...draft, bodyJson: event.target.value }); setRendered(null); }} />
+                {bodyError ? <p className="form-error" role="alert">{bodyError}</p> : <p className="hint">Valid body: an object with model, state and noul/choice/score questions. Validation uses validateTemplateBody.</p>}
               </div> : null}
               {tab === "render" ? <div className="stack" style={{ gap: 10 }}>
-                <div className="field"><label htmlFor="template-context">Contexto JSON</label><textarea id="template-context" className="textarea" rows={8} spellCheck={false} value={contextText} onChange={(event) => { setContextText(event.target.value); setRendered(null); }} /></div>
-                <p className="hint">Resuelve todas las macros y valida el request sin enviarlo a Jev. Las claves ausentes se listan juntas.</p>
-                <Button variant="primary" onClick={() => void render()} disabled={saving || Boolean(bodyError)}>{saving ? "Resolviendo…" : "Renderizar sin enviar"}</Button>
+                <div className="field"><label htmlFor="template-context">Context JSON</label><textarea id="template-context" className="textarea" rows={8} spellCheck={false} value={contextText} onChange={(event) => { setContextText(event.target.value); setRendered(null); }} /></div>
+                <p className="hint">Resolves every macro and validates the request without sending it to Jev. Missing keys are listed together.</p>
+                <Button variant="primary" onClick={() => void render()} disabled={saving || Boolean(bodyError)}>{saving ? "Resolving…" : "Render without sending"}</Button>
                 {rendered ? <JsonBlock value={rendered} /> : null}
               </div> : null}
               {tab === "macros" ? <div className="stack" style={{ gap: 10 }}>
                 <div className="row-between" style={{ alignItems: "flex-start" }}>
-                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Claves necesarias detectadas en el draft. Se admiten rutas anidadas como <code>{"{{cliente.nombre}}"}</code>; <code>\{"{{literal}}"}</code> escapa una macro. La descripción y el esquema son opcionales y no se envían a Jev.</p>
+                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Required keys detected in the draft. Nested paths such as <code>{"{{customer.name}}"}</code> are supported; <code>\{"{{literal}}"}</code> escapes a macro. The description and schema are optional and are not sent to Jev.</p>
                   <div className="macro-summary" aria-live="polite">
-                    <span className="chip">{describedCount} de {macros.length} descritas</span>
-                    <span className="chip">{typedCount} con tipo</span>
+                    <span className="chip">{describedCount} of {macros.length} described</span>
+                    <span className="chip">{typedCount} typed</span>
                   </div>
                 </div>
                 {macros.length ? <div className="macro-rows">
@@ -531,16 +531,16 @@ export function TemplatesScreen({
                           {typeLabel ? <span className="chip chip-soft macro-type-chip">{typeLabel}</span> : null}
                         </span>
                         <div className="field">
-                          <label className="sr-only" htmlFor={`macro-description-${hintId}`}>Descripción de {"{{"}{macro}{"}}"}</label>
+                          <label className="sr-only" htmlFor={`macro-description-${hintId}`}>Description of {"{{"}{macro}{"}}"}</label>
                           <input
                             id={`macro-description-${hintId}`}
                             className="input"
                             type="text"
                             maxLength={500}
                             value={description}
-                            aria-label={`Descripción de {{${macro}}}`}
+                            aria-label={`Description of {{${macro}}}`}
                             aria-describedby="template-macros-hint"
-                            placeholder="Qué representa y qué formato/valores espera"
+                            placeholder="What it represents and which format/values it expects"
                             onChange={(event) => updateMacroDescription(macro, event.target.value)}
                             onKeyDown={(event) => {
                               if (event.key === "Escape" && description !== "") {
@@ -551,20 +551,20 @@ export function TemplatesScreen({
                           />
                         </div>
                         <div className="field macro-type-field">
-                          <label className="sr-only" htmlFor={`macro-type-${hintId}`}>Tipo de {"{{"}{macro}{"}}"}</label>
+                          <label className="sr-only" htmlFor={`macro-type-${hintId}`}>Type of {"{{"}{macro}{"}}"}</label>
                           <select
                             id={`macro-type-${hintId}`}
                             className="select mono"
                             value={typeValue}
-                            aria-label={`Tipo de {{${macro}}}`}
+                            aria-label={`Type of {{${macro}}}`}
                             onChange={(event) => updateMacroType(macro, event.target.value)}
                           >
-                            <option value="">(sin tipo)</option>
+                            <option value="">(no type)</option>
                             {MACRO_SCHEMA_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                           </select>
                         </div>
                         <IconButton
-                          label={`Limpiar descripción de {{${macro}}}`}
+                          label={`Clear description of {{${macro}}}`}
                           disabled={description === ""}
                           onClick={() => updateMacroDescription(macro, "")}
                         >
@@ -575,21 +575,21 @@ export function TemplatesScreen({
                         <Button
                           size="sm"
                           variant="ghost"
-                          aria-label={`${open ? "Ocultar" : "Mostrar"} esquema JSON de {{${macro}}}`}
+                          aria-label={`${open ? "Hide" : "Show"} JSON schema of {{${macro}}}`}
                           aria-expanded={open}
                           aria-controls={`macro-schema-editor-${hintId}`}
                           onClick={() => toggleMacroSchema(macro)}
                         >
-                          {open ? "Ocultar" : "Esquema JSON"}
+                          {open ? "Hide" : "JSON schema"}
                         </Button>
                         {schema && !open ? <code className="macro-schema-preview" title={schema}>{schema}</code> : null}
                       </div>
                       {open ? <div className="field macro-schema-editor" id={`macro-schema-editor-${hintId}`}>
                         <div className="row-between">
-                          <label htmlFor={`macro-schema-${hintId}`}>Esquema JSON de {"{{"}{macro}{"}}"}</label>
+                          <label htmlFor={`macro-schema-${hintId}`}>JSON schema of {"{{"}{macro}{"}}"}</label>
                           <span className="macro-schema-actions">
-                            <Button size="sm" variant="outline" disabled={schema.trim() === "" || Boolean(schemaError)} onClick={() => formatMacroSchema(macro)}>Formatear</Button>
-                            <Button size="sm" variant="ghost" disabled={schema === ""} onClick={() => updateMacroSchema(macro, "")}>Quitar esquema</Button>
+                            <Button size="sm" variant="outline" disabled={schema.trim() === "" || Boolean(schemaError)} onClick={() => formatMacroSchema(macro)}>Format</Button>
+                            <Button size="sm" variant="ghost" disabled={schema === ""} onClick={() => updateMacroSchema(macro, "")}>Remove schema</Button>
                           </span>
                         </div>
                         <textarea
@@ -598,7 +598,7 @@ export function TemplatesScreen({
                           rows={5}
                           spellCheck={false}
                           value={schema}
-                          aria-label={`Esquema JSON de {{${macro}}}`}
+                          aria-label={`JSON schema of {{${macro}}}`}
                           aria-describedby={hintId}
                           aria-invalid={Boolean(schemaError)}
                           placeholder={'{"type":"string","enum":["free","pro"]}'}
@@ -612,21 +612,21 @@ export function TemplatesScreen({
                         />
                         {schemaError
                           ? <p className="form-error" role="alert">{schemaError}</p>
-                          : <p className="hint" id={hintId}>JSON Schema informativo. Admite booleanos, <code>enum</code>, <code>format</code>, <code>pattern</code>, límites, <code>default</code> y <code>examples</code>; los <code>$ref</code> deben ser locales (<code>#</code>).</p>}
+                          : <p className="hint" id={hintId}>Informational JSON Schema. Supports booleans, <code>enum</code>, <code>format</code>, <code>pattern</code>, limits, <code>default</code> and <code>examples</code>; <code>$ref</code> must be local (<code>#</code>).</p>}
                       </div> : null}
                     </div>;
                   })}
-                </div> : <span className="hint">Sin macros.</span>}
-                {removedDescribed.length ? <Callout tone="warn">Al guardar se eliminará la descripción de {removedDescribed.map(([name]) => `{{${name}}}`).join(", ")} porque ya no aparece en el body.</Callout> : null}
-                {removedSchemas.length ? <Callout tone="warn">Al guardar se eliminará el esquema de {removedSchemas.map(([name]) => `{{${name}}}`).join(", ")} porque ya no aparece en el body.</Callout> : null}
-                {macros.length ? <Callout tone="info">El contexto debe proporcionar {macros.length === 1 ? "esta clave" : "todas estas claves"}. El render valida las ausentes antes de cualquier llamada.</Callout> : null}
+                </div> : <span className="hint">No macros.</span>}
+                {removedDescribed.length ? <Callout tone="warn">Saving will remove the description of {removedDescribed.map(([name]) => `{{${name}}}`).join(", ")} because it no longer appears in the body.</Callout> : null}
+                {removedSchemas.length ? <Callout tone="warn">Saving will remove the schema of {removedSchemas.map(([name]) => `{{${name}}}`).join(", ")} because it no longer appears in the body.</Callout> : null}
+                {macros.length ? <Callout tone="info">The context must provide {macros.length === 1 ? "this key" : "all these keys"}. Rendering validates the missing ones before any call.</Callout> : null}
               </div> : null}
             </div>
             <div className="panel-foot">
-              <span>{dirty ? <span className="dirty-badge">sin guardar</span> : "guardada en SQLite"}</span>
+              <span>{dirty ? <span className="dirty-badge">unsaved</span> : "saved to SQLite"}</span>
               <div className="template-actions">
-                {draft.originalName ? <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}><Icon name="trash" />Eliminar</Button> : null}
-                <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || Boolean(bodyError) || Boolean(nameError) || invalidSchemas || (!dirty && Boolean(draft.originalName))}>{saving ? "Guardando…" : draft.originalName ? "Guardar cambios" : "Crear plantilla"}</Button>
+                {draft.originalName ? <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}><Icon name="trash" />Delete</Button> : null}
+                <Button variant="primary" size="sm" onClick={() => void save()} disabled={saving || Boolean(bodyError) || Boolean(nameError) || invalidSchemas || (!dirty && Boolean(draft.originalName))}>{saving ? "Saving…" : draft.originalName ? "Save changes" : "Create template"}</Button>
               </div>
             </div>
           </Panel>
@@ -634,7 +634,7 @@ export function TemplatesScreen({
       </div>
       <CliBar command={command} />
       {starterOpen ? <TemplateStarterModal onClose={() => setStarterOpen(false)} onChoose={startWithStarter} /> : null}
-      {deleteOpen && draft?.originalName ? <ConfirmModal title={`Eliminar ${draft.originalName}`} description="Se eliminará la plantilla de SQLite. El historial existente conserva template_name y no se borra. Esta acción no se puede deshacer." confirmLabel="Eliminar" danger busy={saving} onClose={() => setDeleteOpen(false)} onConfirm={() => void remove()} /> : null}
+      {deleteOpen && draft?.originalName ? <ConfirmModal title={`Delete ${draft.originalName}`} description="The template will be removed from SQLite. Existing history keeps template_name and is not deleted. This action cannot be undone." confirmLabel="Delete" danger busy={saving} onClose={() => setDeleteOpen(false)} onConfirm={() => void remove()} /> : null}
     </section>
   );
 }

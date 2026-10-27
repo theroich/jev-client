@@ -1,6 +1,6 @@
 @import "../styles/tokens.css";
 
-/* Utilidades mínimas; la geometría y los tokens viven en tokens.css. */
+/* Minimal utilities; geometry and tokens live in tokens.css. */
 button,input,select,textarea{font:inherit}
 button:disabled{cursor:not-allowed}
 .link{display:inline;padding:0;border:0;background:transparent;color:var(--accent-text);text-align:left;text-decoration:underline;text-underline-offset:2px}

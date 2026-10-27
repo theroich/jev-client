@@ -21,13 +21,13 @@ function template(name: string, macros: Template["macros"]): Template {
   };
 }
 
-test("macroParamSchema sin esquema es { type: string }", () => {
+test("macroParamSchema without a schema is { type: string }", () => {
   assert.deepEqual(macroParamSchema({ name: "a", description: "" }), {
     type: "string",
   });
 });
 
-test("macroParamSchema conserva el esquema completo con type", () => {
+test("macroParamSchema keeps the full schema when it has type", () => {
   assert.deepEqual(
     macroParamSchema({
       name: "plan",
@@ -38,14 +38,14 @@ test("macroParamSchema conserva el esquema completo con type", () => {
   );
 });
 
-test("macroParamSchema con enum pero sin type no añade type", () => {
+test("macroParamSchema with enum but no type does not add type", () => {
   assert.deepEqual(
     macroParamSchema({ name: "plan", description: "", schema: { enum: ["a", "b"] } }),
     { enum: ["a", "b"] },
   );
 });
 
-test("macroParamSchema sin type ni keywords restrictivas añade type string", () => {
+test("macroParamSchema without type or restrictive keywords adds type string", () => {
   assert.deepEqual(
     macroParamSchema({ name: "email", description: "", schema: { format: "email" } }),
     { format: "email", type: "string" },
@@ -61,61 +61,61 @@ test("macroParamSchema boolean true -> string, false -> not {}", () => {
   });
 });
 
-test("macroParamSchema usa macro.description y recorta a 500", () => {
+test("macroParamSchema uses macro.description and truncates to 500", () => {
   const description = "x".repeat(600);
   const result = macroParamSchema({ name: "a", description, schema: { type: "string" } });
   assert.equal((result.description as string).length, 500);
   assert.ok((result.description as string).endsWith("…"));
 });
 
-test("macroParamSchema cae al schema.description cuando macro.description está vacía", () => {
+test("macroParamSchema falls back to schema.description when macro.description is empty", () => {
   const result = macroParamSchema({
     name: "a",
     description: "",
-    schema: { type: "string", description: "Del esquema" },
+    schema: { type: "string", description: "From the schema" },
   });
-  assert.equal(result.description, "Del esquema");
+  assert.equal(result.description, "From the schema");
 });
 
-test("inputSchemaForTemplate usa claves planas exactas y all required", () => {
+test("inputSchemaForTemplate uses exact flat keys and all required", () => {
   const schema = inputSchemaForTemplate(
-    template("pedido", [
-      { name: "cliente.nombre", description: "Nombre" },
-      { name: "cliente.plan", description: "Plan", schema: { type: "string", enum: ["free", "pro"] } },
+    template("order", [
+      { name: "customer.name", description: "Name" },
+      { name: "customer.plan", description: "Plan", schema: { type: "string", enum: ["free", "pro"] } },
     ]),
   );
   assert.equal(schema.type, "object");
   assert.equal(schema.additionalProperties, false);
-  assert.deepEqual(schema.required, ["cliente.nombre", "cliente.plan"]);
+  assert.deepEqual(schema.required, ["customer.name", "customer.plan"]);
   assert.deepEqual(Object.keys(schema.properties as object), [
-    "cliente.nombre",
-    "cliente.plan",
+    "customer.name",
+    "customer.plan",
   ]);
 });
 
-test("nombres de tool válidos, inválidos y colisiones", () => {
-  assert.equal(isValidToolName("pedido-soporte"), true);
+test("valid, invalid and colliding tool names", () => {
+  assert.equal(isValidToolName("order-support"), true);
   assert.equal(isValidToolName("jev_ask"), false);
-  assert.equal(isValidToolName("con espacios"), false);
-  assert.equal(isValidToolName("mayúsculas"), false);
+  assert.equal(isValidToolName("with spaces"), false);
+  assert.equal(isValidToolName("tool/name"), false);
 
-  const taken = new Set(["jev_ask", "pedido-soporte"]);
-  assert.deepEqual(toolNameForTemplate("nuevo", taken), { toolName: "nuevo", aliased: false });
-  assert.equal(toolNameForTemplate("con espacios", taken).toolName, "tpl_con-espacios");
+  const taken = new Set(["jev_ask", "order-support"]);
+  assert.deepEqual(toolNameForTemplate("new", taken), { toolName: "new", aliased: false });
+  assert.equal(toolNameForTemplate("with spaces", taken).toolName, "tpl_with-spaces");
   assert.equal(toolNameForTemplate("jev_ask", taken).toolName, "tpl_jev_ask");
-  assert.equal(toolNameForTemplate("pedido-soporte", taken).aliased, true);
+  assert.equal(toolNameForTemplate("order-support", taken).aliased, true);
 });
 
-test("los alias son deterministas y no colisionan", () => {
+test("aliases are deterministic and do not collide", () => {
   const taken = new Set<string>();
-  const first = toolNameForTemplate("pedido/soporte", taken);
+  const first = toolNameForTemplate("order/support", taken);
   taken.add(first.toolName);
-  const second = toolNameForTemplate("pedido/soporte", taken);
+  const second = toolNameForTemplate("order/support", taken);
   assert.notEqual(first.toolName, second.toolName);
-  assert.equal(first.toolName, "tpl_pedido-soporte");
+  assert.equal(first.toolName, "tpl_order-support");
 });
 
-test("truncate recorta con elipsis", () => {
+test("truncate cuts with an ellipsis", () => {
   assert.equal(truncate("abc", 10), "abc");
   assert.equal(truncate("abcdefghij", 5), "abcd…");
 });

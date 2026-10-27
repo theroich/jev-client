@@ -16,8 +16,8 @@ interface Result {
 
 const TEMPLATE_BODY = JSON.stringify({
   model: "jev-1.13",
-  state: "{{mensaje}}",
-  questions: { q: { type: "noul", instructions: "¿?" } },
+  state: "{{message}}",
+  questions: { q: { type: "noul", instructions: "?" } },
 });
 
 function response(state: string, usage: Record<string, unknown>): string {
@@ -70,7 +70,7 @@ async function run(
 
 async function addTemplate(dbPath: string): Promise<void> {
   const result = await run(
-    ["template", "add", "pedido", "--body", TEMPLATE_BODY],
+    ["template", "add", "order", "--body", TEMPLATE_BODY],
     dbPath,
   );
   assert.equal(result.code, 0);
@@ -81,7 +81,7 @@ function stateOf(init: RequestInit): string {
   return String(body.state);
 }
 
-test("batch genera una petición por mapa y una fila por petición en el historial", async (t) => {
+test("batch generates one request per map and one history row per request", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -91,15 +91,15 @@ test("batch genera una petición por mapa y una fila por petición en el histori
   await writeFile(
     contextsPath,
     JSON.stringify([
-      { mensaje: "uno" },
-      { mensaje: "dos" },
-      { mensaje: "tres" },
+      { message: "one" },
+      { message: "two" },
+      { message: "three" },
     ]),
     "utf8",
   );
 
   const result = await run(
-    ["batch", "pedido", "--contexts", contextsPath],
+    ["batch", "order", "--contexts", contextsPath],
     dbPath,
   );
   assert.equal(result.code, 0);
@@ -114,11 +114,11 @@ test("batch genera una petición por mapa y una fila por petición en el histori
   const batchIds = new Set(rows.map((row) => row.batch_id));
   assert.equal(batchIds.size, 1);
   for (const row of rows) {
-    assert.equal(row.template_name, "pedido");
+    assert.equal(row.template_name, "order");
   }
 });
 
-test("batch con contexto inválido no cancela el resto", async (t) => {
+test("batch with an invalid context does not cancel the rest", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -128,24 +128,24 @@ test("batch con contexto inválido no cancela el resto", async (t) => {
   await writeFile(
     contextsPath,
     JSON.stringify([
-      { mensaje: "uno" },
+      { message: "one" },
       {},
-      { mensaje: "tres" },
+      { message: "three" },
     ]),
     "utf8",
   );
 
   const result = await run(
-    ["batch", "pedido", "--contexts", contextsPath],
+    ["batch", "order", "--contexts", contextsPath],
     dbPath,
   );
   assert.equal(result.code, 1);
   assert.equal(result.calls.length, 2);
-  assert.match(result.stdout, /resumen: 2 ok, 1 error/);
-  assert.match(result.stdout, /faltan macros en el contexto/);
+  assert.match(result.stdout, /summary: 2 ok, 1 error/);
+  assert.match(result.stdout, /missing macros in context/);
 });
 
-test("--fail-fast detiene la ejecución ante el primer error", async (t) => {
+test("--fail-fast stops the run at the first error", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -154,21 +154,21 @@ test("--fail-fast detiene la ejecución ante el primer error", async (t) => {
   await addTemplate(dbPath);
   await writeFile(
     contextsPath,
-    JSON.stringify([{}, { mensaje: "uno" }, { mensaje: "dos" }]),
+    JSON.stringify([{}, { message: "one" }, { message: "two" }]),
     "utf8",
   );
 
   const result = await run(
-    ["batch", "pedido", "--contexts", contextsPath, "--fail-fast"],
+    ["batch", "order", "--contexts", contextsPath, "--fail-fast"],
     dbPath,
   );
   assert.equal(result.code, 1);
   assert.equal(result.calls.length, 0);
   assert.match(result.stdout, /1 error/);
-  assert.match(result.stdout, /2 omitidos por --fail-fast/);
+  assert.match(result.stdout, /2 skipped by --fail-fast/);
 });
 
-test("el resumen de coste suma solo los costes informados", async (t) => {
+test("the cost summary adds only the reported costs", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -177,20 +177,20 @@ test("el resumen de coste suma solo los costes informados", async (t) => {
   await addTemplate(dbPath);
   await writeFile(
     contextsPath,
-    JSON.stringify([{ mensaje: "uno" }, { mensaje: "dos" }, { mensaje: "tres" }]),
+    JSON.stringify([{ message: "one" }, { message: "two" }, { message: "three" }]),
     "utf8",
   );
 
   const result = await run(
-    ["batch", "pedido", "--contexts", contextsPath],
+    ["batch", "order", "--contexts", contextsPath],
     dbPath,
     {
       handler: (_url, init) => {
         const state = stateOf(init);
         const usage =
-          state === "dos"
+          state === "two"
             ? { input_tokens: 20, output_tokens: 10 }
-            : state === "tres"
+            : state === "three"
               ? { input_tokens: 30, output_tokens: 15, cost: 2.5e-6 }
               : { input_tokens: 10, output_tokens: 5, cost: 1.5e-6 };
         return new Response(response(state, usage), {
@@ -202,10 +202,10 @@ test("el resumen de coste suma solo los costes informados", async (t) => {
   );
   assert.equal(result.code, 0);
   assert.match(result.stdout, /tokens: 60 in \/ 30 out/);
-  assert.match(result.stdout, /coste: 4\.000e-6 \(1 sin coste informado\)/);
+  assert.match(result.stdout, /cost: 4\.000e-6 \(1 without reported cost\)/);
 });
 
-test("batch con --json emite un resumen ordenado y legible por máquina", async (t) => {
+test("batch with --json emits an ordered, machine-readable summary", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -214,14 +214,14 @@ test("batch con --json emite un resumen ordenado y legible por máquina", async 
   await addTemplate(dbPath);
   await writeFile(
     contextsPath,
-    JSON.stringify([{ mensaje: "uno" }, { mensaje: "dos" }, { mensaje: "tres" }]),
+    JSON.stringify([{ message: "one" }, { message: "two" }, { message: "three" }]),
     "utf8",
   );
 
   const result = await run(
     [
       "batch",
-      "pedido",
+      "order",
       "--contexts",
       contextsPath,
       "--json",
@@ -232,7 +232,7 @@ test("batch con --json emite un resumen ordenado y legible por máquina", async 
     {
       handler: (_url, init) => {
         const state = stateOf(init);
-        const cost = state === "dos" ? undefined : 1e-6;
+        const cost = state === "two" ? undefined : 1e-6;
         return new Response(
           response(state, { input_tokens: 1, output_tokens: 1, cost }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -251,7 +251,7 @@ test("batch con --json emite un resumen ordenado y legible por máquina", async 
     cost_unknown: number;
     items: Array<{ index: number; ok: boolean; cost: number | null }>;
   };
-  assert.equal(parsed.template, "pedido");
+  assert.equal(parsed.template, "order");
   assert.equal(parsed.total, 3);
   assert.equal(parsed.ok, 3);
   assert.equal(parsed.errors, 0);
@@ -267,32 +267,32 @@ test("batch con --json emite un resumen ordenado y legible por máquina", async 
   );
 });
 
-test("--concurrency fuera de rango es error de uso", async (t) => {
+test("--concurrency out of range is a usage error", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const zero = await run(
-    ["batch", "pedido", "--contexts", "x.json", "--concurrency", "0"],
+    ["batch", "order", "--contexts", "x.json", "--concurrency", "0"],
     dbPath,
   );
   assert.equal(zero.code, 2);
   assert.match(zero.stderr, /--concurrency/);
 
   const tooHigh = await run(
-    ["batch", "pedido", "--contexts", "x.json", "--concurrency", "11"],
+    ["batch", "order", "--contexts", "x.json", "--concurrency", "11"],
     dbPath,
   );
   assert.equal(tooHigh.code, 2);
   assert.match(tooHigh.stderr, /--concurrency/);
 });
 
-test("batch sin --contexts es error de uso", async (t) => {
+test("batch without --contexts is a usage error", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-batch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
-  const result = await run(["batch", "pedido"], dbPath);
+  const result = await run(["batch", "order"], dbPath);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /--contexts/);
 });

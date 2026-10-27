@@ -2,7 +2,7 @@ import type { SqliteDatabase } from "./database.js";
 import { redactRequestAssets } from "./assets.js";
 import type { RequestLog, RequestSource } from "./types.js";
 
-/** Registro leído de la tabla `requests`. */
+/** Record read from the `requests` table. */
 export interface RequestRecord {
   id: number;
   createdAt: string;
@@ -13,9 +13,9 @@ export interface RequestRecord {
   model: string | null;
   statusCode: number | null;
   ok: boolean;
-  /** Payload enviado, en JSON. */
+  /** Payload sent, as JSON. */
   requestJson: string | null;
-  /** Cuerpo crudo recibido, en JSON o texto plano. */
+  /** Raw body received, as JSON or plain text. */
   responseJson: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -24,12 +24,12 @@ export interface RequestRecord {
   errorMessage: string | null;
   templateName: string | null;
   batchId: string | null;
-  /** Origen de la ejecución. */
+  /** Run source. */
   source: RequestSource;
 }
 
 export interface HistoryFilters {
-  /** Límite inferior (inclusive) de `created_at`, ISO 8601. */
+  /** Lower bound (inclusive) of `created_at`, ISO 8601. */
   since?: string;
   status?: number;
   model?: string;
@@ -81,11 +81,11 @@ const INSERT_SQL = `
   )
 `;
 
-/** Repositorio del historial de peticiones sobre la tabla `requests`. */
+/** Request history repository over the `requests` table. */
 export class RequestRepository {
   constructor(private readonly db: SqliteDatabase) {}
 
-  /** Inserta una petición (correcta o fallida) y devuelve su id. */
+  /** Inserts a request (successful or failed) and returns its id. */
   insert(log: RequestLog): number {
     const result = this.db.prepare(INSERT_SQL).run({
       created_at: new Date().toISOString(),
@@ -138,7 +138,7 @@ export class RequestRepository {
     return row?.count ?? 0;
   }
 
-  /** Valores disponibles para construir los filtros del historial. */
+  /** Available values for building the history filters. */
   facets(): HistoryFacets {
     const models = this.db
       .prepare<[], { value: string }>(

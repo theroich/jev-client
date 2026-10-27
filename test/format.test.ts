@@ -10,23 +10,23 @@ import {
 } from "../src/format.js";
 import type { JevResponse } from "../src/types.js";
 
-test("resume cada tipo de respuesta", () => {
+test("summarizes each answer type", () => {
   assert.equal(answerSummary({ type: "noul", noul: 0.99 }), "noul=0.99");
   assert.equal(
     answerSummary({ type: "choice", choice: "infra", confidence: 0.64 }),
     "choice=infra (confidence=0.64)",
   );
   assert.equal(
-    answerSummary({ type: "score", score: 1.99, confidence: 0.98, legend: { "2": "Muy enfadado" } }),
-    'score=1.99 ≈ "Muy enfadado" (confidence=0.98)',
+    answerSummary({ type: "score", score: 1.99, confidence: 0.98, legend: { "2": "Very upset" } }),
+    'score=1.99 ≈ "Very upset" (confidence=0.98)',
   );
   assert.equal(
-    answerSummary({ type: "score", score: 2, legend: { "2": "Muy enfadado" } }),
-    'score=2 "Muy enfadado"',
+    answerSummary({ type: "score", score: 2, legend: { "2": "Very upset" } }),
+    'score=2 "Very upset"',
   );
 });
 
-test("ordena las probabilidades de mayor a menor", () => {
+test("sorts the probabilities from highest to lowest", () => {
   assert.equal(
     formatProbabilities({ infra: 0.76, billing: 0.24, sales: 0 }),
     "infra=0.76, billing=0.24, sales=0",
@@ -37,7 +37,7 @@ test("ordena las probabilidades de mayor a menor", () => {
   );
 });
 
-test("el informe es estable y ordenado", () => {
+test("the report is stable and sorted", () => {
   const response: JevResponse = {
     model: "jev-1.13",
     answers: {
@@ -52,15 +52,15 @@ test("el informe es estable y ordenado", () => {
         type: "score",
         score: 1.99,
         confidence: 0.98,
-        legend: { "0": "Tranquilo", "1": "Molesto pero correcto", "2": "Muy enfadado" },
+        legend: { "0": "Calm", "1": "Annoyed but polite", "2": "Very upset" },
       },
     },
     usage: { input_tokens: 449, output_tokens: 72, cost: 1.886e-5 },
     raw: {},
   };
 
-  const expected = `modelo: jev-1.13
-  frustration: score=1.99 ≈ "Muy enfadado" (confidence=0.98)
+  const expected = `model: jev-1.13
+  frustration: score=1.99 ≈ "Very upset" (confidence=0.98)
   is_urgent: noul=0.99
   team: choice=infra (confidence=0.64)
     infra=0.76, billing=0.24, sales=0
@@ -69,14 +69,14 @@ test("el informe es estable y ordenado", () => {
   assert.equal(formatReport(response), expected);
 });
 
-test("legendLevel marca los valores intermedios", () => {
-  assert.deepEqual(legendLevel({ "1": "Medio" }, 1), { label: "Medio", exact: true });
-  assert.deepEqual(legendLevel({ "1": "Medio" }, 1.4), { label: "Medio", exact: false });
+test("legendLevel marks intermediate values", () => {
+  assert.deepEqual(legendLevel({ "1": "Medium" }, 1), { label: "Medium", exact: true });
+  assert.deepEqual(legendLevel({ "1": "Medium" }, 1.4), { label: "Medium", exact: false });
   assert.equal(legendLevel(undefined, 1), undefined);
   assert.equal(legendLevel({}, 1), undefined);
 });
 
-test("formatCost usa notación científica solo para importes pequeños", () => {
+test("formatCost uses scientific notation only for small amounts", () => {
   assert.equal(formatCost(1.886e-5), "1.886e-5");
   assert.equal(formatCost(0.25), "0.25");
   assert.equal(formatCost(0), "0");

@@ -23,6 +23,7 @@ export type IconName =
   | "play"
   | "stop"
   | "trash"
+  | "upload"
   | "chevron";
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
@@ -45,6 +46,7 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
     play: <path d="M8 5l11 7-11 7V5z" />,
     stop: <rect x="6" y="6" width="12" height="12" rx="1" />,
     trash: <><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></>,
+    upload: <><path d="M12 16V5M8 8.5L12 4.5l4 4" /><path d="M5 14.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5" /></>,
     chevron: <path d="M9 6l6 6-6 6" />,
   };
   return (
@@ -135,16 +137,16 @@ export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone
 }
 
 export function StatusPill({ status, ok }: { status: number | null; ok: boolean }) {
-  return <Pill tone={ok ? "ok" : status === 429 ? "warn" : "err"}>{status ?? "red"}</Pill>;
+  return <Pill tone={ok ? "ok" : status === 429 ? "warn" : "err"}>{status ?? "network"}</Pill>;
 }
 
 export function CliBar({ command }: { command: string }) {
   const { copy } = useConsole();
   return (
     <div className="cli-bar">
-      <span className="cli-label">CLI equivalente</span>
+      <span className="cli-label">CLI equivalent</span>
       <code><span className="prompt">$</span>{command}</code>
-      <IconButton label="Copiar comando" onClick={() => void copy(command)}>
+      <IconButton label="Copy command" onClick={() => void copy(command)}>
         <Icon name="copy" />
       </IconButton>
     </div>
@@ -171,7 +173,7 @@ export function Callout({ children, tone = "warn" }: { children: ReactNode; tone
   );
 }
 
-export function Loading({ label = "Cargando datos reales…" }: { label?: string }) {
+export function Loading({ label = "Loading live data…" }: { label?: string }) {
   return <div className="loading-line" role="status"><span className="spinner" aria-hidden="true" />{label}</div>;
 }
 

@@ -11,24 +11,24 @@ import { ConfigRepository } from "./config-repository.js";
 import { resolveConfig, type StoredConfig } from "./config.js";
 import { openDatabase, resolveDatabasePath } from "./database.js";
 
-export const WEB_CONSOLE_USAGE = `Uso: jev web-console [flags]
+export const WEB_CONSOLE_USAGE = `Usage: jev web-console [flags]
 
 Flags:
-  --port <n>          puerto de escucha; 0 elige uno libre (default 7411)
-  --host <addr>       dirección de escucha (default 127.0.0.1)
-  --allow-remote      permite escuchar fuera de loopback (requiere token)
-  --open / --no-open  abre o no el navegador (default: TTY sin CI/SSH)
-  --dev               ejecuta next dev desde el checkout web
-  --db <ruta>         base SQLite (env: JEV_DB)
-  --key <clave>       API key solo para esta sesión
-  --url <endpoint>    endpoint completo solo para esta sesión
-  --model <modelo>    modelo solo para esta sesión
-  --timeout <seg>     timeout HTTP en segundos solo para esta sesión
-  --retries <n>       reintentos HTTP solo para esta sesión
-  -h, --help          muestra esta ayuda
+  --port <n>          listen port; 0 picks a free one (default 7411)
+  --host <addr>       listen address (default 127.0.0.1)
+  --allow-remote      allow listening outside loopback (requires token)
+  --open / --no-open  open the browser or not (default: TTY without CI/SSH)
+  --dev               runs next dev from the web checkout
+  --db <path>         SQLite database (env: JEV_DB)
+  --key <key>         API key for this session only
+  --url <endpoint>    full endpoint for this session only
+  --model <model>     model for this session only
+  --timeout <secs>    HTTP timeout in seconds for this session only
+  --retries <n>       HTTP retries for this session only
+  -h, --help          shows this help
 
-JEV_CONSOLE_DIR permite indicar el directorio del standalone o, con --dev,
-el checkout web. El comando permanece en primer plano hasta Ctrl-C.
+JEV_CONSOLE_DIR sets the standalone directory or, with --dev,
+the web checkout. The command stays in the foreground until Ctrl-C.
 `;
 
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
@@ -71,13 +71,13 @@ export interface WebConsoleSignalTarget {
   off(signal: "SIGINT" | "SIGTERM", listener: () => void): void;
 }
 
-/** Dependencias opcionales para probar procesos, red, navegador y señales. */
+/** Optional dependencies to test processes, network, browser and signals. */
 export interface WebConsoleDependencies {
   spawn?: WebConsoleSpawn;
   fetch?: (input: string, init?: RequestInit) => Promise<Response>;
   openBrowser?: (url: string) => void | Promise<void>;
   fileExists?: (path: string) => Promise<boolean>;
-  /** Comprueba/reserva el puerto y devuelve el puerto concreto que usará el hijo. */
+  /** Checks/reserves the port and returns the concrete port the child will use. */
   allocatePort?: (host: string, requestedPort: number) => Promise<number>;
   signals?: WebConsoleSignalTarget;
   platform?: NodeJS.Platform;
@@ -169,16 +169,16 @@ async function launchWebConsole(
   } catch (error) {
     if (errorCode(error) === "EADDRINUSE") {
       throw new Error(
-        `el puerto ${options.port} no está disponible en ${options.host}; ` +
-          "prueba con --port <n> o --port 0",
+        `port ${options.port} is not available on ${options.host}; ` +
+          "try --port <n> or --port 0",
       );
     }
     throw new Error(
-      `no se puede escuchar en ${options.host}:${options.port}: ${messageOf(error)}`,
+      `cannot listen on ${options.host}:${options.port}: ${messageOf(error)}`,
     );
   }
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error(`el puerto libre seleccionado no es válido: ${port}`);
+    throw new Error(`the selected free port is not valid: ${port}`);
   }
 
   const version = dependencies.version ?? (await readPackageVersion());
@@ -235,8 +235,8 @@ function prepareDatabase(
     for (const { key, value } of new ConfigRepository(db).list()) {
       stored[key] = value;
     }
-    // Valida la configuración efectiva sin convertir los flags en valores
-    // persistidos ni borrar su origen para la UI de Configuración.
+    // Validates the effective configuration without turning the flags into
+    // persisted values or clearing their source for the Settings UI.
     resolveConfig(
       {
         key: options.key,
@@ -283,8 +283,8 @@ async function locateTarget(
     }
     if (entry === undefined) {
       throw new Error(
-        `no se encontró next dev junto a ${directory}; instala las dependencias del checkout ` +
-          "o ejecuta el modo standalone",
+        `next dev was not found next to ${directory}; install the checkout dependencies ` +
+          "or run the standalone mode",
       );
     }
     return { mode: "dev", directory, entry };
@@ -297,8 +297,8 @@ async function locateTarget(
   const entry = join(directory, "server.js");
   if (!(await fileExists(entry))) {
     throw new Error(
-      `no se encontró el build standalone de la consola en ${entry}; ` +
-        "construye web con output standalone o define JEV_CONSOLE_DIR",
+      `the console standalone build was not found at ${entry}; ` +
+        "build web with standalone output or set JEV_CONSOLE_DIR",
     );
   }
   return { mode: "standalone", directory, entry };
@@ -465,19 +465,19 @@ async function superviseChild(context: SuperviseOptions): Promise<number> {
     const bannerUrl = `${baseUrl}/#token=${encodeURIComponent(token)}`;
     if (!isLoopbackHost(options.host)) {
       io.stderr(
-        `aviso: la consola escucha fuera de loopback en ${options.host}; ` +
-          "comparte la URL solo con clientes de confianza y no la expongas públicamente\n",
+        `warning: the console listens outside loopback on ${options.host}; ` +
+          "share the URL only with trusted clients and do not expose it publicly\n",
       );
     }
     io.stdout(
       "jev web-console\n" +
         `  URL:         ${bannerUrl}\n` +
-        `  Base SQLite: ${database.path}\n` +
-        `  Versión:     ${health.version ?? version}\n` +
-        `  Esquema:     ${database.schemaVersion}\n` +
-        `  PID:         ${child.pid ?? "desconocido"}\n` +
-        `  Modo:        ${target.mode}\n` +
-        "  Pulsa Ctrl-C para detener el servidor.\n",
+        `  SQLite database: ${database.path}\n` +
+        `  Version:     ${health.version ?? version}\n` +
+        `  Schema:      ${database.schemaVersion}\n` +
+        `  PID:         ${child.pid ?? "unknown"}\n` +
+        `  Mode:        ${target.mode}\n` +
+        "  Press Ctrl-C to stop the server.\n",
     );
 
     if (shouldOpenBrowser(options, io)) {
@@ -488,7 +488,7 @@ async function superviseChild(context: SuperviseOptions): Promise<number> {
       try {
         await openBrowser(bannerUrl);
       } catch (error) {
-        io.stderr(`aviso: no se pudo abrir el navegador: ${messageOf(error)}\n`);
+        io.stderr(`warning: could not open the browser: ${messageOf(error)}\n`);
       }
     }
 
@@ -513,7 +513,7 @@ async function superviseChild(context: SuperviseOptions): Promise<number> {
     }
     if (final.result.type === "error") {
       io.stderr(
-        `error: fallo del proceso de la consola: ${final.result.error.message}\n`,
+        `error: console process failure: ${final.result.error.message}\n`,
       );
       return 1;
     }
@@ -522,9 +522,9 @@ async function superviseChild(context: SuperviseOptions): Promise<number> {
     }
     const reason =
       final.result.signal === null
-        ? `código ${final.result.code ?? "desconocido"}`
-        : `señal ${final.result.signal}`;
-    io.stderr(`error: el servidor de la consola terminó con ${reason}\n`);
+        ? `code ${final.result.code ?? "unknown"}`
+        : `signal ${final.result.signal}`;
+    io.stderr(`error: the console server exited with ${reason}\n`);
     return 1;
   } catch (error) {
     healthController.abort();
@@ -574,10 +574,10 @@ async function waitForHealth(
     }
   }
   if (signal.aborted) {
-    throw new Error("espera de /api/health cancelada");
+    throw new Error("/api/health wait cancelled");
   }
-  const detail = lastError === undefined ? "tiempo de espera agotado" : messageOf(lastError);
-  throw new Error(`la consola no respondió en ${url}: ${detail}`);
+  const detail = lastError === undefined ? "timed out" : messageOf(lastError);
+  throw new Error(`the console did not respond at ${url}: ${detail}`);
 }
 
 async function requestHealth(
@@ -601,11 +601,11 @@ async function requestHealth(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`/api/health devolvió HTTP ${response.status}`);
+      throw new Error(`/api/health returned HTTP ${response.status}`);
     }
     const body: unknown = await response.json();
     if (!isRecord(body) || body.ok !== true) {
-      throw new Error("/api/health devolvió una respuesta inválida");
+      throw new Error("/api/health returned an invalid response");
     }
     return {
       version: typeof body.version === "string" ? body.version : undefined,
@@ -661,24 +661,24 @@ function tryForwardSignal(child: WebConsoleChild, signal: NodeJS.Signals): void 
   try {
     child.kill(signal);
   } catch {
-    // El resultado de exit/error o el SIGKILL de respaldo resuelven el cierre.
+    // The exit/error result or the fallback SIGKILL settles the shutdown.
   }
 }
 
 function earlyExitMessage(result: ChildResult, baseUrl: string): string {
   if (result.type === "error") {
     if (errorCode(result.error) === "EADDRINUSE") {
-      return `el puerto de ${baseUrl} está ocupado; prueba con --port <n> o --port 0`;
+      return `the port of ${baseUrl} is busy; try --port <n> or --port 0`;
     }
-    return `no se pudo iniciar el servidor de la consola: ${result.error.message}`;
+    return `the console server could not start: ${result.error.message}`;
   }
   const reason =
     result.signal === null
-      ? `código ${result.code ?? "desconocido"}`
-      : `señal ${result.signal}`;
+      ? `code ${result.code ?? "unknown"}`
+      : `signal ${result.signal}`;
   return (
-    `el servidor de la consola terminó antes de responder en ${baseUrl}/api/health ` +
-    `(${reason}); comprueba que el puerto esté libre o usa --port 0`
+    `the console server exited before responding at ${baseUrl}/api/health ` +
+    `(${reason}); check that the port is free or use --port 0`
   );
 }
 
@@ -702,20 +702,20 @@ function parseWebConsoleOptions(args: string[]): ParsedOptions | "help" {
     return "help";
   }
   if (positionals.length > 0) {
-    throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
+    throw new UsageError(`unexpected argument: ${JSON.stringify(positionals[0])}`);
   }
   if (values.open === true && values["no-open"] === true) {
-    throw new UsageError("--open y --no-open son mutuamente excluyentes");
+    throw new UsageError("--open and --no-open are mutually exclusive");
   }
 
   const host = asString(values.host) ?? "127.0.0.1";
   if (host === "" || host.trim() !== host || /[/?#@]/.test(host)) {
-    throw new UsageError("--host debe ser una dirección o nombre de host válido");
+    throw new UsageError("--host must be a valid address or host name");
   }
   const allowRemote = values["allow-remote"] === true;
   if (!isLoopbackHost(host) && !allowRemote) {
     throw new UsageError(
-      `--host ${host} está fuera de loopback; añade --allow-remote explícitamente`,
+      `--host ${host} is outside loopback; add --allow-remote explicitly`,
     );
   }
 
@@ -740,11 +740,11 @@ function parsePort(value: string | undefined): number {
     return 7411;
   }
   if (!/^\d+$/.test(value)) {
-    throw new UsageError("--port debe ser un entero entre 0 y 65535");
+    throw new UsageError("--port must be an integer between 0 and 65535");
   }
   const port = Number(value);
   if (!Number.isInteger(port) || port < 0 || port > 65_535) {
-    throw new UsageError("--port debe ser un entero entre 0 y 65535");
+    throw new UsageError("--port must be an integer between 0 and 65535");
   }
   return port;
 }
@@ -755,7 +755,7 @@ function parseTimeout(value: string | undefined): number | undefined {
   }
   const timeout = Number(value);
   if (value.trim() === "" || !Number.isFinite(timeout) || timeout <= 0) {
-    throw new UsageError("--timeout debe ser un número positivo en segundos");
+    throw new UsageError("--timeout must be a positive number of seconds");
   }
   return timeout;
 }
@@ -765,11 +765,11 @@ function parseRetries(value: string | undefined): number | undefined {
     return undefined;
   }
   if (!/^\d+$/.test(value)) {
-    throw new UsageError("--retries debe ser un entero >= 0");
+    throw new UsageError("--retries must be an integer >= 0");
   }
   const retries = Number(value);
   if (!Number.isSafeInteger(retries) || retries < 0) {
-    throw new UsageError("--retries debe ser un entero >= 0");
+    throw new UsageError("--retries must be an integer >= 0");
   }
   return retries;
 }
@@ -820,7 +820,7 @@ function allocateAvailablePort(host: string, requestedPort: number): Promise<num
       const address = server.address();
       if (address === null || typeof address === "string") {
         server.close();
-        rejectPromise(new Error("no se pudo determinar el puerto libre"));
+        rejectPromise(new Error("could not determine a free port"));
         return;
       }
       const selectedPort = address.port;
@@ -870,10 +870,10 @@ async function readPackageVersion(): Promise<string> {
         return parsed.version;
       }
     } catch {
-      // Prueba la siguiente ubicación (dist/src y src, respectivamente).
+      // Tries the next location (dist/src and src, respectively).
     }
   }
-  return "desconocida";
+  return "unknown";
 }
 
 function openBrowserWithPlatform(url: string, platform: NodeJS.Platform): Promise<void> {

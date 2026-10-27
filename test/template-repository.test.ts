@@ -17,7 +17,7 @@ function schemaCode(value: unknown): string {
   return "ok";
 }
 
-test("acepta booleanos, tipos y keywords del editor básico", () => {
+test("accepts booleans, types and basic-editor keywords", () => {
   assert.equal(validateMacroSchema(true), true);
   assert.equal(validateMacroSchema(false), false);
   assert.deepEqual(validateMacroSchema({ type: "string" }), { type: "string" });
@@ -50,7 +50,7 @@ test("acepta booleanos, tipos y keywords del editor básico", () => {
     minimum: 1,
     maximum: 10,
   });
-  // Los $ref locales están permitidos y los remotos no.
+  // Local $refs are allowed and remote ones are not.
   assert.deepEqual(validateMacroSchema({ $ref: "#/$defs/plan" }), {
     $ref: "#/$defs/plan",
   });
@@ -60,7 +60,7 @@ test("acepta booleanos, tipos y keywords del editor básico", () => {
   );
 });
 
-test("rechaza formas y types inválidos con códigos estables", () => {
+test("rejects invalid shapes and types with stable codes", () => {
   assert.equal(schemaCode(null), "invalid_macro_schema");
   assert.equal(schemaCode(["string"]), "invalid_macro_schema");
   assert.equal(schemaCode("string"), "invalid_macro_schema");
@@ -71,7 +71,7 @@ test("rechaza formas y types inválidos con códigos estables", () => {
   assert.equal(schemaCode({ type: 3 }), "invalid_macro_schema_type");
 });
 
-test("rechaza keywords mal formados, $ref remotos y esquemas gigantes", () => {
+test("rejects malformed keywords, remote $refs and huge schemas", () => {
   assert.equal(schemaCode({ enum: [] }), "invalid_macro_schema");
   assert.equal(schemaCode({ enum: "free" }), "invalid_macro_schema");
   assert.equal(schemaCode({ format: 1 }), "invalid_macro_schema");

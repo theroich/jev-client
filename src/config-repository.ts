@@ -4,7 +4,7 @@ export interface ConfigValues {
   api_url: string;
   api_key: string;
   model: string;
-  /** Timeout de cada intento HTTP, en segundos. */
+  /** Timeout of each HTTP attempt, in seconds. */
   timeout: string;
   retries: string;
 }
@@ -29,7 +29,7 @@ interface ConfigRow {
   value: string;
 }
 
-/** Repositorio tipado sobre la tabla config (clave/valor). */
+/** Typed repository over the config table (key/value). */
 export class ConfigRepository {
   constructor(private readonly db: SqliteDatabase) {}
 
@@ -69,30 +69,30 @@ export function isConfigKey(value: string): value is ConfigKey {
 
 export function validateConfigValue(key: ConfigKey, value: string): void {
   if (value === "" || (key === "model" && value.trim() === "")) {
-    throw new Error(`el valor de ${key} no puede estar vacío`);
+    throw new Error(`the value of ${key} cannot be empty`);
   }
   if (key === "api_url") {
     let url: URL;
     try {
       url = new URL(value);
     } catch {
-      throw new Error("api_url debe ser una URL completa con protocolo http(s)");
+      throw new Error("api_url must be a full URL with an http(s) protocol");
     }
     if (
       (url.protocol !== "http:" && url.protocol !== "https:") ||
       url.hostname === ""
     ) {
-      throw new Error("api_url debe ser una URL completa con protocolo http(s)");
+      throw new Error("api_url must be a full URL with an http(s) protocol");
     }
   } else if (key === "timeout") {
     const timeout = Number(value);
     if (!Number.isFinite(timeout) || timeout <= 0) {
-      throw new Error("timeout debe ser un número positivo en segundos");
+      throw new Error("timeout must be a positive number of seconds");
     }
   } else if (key === "retries") {
     const retries = Number(value);
     if (!Number.isInteger(retries) || retries < 0) {
-      throw new Error("retries debe ser un entero >= 0");
+      throw new Error("retries must be an integer >= 0");
     }
   }
 }

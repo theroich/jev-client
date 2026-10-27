@@ -22,10 +22,10 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("es");
+    const normalized = query.trim().toLocaleLowerCase("en");
     if (!normalized) return actions;
     return actions.filter((action) =>
-      `${action.label} ${action.hint} ${action.group}`.toLocaleLowerCase("es").includes(normalized),
+      `${action.label} ${action.hint} ${action.group}`.toLocaleLowerCase("en").includes(normalized),
     );
   }, [actions, query]);
 
@@ -36,13 +36,13 @@ export function CommandPalette({
   };
 
   return (
-    <Modal title="Paleta de comandos" onClose={onClose} className="palette" initialFocus="#palette-input">
+    <Modal title="Command palette" onClose={onClose} className="palette" initialFocus="#palette-input">
       <input
         id="palette-input"
         className="input p-input"
         value={query}
-        placeholder="Buscar pantalla o acción…"
-        aria-label="Buscar comandos"
+        placeholder="Search screens or actions…"
+        aria-label="Search commands"
         aria-controls="palette-list"
         aria-activedescendant={filtered[selected] ? `palette-${filtered[selected].id}` : undefined}
         onChange={(event) => {
@@ -62,8 +62,8 @@ export function CommandPalette({
           }
         }}
       />
-      <div className="p-list" id="palette-list" role="listbox" aria-label="Comandos disponibles">
-        {filtered.length === 0 ? <p className="empty">Ningún comando coincide con la búsqueda.</p> : null}
+      <div className="p-list" id="palette-list" role="listbox" aria-label="Available commands">
+        {filtered.length === 0 ? <p className="empty">No command matches the search.</p> : null}
         {filtered.map((action, index) => (
           <div key={action.id}>
             {(index === 0 || filtered[index - 1]?.group !== action.group) ? (

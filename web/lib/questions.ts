@@ -13,7 +13,7 @@ export interface QuestionDraft {
 export function newDraft(id: number): QuestionDraft {
   return {
     id,
-    name: `pregunta_${id}`,
+    name: `question_${id}`,
     type: "noul",
     instructions: "",
     noulCriteria: "",

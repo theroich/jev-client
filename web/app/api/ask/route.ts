@@ -6,7 +6,7 @@ import { executeAsk } from "@/lib/server/runtime";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Margen para un request con imágenes en base64 (16 MiB + 33% de base64 + JSON). */
+/** Headroom for a request with base64 images (16 MiB + 33% of base64 + JSON). */
 const MAX_ASK_BODY_BYTES = 36 * 1024 * 1024;
 
 export function POST(request: NextRequest) {

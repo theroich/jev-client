@@ -1,9 +1,9 @@
-/** Texto u objeto/array JSON que Jev evalúa. */
+/** Text or JSON object/array that Jev evaluates. */
 export type State = string | Record<string, unknown> | unknown[];
 
 /**
- * Pregunta tipada. `criteria` es flexible a propósito: objeto para `choice`,
- * array ordenado para `score` y string opcional para `noul`.
+ * Typed question. `criteria` is flexible on purpose: an object for `choice`,
+ * an ordered array for `score` and an optional string for `noul`.
  */
 export interface Question {
   type: string;
@@ -14,17 +14,17 @@ export interface Question {
 export type ImageFormat = "png" | "jpg" | "jpeg";
 
 /**
- * Imagen adjunta a un request, indexada por referencia. La referencia se
- * escribe donde iría texto (`state`, `instructions` o `criteria`) y la API
- * la sustituye por la imagen real.
+ * Image attached to a request, indexed by reference. The reference is
+ * written where text would go (`state`, `instructions` or `criteria`) and the
+ * API replaces it with the actual image.
  */
 export interface ImageAsset {
   type?: "image";
-  /** Base64 sin prefijo `data:` y sin saltos de línea. */
+  /** Base64 without the `data:` prefix and without line breaks. */
   data_base64?: string;
-  /** Requerido con `data_base64`. La API detecta el formato real de los bytes. */
+  /** Required with `data_base64`. The API detects the actual byte format. */
   format?: ImageFormat;
-  /** Multipart: nombre de la parte que lleva el fichero. */
+  /** Multipart: name of the part carrying the file. */
   part?: string;
 }
 
@@ -32,7 +32,7 @@ export interface JevRequest {
   model: string;
   state: State;
   questions: Record<string, Question>;
-  /** Imágenes del request, por referencia. Requiere el header Danger-Zone-Images. */
+  /** Request images, by reference. Requires the Danger-Zone-Images header. */
   assets?: Record<string, ImageAsset>;
 }
 
@@ -43,7 +43,7 @@ export interface Usage {
   opencode?: unknown;
 }
 
-/** Respuesta de una pregunta. Solo se rellenan los campos de su `type`. */
+/** Answer to a question. Only the fields of its `type` are filled. */
 export interface Answer {
   type: string;
   noul?: number;
@@ -58,16 +58,16 @@ export interface JevResponse {
   model: string;
   answers: Record<string, Answer>;
   usage: Usage;
-  /** Cuerpo original de la API, por si se quieren imprimir campos extra. */
+  /** Original API body, in case extra fields want to be printed. */
   raw: unknown;
 }
 
-/** Origen de una ejecución, para auditar el historial. */
+/** Run source, for auditing the history. */
 export type RequestSource = "cli" | "tui" | "web" | "mcp";
 
 /**
- * Registro de una petición completa (con o sin éxito) que el cliente emite
- * mediante el hook `onRequest`. Sirve para persistir el historial.
+ * Log of a complete request (successful or not) that the client emits
+ * through the `onRequest` hook. Used to persist the history.
  */
 export interface RequestLog {
   startedAt: Date;
@@ -75,14 +75,14 @@ export interface RequestLog {
   durationMs: number;
   endpoint: string;
   model: string;
-  /** `null` cuando la petición no llegó a obtener respuesta HTTP. */
+  /** `null` when the request never got an HTTP response. */
   statusCode: number | null;
   ok: boolean;
-  /** Payload enviado a la API. */
+  /** Payload sent to the API. */
   requestBody: unknown;
-  /** Cabeceras reales enviadas (útil para depurar el header de imágenes). */
+  /** Actual headers sent (useful for debugging the images header). */
   requestHeaders?: Record<string, string>;
-  /** Cuerpo crudo recibido (también en errores); `null` si no lo hubo. */
+  /** Raw body received (also on errors); `null` if there was none. */
   responseBody: string | null;
   inputTokens?: number;
   outputTokens?: number;
@@ -91,6 +91,6 @@ export interface RequestLog {
   errorMessage?: string;
   templateName?: string;
   batchId?: string;
-  /** Origen de la ejecución (cli, tui, web o mcp). */
+  /** Run source (cli, tui, web or mcp). */
   source?: RequestSource;
 }

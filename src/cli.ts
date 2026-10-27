@@ -61,227 +61,229 @@ export interface CliIO {
   stdout(text: string): void;
   stderr(text: string): void;
   readStdin(): Promise<string>;
-  /** fetch inyectable (tests). */
+  /** Injectable fetch (tests). */
   fetch?: FetchLike;
-  /** Entorno (tests). Default: process.env. */
+  /** Environment (tests). Default: process.env. */
   env?: NodeJS.ProcessEnv;
   /**
-   * Confirmación interactiva (tests). Si no se define, las operaciones que
-   * requieren confirmación tratan la respuesta como negativa.
+   * Interactive confirmation (tests). If not set, operations that require
+   * confirmation treat the answer as negative.
    */
   confirm?(prompt: string): Promise<boolean>;
   /**
-   * Abre un fichero con $EDITOR y devuelve su contenido editado. Si no se
-   * define, `templates edit` solo acepta --file.
+   * Opens a file with $EDITOR and returns its edited content. If not set,
+   * `templates edit` only accepts --file.
    */
   openInEditor?(filePath: string, initial: string): Promise<string>;
-  /** Indica si hay una terminal interactiva (TTY). Default: se asume que sí. */
+  /** Whether there is an interactive terminal (TTY). Default: assumed yes. */
   isTty?: boolean;
-  /** Ejecuta el modo interactivo (inyectable en tests). Default: driver real. */
+  /** Runs the interactive mode (injectable in tests). Default: real driver. */
   runTui?: (backend: TuiBackend) => Promise<number>;
 }
 
-const USAGE = `jev-client — CLI para la API de Jev (System One)
+const USAGE = `jev-client — CLI for the Jev API (System One)
 
-Uso:
-  jev-client ask [flags]      evalúa un state contra una o más preguntas
-  jev-client demo [flags]     ejecuta un ejemplo integrado
-  jev-client config <comando> gestiona la configuración persistente
-  jev-client history <comando> consulta el historial de peticiones
-  jev-client template <comando> gestiona plantillas JSON con macros
-  jev-client templates <comando> alias de template
-  jev-client batch <plantilla> --contexts <fichero.json>  ejecuta una plantilla para muchos contextos
-  jev-client tui [--db <ruta>]  modo interactivo (configuración y plantillas)
-  jev-client web-console [flags]  consola web local Next.js
-  jev-client --web-console [flags] alias de web-console
-  jev-client mcp [flags]        servidor MCP stdio (tools de plantillas y ejecución)
-  jev-client version          muestra la versión
-  jev-client help             muestra esta ayuda
+Usage:
+  jev-client ask [flags]      evaluates a state against one or more questions
+  jev-client demo [flags]     runs a built-in example
+  jev-client config <command> manages persistent settings
+  jev-client history <command> queries the request history
+  jev-client template <command> manages JSON templates with macros
+  jev-client templates <command> alias of template
+  jev-client batch <template> --contexts <file.json>  runs a template for many contexts
+  jev-client tui [--db <path>]  interactive mode (settings and templates)
+  jev-client web-console [flags]  local Next.js web console
+  jev-client --web-console [flags] alias of web-console
+  jev-client mcp [flags]        MCP stdio server (template and run tools)
+  jev-client version          shows the version
+  jev-client help             shows this help
 
-Variables de entorno:
-  OPENCODE_API_KEY (o JEV_API_KEY)  API key
+Environment variables:
+  OPENCODE_API_KEY (or JEV_API_KEY)  API key
   JEV_URL                           endpoint
-  JEV_MODEL                         modelo
-  JEV_DB                            ruta de la base SQLite
+  JEV_MODEL                         model
+  JEV_DB                            SQLite database path
 
-Precedencia: flag > variable de entorno > base de datos > valor por defecto.
-Endpoint por defecto: ${DEFAULT_ENDPOINT}
-Modelo por defecto:   ${DEFAULT_MODEL}
-Base por defecto:     <home-del-SO>/.jev-client/db/jev.db
+Precedence: flag > environment variable > database > default value.
+Default endpoint: ${DEFAULT_ENDPOINT}
+Default model:    ${DEFAULT_MODEL}
+Default database: <OS-home>/.jev-client/db/jev.db
 
-Ejemplos:
+Examples:
   jev-client demo
   jev-client demo --json
-  jev-client ask --state "Me han cobrado dos veces" \\
-      --noul 'billing=¿Es de facturación?'
-  jev-client ask --state-file ticket.txt --questions-file preguntas.json
+  jev-client ask --state "I was charged twice" \\
+      --noul 'billing=Is this about billing?'
+  jev-client ask --state-file ticket.txt --questions-file questions.json
   jev-client ask --request-file request.json
   jev-client config set model jev-1.13-free
-  jev-client template render pedido --context '{"estado":"pendiente"}'
-  jev-client batch pedido --contexts examples/contexts.json
+  jev-client template render order --context '{"state":"pending"}'
+  jev-client batch order --contexts examples/contexts.json
 `;
 
-const ASK_USAGE = `Uso: jev-client ask [flags]
+const ASK_USAGE = `Usage: jev-client ask [flags]
 
 Flags:
-  --state <texto|json>     contenido a evaluar ('-' para stdin)
-  --state-file <ruta>      fichero con el state ('-' para stdin)
-  --questions <json>       preguntas en JSON ('-' para stdin)
-  --questions-file <ruta>  fichero con las preguntas en JSON
-  --request <json>         payload completo en JSON ('-' para stdin)
-  --request-file <ruta>    fichero con el payload completo
-  --noul <clave>=<instrucción>            pregunta sí/no (repetible)
-  --choice <clave>=<instrucción>          pregunta de clasificación (repetible)
-  --score <clave>=<instrucción>           pregunta de escala ordenada (repetible)
-  --option <pregunta>.<opción>=<descrip.> opción de un --choice (repetible)
-  --level <pregunta>=<nivel>              nivel de un --score, en orden (repetible)
-  --asset [<ref>=]<ruta>                  imagen (PNG/JPEG); sin <ref> genera un UUID (repetible)
-  --assets-file <ruta>                    mapa assets completo en JSON
-  --no-images-header                      omite el header de imágenes (para probar el 400)
-  --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
-  --url <endpoint>         endpoint completo (env: JEV_URL)
-  --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
-  --db <ruta>              base SQLite (env: JEV_DB)
-  --timeout <segundos>     timeout de cada intento HTTP (default 30)
-  --retries <n>            reintentos ante 429/5xx (default 2)
-  --no-save                no registrar esta ejecución en el historial
-  --json                   imprime la respuesta cruda en JSON
-  -h, --help               muestra esta ayuda
+  --state <text|json>      content to evaluate ('-' for stdin)
+  --state-file <path>      file with the state ('-' for stdin)
+  --questions <json>       questions as JSON ('-' for stdin)
+  --questions-file <path>  file with the questions as JSON
+  --request <json>         full payload as JSON ('-' for stdin)
+  --request-file <path>    file with the full payload
+  --noul <key>=<instruction>            yes/no question (repeatable)
+  --choice <key>=<instruction>          classification question (repeatable)
+  --score <key>=<instruction>           ordered scale question (repeatable)
+  --option <question>.<option>=<desc.>  option of a --choice (repeatable)
+  --level <question>=<level>            level of a --score, in order (repeatable)
+  --asset [<ref>=]<path>                  image (PNG/JPEG); without <ref> a UUID is generated (repeatable)
+  --assets-file <path>                    full assets map as JSON
+  --no-images-header                      omits the images header (to test the 400)
+  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --url <endpoint>         full endpoint (env: JEV_URL)
+  --model <model>          e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
+  --db <path>              SQLite database (env: JEV_DB)
+  --timeout <seconds>      timeout of each HTTP attempt (default 30)
+  --retries <n>            retries on 429/5xx (default 2)
+  --no-save                do not record this run in the history
+  --json                   prints the raw response as JSON
+  -h, --help               shows this help
 
-Los flags --noul/--choice/--score sustituyen al --questions inline: construyen
-el JSON que el cliente ya entiende sin escribirlo a mano. --option aporta las
-opciones de un --choice y --level los niveles (en orden) de un --score. No se
-combinan con --questions, --questions-file, --request ni --request-file.
+The --noul/--choice/--score flags replace the inline --questions: they build
+the JSON the client already understands without writing it by hand. --option
+provides the options of a --choice and --level the levels (in order) of a
+--score. They do not combine with --questions, --questions-file, --request or
+--request-file.
 
-Ejemplos:
-  jev ask --state "Me han cobrado dos veces." --noul 'billing=¿Es de facturación?'
-  jev ask --state "El checkout lleva caído 30 minutos." \\
-      --choice 'team=¿Qué equipo debería gestionar la incidencia?' \\
-      --option 'team.billing=Cobros, facturas o pagos' \\
-      --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \\
-      --option 'team.sales=Precios o dudas comerciales'
-  jev ask --state "Llevamos dos días sin respuesta." \\
-      --score 'urgency=¿Cómo de urgente es la incidencia?' \\
-      --level 'urgency=Puede esperar' --level 'urgency=Esta semana' \\
-      --level 'urgency=Hoy mismo'
+Examples:
+  jev ask --state "I was charged twice." --noul 'billing=Is this about billing?'
+  jev ask --state "The checkout has been down for 30 minutes." \\
+      --choice 'team=Which team should own the incident?' \\
+      --option 'team.billing=Billing, invoices or payments' \\
+      --option 'team.infra=Outages, 500 errors or platform problems' \\
+      --option 'team.sales=Pricing or sales questions'
+  jev ask --state "We have gone two days without an answer." \\
+      --score 'urgency=How urgent is the incident?' \\
+      --level 'urgency=It can wait' --level 'urgency=This week' \\
+      --level 'urgency=Today'
 `;
 
-const DEMO_USAGE = `Uso: jev-client demo [flags]
+const DEMO_USAGE = `Usage: jev-client demo [flags]
 
 Flags:
-  --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
-  --url <endpoint>         endpoint completo (env: JEV_URL)
-  --model <modelo>         p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
-  --db <ruta>              base SQLite (env: JEV_DB)
-  --timeout <segundos>     timeout de cada intento HTTP (default 30)
-  --retries <n>            reintentos ante 429/5xx (default 2)
-  --no-save                no registrar esta ejecución en el historial
-  --json                   imprime la respuesta cruda en JSON
-  -h, --help               muestra esta ayuda
+  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --url <endpoint>         full endpoint (env: JEV_URL)
+  --model <model>          e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
+  --db <path>              SQLite database (env: JEV_DB)
+  --timeout <seconds>      timeout of each HTTP attempt (default 30)
+  --retries <n>            retries on 429/5xx (default 2)
+  --no-save                do not record this run in the history
+  --json                   prints the raw response as JSON
+  -h, --help               shows this help
 `;
 
-const CONFIG_USAGE = `Uso:
-  jev-client config list [--json] [--db <ruta>]
-  jev-client config get <clave> [--json] [--reveal] [--db <ruta>]
-  jev-client config set <clave> <valor> [--db <ruta>]
-  jev-client config unset <clave> [--db <ruta>]
-  jev-client config path [--db <ruta>]
+const CONFIG_USAGE = `Usage:
+  jev-client config list [--json] [--db <path>]
+  jev-client config get <key> [--json] [--reveal] [--db <path>]
+  jev-client config set <key> <value> [--db <path>]
+  jev-client config unset <key> [--db <path>]
+  jev-client config path [--db <path>]
 
-Claves: api_url, api_key, model, timeout (segundos), retries.
+Keys: api_url, api_key, model, timeout (seconds), retries.
 
-'config get api_key' muestra la key enmascarada; usa --reveal para verla.
-'config path' imprime la ruta de la base de datos que se está usando.
+'config get api_key' shows the key masked; use --reveal to see it.
+'config path' prints the database path in use.
 
-La API key se guarda en claro. Para no persistirla, usa --key o
-OPENCODE_API_KEY/JEV_API_KEY en cada ejecución.
+The API key is stored in plain text. To avoid persisting it, use --key or
+OPENCODE_API_KEY/JEV_API_KEY on every run.
 `;
 
-const HISTORY_USAGE = `Uso:
-  jev-client history list [filtros] [--db <ruta>]
-  jev-client history show <id> [--db <ruta>]
-  jev-client history export [filtros] [--db <ruta>]
+const HISTORY_USAGE = `Usage:
+  jev-client history list [filters] [--db <path>]
+  jev-client history show <id> [--db <path>]
+  jev-client history export [filters] [--db <path>]
 
-Filtros (list y export):
-  --since <ISO>            solo peticiones desde esta fecha (created_at)
-  --status <código>        código HTTP (p. ej. 200, 429)
-  --model <modelo>         modelo exacto
-  --template <nombre>      nombre de plantilla
-  --batch <id>             identificador de lote
-  --limit <n>              número máximo de resultados
+Filters (list and export):
+  --since <ISO>            only requests since this date (created_at)
+  --status <code>          HTTP status code (e.g. 200, 429)
+  --model <model>          exact model
+  --template <name>        template name
+  --batch <id>             batch identifier
+  --limit <n>              maximum number of results
 
-Flags comunes:
-  --db <ruta>              base SQLite (env: JEV_DB)
-  -h, --help               muestra esta ayuda
+Common flags:
+  --db <path>              SQLite database (env: JEV_DB)
+  -h, --help               shows this help
 `;
 
-const TEMPLATE_USAGE = `Uso:
-  jev-client template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...
-  jev-client template create <name> [--description <texto>] (--body <json> | --file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...
-  jev-client template list [--json] [--db <ruta>]
-  jev-client template show <name> [--json] [--db <ruta>]
-  jev-client template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]... [--clear-macro-schema <clave>]... [--db <ruta>]
-  jev-client template delete <name> [--yes] [--db <ruta>]
-  jev-client template remove <name> [--db <ruta>]
-  jev-client template validate <name> [--db <ruta>]
-  jev-client template validate --file <ruta>
-  jev-client template render <name> (--context <json> | --context-file <ruta>) [--db <ruta>]
+const TEMPLATE_USAGE = `Usage:
+  jev-client template add <name> [--description <text>] (--body <json> | --body-file <path>) [--macro-desc <key>=<text>]... [--macro-schema <key>=<json>]... [--macro-type <key>=<type>]...
+  jev-client template create <name> [--description <text>] (--body <json> | --file <path>) [--macro-desc <key>=<text>]... [--macro-schema <key>=<json>]... [--macro-type <key>=<type>]...
+  jev-client template list [--json] [--db <path>]
+  jev-client template show <name> [--json] [--db <path>]
+  jev-client template edit <name> (--file <path> | uses $EDITOR) [--description <text>] [--macro-desc <key>=<text>]... [--clear-macro-desc <key>]... [--macro-schema <key>=<json>]... [--macro-type <key>=<type>]... [--clear-macro-schema <key>]... [--db <path>]
+  jev-client template delete <name> [--yes] [--db <path>]
+  jev-client template remove <name> [--db <path>]
+  jev-client template validate <name> [--db <path>]
+  jev-client template validate --file <path>
+  jev-client template render <name> (--context <json> | --context-file <path>) [--db <path>]
 
-El body de una plantilla es un request de Jev con macros {{clave}}, que
-admiten rutas anidadas ({{cliente.nombre}}). 'render' resuelve las macros con
-un contexto JSON y previsualiza el request sin enviarlo.
+The body of a template is a Jev request with {{key}} macros, which support
+nested paths ({{customer.name}}). 'render' resolves the macros with a JSON
+context and previews the request without sending it.
 
-Las descripciones de macros son metadatos opcionales para humanos y agentes:
-'--macro-desc ticket=Identificador del pedido' es repetible y
-'--clear-macro-desc ticket' vacía la descripción. Sin flags, 'edit' conserva
-las descripciones existentes.
+Macro descriptions are optional metadata for humans and agents:
+'--macro-desc ticket=Order identifier' is repeatable and
+'--clear-macro-desc ticket' clears the description. Without flags, 'edit' keeps
+the existing descriptions.
 
-Cada macro admite además un JSON Schema informativo y opcional:
-'--macro-schema plan={"type":"string","enum":["free","pro"]}' guarda el
-esquema completo, '--macro-type plan=string' es el atajo {"type":"string"} y
-'--clear-macro-schema plan' lo elimina conservando la descripción. Los
-esquemas no se envían a Jev ni se resuelven al renderizar.
+Each macro also accepts an optional, informative JSON Schema:
+'--macro-schema plan={"type":"string","enum":["free","pro"]}' stores the full
+schema, '--macro-type plan=string' is the shorthand {"type":"string"} and
+'--clear-macro-schema plan' removes it while keeping the description. Schemas
+are not sent to Jev and are not resolved when rendering.
 `;
 
-const BATCH_USAGE = `Uso: jev-client batch <plantilla> --contexts <fichero.json> [flags]
+const BATCH_USAGE = `Usage: jev-client batch <template> --contexts <file.json> [flags]
 
-Ejecuta una plantilla con macros una vez por cada mapa de contexto del fichero.
-Cada mapa produce una petición y una fila en el historial (mismo batch_id).
+Runs a template with macros once per context map in the file.
+Each map produces one request and one row in the history (same batch_id).
 
 Flags:
-  --contexts <fichero.json>  array de mapas de contexto ('-' para stdin)
-  --concurrency <n>          peticiones concurrentes (default 1, max 10)
-  --continue-on-error        sigue con el resto ante errores (default)
-  --fail-fast                detiene la ejecución ante el primer error
-  --key <clave>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
-  --url <endpoint>           endpoint completo (env: JEV_URL)
-  --model <modelo>           p. ej. jev-1.13 o jev-1.13-free (env: JEV_MODEL)
-  --db <ruta>                base SQLite (env: JEV_DB)
-  --timeout <segundos>       timeout de cada intento HTTP (default 30)
-  --retries <n>              reintentos ante 429/5xx (default 2)
-  --no-save                  no registrar la ejecución en el historial
-  --json                     imprime el resumen en JSON
-  -h, --help                 muestra esta ayuda
+  --contexts <file.json>     array of context maps ('-' for stdin)
+  --concurrency <n>          concurrent requests (default 1, max 10)
+  --continue-on-error        continues with the rest on errors (default)
+  --fail-fast                stops the run at the first error
+  --key <key>                API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --url <endpoint>           full endpoint (env: JEV_URL)
+  --model <model>            e.g. jev-1.13 or jev-1.13-free (env: JEV_MODEL)
+  --db <path>                SQLite database (env: JEV_DB)
+  --timeout <seconds>        timeout of each HTTP attempt (default 30)
+  --retries <n>              retries on 429/5xx (default 2)
+  --no-save                  do not record the run in the history
+  --json                     prints the summary as JSON
+  -h, --help                 shows this help
 `;
 
-const TUI_USAGE = `Uso: jev-client tui [--db <ruta>]
+const TUI_USAGE = `Usage: jev-client tui [--db <path>]
 
-Abre el modo interactivo para configurar el provider y gestionar plantillas.
-Requiere una terminal (TTY). En entornos sin TTY usa los comandos equivalentes:
-  jev config set <clave> <valor>
-  jev config get <clave>
-  jev template list | show <nombre> | create | edit | validate | render
+Opens the interactive mode to configure the provider and manage templates.
+Requires a terminal (TTY). In environments without a TTY use the equivalent
+commands:
+  jev config set <key> <value>
+  jev config get <key>
+  jev template list | show <name> | create | edit | validate | render
 `;
 
-const TUI_NO_TTY = `error: el modo interactivo (tui) requiere una terminal (TTY).
-Usa los comandos equivalentes:
-  jev config set <clave> <valor>          configura el provider
-  jev config get <clave>                  consulta un valor
-  jev template list                       lista plantillas
-  jev template show <nombre>              detalle de una plantilla
-  jev template create <nombre> --body ... crea una plantilla
-  jev template edit <nombre>              edita una plantilla (\$EDITOR)
-  jev template validate <nombre>          valida una plantilla
-  jev template render <nombre> --context ... previsualiza
+const TUI_NO_TTY = `error: the interactive mode (tui) requires a terminal (TTY).
+Use the equivalent commands:
+  jev config set <key> <value>            configures the provider
+  jev config get <key>                    reads a value
+  jev template list                       lists templates
+  jev template show <name>                details of a template
+  jev template create <name> --body ... creates a template
+  jev template edit <name>                edits a template (\$EDITOR)
+  jev template validate <name>            validates a template
+  jev template render <name> --context ... previews
 `;
 
 type ParseArgsOptions = NonNullable<ParseArgsConfig["options"]>;
@@ -416,7 +418,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         io.stdout(USAGE);
         return 0;
       default:
-        throw new UsageError(`comando desconocido: ${JSON.stringify(command)}`);
+        throw new UsageError(`unknown command: ${JSON.stringify(command)}`);
     }
   } catch (error) {
     if (error instanceof UsageError) {
@@ -436,7 +438,7 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
     return 0;
   }
   if (positionals.length > 0) {
-    throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
+    throw new UsageError(`unexpected argument: ${JSON.stringify(positionals[0])}`);
   }
   if (
     values.state === undefined &&
@@ -444,7 +446,7 @@ async function runAsk(args: string[], io: CliIO): Promise<number> {
     values.request === undefined &&
     values["request-file"] === undefined
   ) {
-    throw new UsageError("falta --state, --state-file o --request-file");
+    throw new UsageError("missing --state, --state-file or --request-file");
   }
 
   const options = readCommonOptions(values, io);
@@ -471,7 +473,7 @@ async function runDemo(args: string[], io: CliIO): Promise<number> {
     return 0;
   }
   if (positionals.length > 0) {
-    throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
+    throw new UsageError(`unexpected argument: ${JSON.stringify(positionals[0])}`);
   }
 
   const options = readCommonOptions(values, io);
@@ -508,12 +510,12 @@ async function runBatch(args: string[], io: CliIO): Promise<number> {
   }
   if (positionals.length !== 1) {
     throw new UsageError(
-      "uso: jev batch <plantilla> --contexts <fichero.json> [flags]",
+      "usage: jev batch <template> --contexts <file.json> [flags]",
     );
   }
   const templateName = positionals[0] as string;
   if (templateName.trim() === "") {
-    throw new UsageError("el nombre de la plantilla no puede estar vacío");
+    throw new UsageError("the template name cannot be empty");
   }
 
   const concurrency = parseConcurrency(asString(values.concurrency));
@@ -521,12 +523,12 @@ async function runBatch(args: string[], io: CliIO): Promise<number> {
 
   const contextsFlag = asString(values.contexts);
   if (contextsFlag === undefined) {
-    throw new UsageError("falta --contexts <fichero.json>");
+    throw new UsageError("missing --contexts <file.json>");
   }
 
   const raw = await readInput(undefined, contextsFlag, io);
   if (raw === undefined || raw.trim() === "") {
-    throw new Error("--contexts está vacío");
+    throw new Error("--contexts is empty");
   }
   const contexts = parseContextsArray(raw);
 
@@ -563,7 +565,7 @@ function parseConcurrency(value: string | undefined): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_CONCURRENCY) {
     throw new UsageError(
-      `--concurrency debe ser un entero entre 1 y ${MAX_CONCURRENCY}`,
+      `--concurrency must be an integer between 1 and ${MAX_CONCURRENCY}`,
     );
   }
   return parsed;
@@ -574,10 +576,10 @@ function parseContextsArray(raw: string): unknown[] {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`JSON inválido en --contexts: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in --contexts: ${messageOf(error)}`);
   }
   if (!Array.isArray(parsed)) {
-    throw new Error("--contexts debe ser un array de mapas de contexto");
+    throw new Error("--contexts must be an array of context maps");
   }
   return parsed;
 }
@@ -634,7 +636,7 @@ function formatBatchReport(
   ).length;
 
   const lines = [
-    `batch: ${templateName} — ${results.length} peticiones (batch ${batchId})`,
+    `batch: ${templateName} — ${results.length} requests (batch ${batchId})`,
   ];
   for (const result of results) {
     if (result.ok) {
@@ -646,17 +648,17 @@ function formatBatchReport(
           `cost=${cost}`,
       );
     } else {
-      lines.push(`  ${result.index + 1}: error ${result.error ?? "desconocido"}`);
+      lines.push(`  ${result.index + 1}: error ${result.error ?? "unknown"}`);
     }
   }
   if (skipped > 0) {
-    lines.push(`  (${skipped} omitidos por --fail-fast)`);
+    lines.push(`  (${skipped} skipped by --fail-fast)`);
   }
-  lines.push(`resumen: ${ok} ok, ${errors} error`);
+  lines.push(`summary: ${ok} ok, ${errors} error`);
   lines.push(`tokens: ${inputTokens} in / ${outputTokens} out`);
   lines.push(
-    `coste: ${formatCost(costTotal)}` +
-      (costUnknown > 0 ? ` (${costUnknown} sin coste informado)` : ""),
+    `cost: ${formatCost(costTotal)}` +
+      (costUnknown > 0 ? ` (${costUnknown} without reported cost)` : ""),
   );
   return `${lines.join("\n")}\n`;
 }
@@ -678,7 +680,7 @@ async function runTuiCommand(args: string[], io: CliIO): Promise<number> {
     return 0;
   }
   if (positionals.length > 0) {
-    throw new UsageError(`argumento inesperado: ${JSON.stringify(positionals[0])}`);
+    throw new UsageError(`unexpected argument: ${JSON.stringify(positionals[0])}`);
   }
   if (io.isTty === false) {
     io.stderr(TUI_NO_TTY);
@@ -705,12 +707,12 @@ function runConfig(args: string[], io: CliIO): number {
 
   const action = positionals[0];
   if (action === undefined) {
-    throw new UsageError("falta un comando de config (list, get, set o unset)");
+    throw new UsageError("missing a config command (list, get, set or unset)");
   }
 
   switch (action) {
     case "list": {
-      expectConfigArity(positionals, 1, "jev config list [--json] [--db <ruta>]");
+      expectConfigArity(positionals, 1, "jev config list [--json] [--db <path>]");
       return withDatabase(values, io, (repository) => {
         const entries = repository.list();
         if (values.json === true) {
@@ -728,12 +730,12 @@ function runConfig(args: string[], io: CliIO): number {
       });
     }
     case "get": {
-      expectConfigArity(positionals, 2, "jev config get <clave> [--db <ruta>]");
+      expectConfigArity(positionals, 2, "jev config get <key> [--db <path>]");
       const key = parseConfigKey(positionals[1]);
       return withDatabase(values, io, (repository) => {
         const value = repository.get(key);
         if (value === undefined) {
-          throw new Error(`configuración no definida: ${key}`);
+          throw new Error(`setting not defined: ${key}`);
         }
         const reveal = values.reveal === true;
         if (values.json === true) {
@@ -750,7 +752,7 @@ function runConfig(args: string[], io: CliIO): number {
       expectConfigArity(
         positionals,
         3,
-        "jev config set <clave> <valor> [--db <ruta>]",
+        "jev config set <key> <value> [--db <path>]",
       );
       const key = parseConfigKey(positionals[1]);
       const value = positionals[2] as string;
@@ -761,11 +763,11 @@ function runConfig(args: string[], io: CliIO): number {
       }
       return withDatabase(values, io, (repository, path) => {
         repository.set(key, value);
-        io.stdout(`configuración guardada: ${key}\n`);
+        io.stdout(`setting saved: ${key}\n`);
         if (key === "api_key") {
           io.stderr(
-            `aviso: la API key se guarda en claro en ${path}. ` +
-              "Para no persistirla, usa --key o OPENCODE_API_KEY/JEV_API_KEY.\n",
+            `warning: the API key is stored in plain text in ${path}. ` +
+              "To avoid persisting it, use --key or OPENCODE_API_KEY/JEV_API_KEY.\n",
           );
         }
         return 0;
@@ -775,24 +777,24 @@ function runConfig(args: string[], io: CliIO): number {
       expectConfigArity(
         positionals,
         2,
-        "jev config unset <clave> [--db <ruta>]",
+        "jev config unset <key> [--db <path>]",
       );
       const key = parseConfigKey(positionals[1]);
       return withDatabase(values, io, (repository) => {
         repository.unset(key);
-        io.stdout(`configuración eliminada: ${key}\n`);
+        io.stdout(`setting deleted: ${key}\n`);
         return 0;
       });
     }
     case "path": {
-      expectConfigArity(positionals, 1, "jev config path [--db <ruta>]");
+      expectConfigArity(positionals, 1, "jev config path [--db <path>]");
       const path = resolveDatabasePath(asString(values.db), envOf(io));
       io.stdout(`${path}\n`);
       return 0;
     }
     default:
       throw new UsageError(
-        `comando de config desconocido: ${JSON.stringify(action)}`,
+        `unknown config command: ${JSON.stringify(action)}`,
       );
   }
 }
@@ -806,12 +808,12 @@ function runHistory(args: string[], io: CliIO): number {
 
   const action = positionals[0];
   if (action === undefined) {
-    throw new UsageError("falta un comando de history (list, show o export)");
+    throw new UsageError("missing a history command (list, show or export)");
   }
 
   switch (action) {
     case "list": {
-      expectConfigArity(positionals, 1, "jev history list [filtros]");
+      expectConfigArity(positionals, 1, "jev history list [filters]");
       const filters = parseHistoryFilters(values);
       return withRequestDatabase(values, io, (repository) => {
         for (const record of repository.list(filters)) {
@@ -821,19 +823,19 @@ function runHistory(args: string[], io: CliIO): number {
       });
     }
     case "show": {
-      expectConfigArity(positionals, 2, "jev history show <id> [--db <ruta>]");
+      expectConfigArity(positionals, 2, "jev history show <id> [--db <path>]");
       const id = parseHistoryId(positionals[1]);
       return withRequestDatabase(values, io, (repository) => {
         const record = repository.get(id);
         if (record === undefined) {
-          throw new Error(`no existe la petición ${id}`);
+          throw new Error(`request ${id} does not exist`);
         }
         io.stdout(formatHistoryDetail(record));
         return 0;
       });
     }
     case "export": {
-      expectConfigArity(positionals, 1, "jev history export [filtros]");
+      expectConfigArity(positionals, 1, "jev history export [filters]");
       const filters = parseHistoryFilters(values);
       return withRequestDatabase(values, io, (repository) => {
         for (const record of repository.list(filters)) {
@@ -844,7 +846,7 @@ function runHistory(args: string[], io: CliIO): number {
     }
     default:
       throw new UsageError(
-        `comando de history desconocido: ${JSON.stringify(action)}`,
+        `unknown history command: ${JSON.stringify(action)}`,
       );
   }
 }
@@ -861,7 +863,7 @@ function parseHistoryFilters(values: Values): HistoryFilters {
   if (status !== undefined) {
     const code = Number(status);
     if (!Number.isInteger(code) || code < 100 || code > 599) {
-      throw new UsageError("--status debe ser un código HTTP (100-599)");
+      throw new UsageError("--status must be an HTTP status code (100-599)");
     }
     filters.status = code;
   }
@@ -885,7 +887,7 @@ function parseHistoryFilters(values: Values): HistoryFilters {
   if (limit !== undefined) {
     const parsed = Number(limit);
     if (!Number.isInteger(parsed) || parsed < 0) {
-      throw new UsageError("--limit debe ser un entero >= 0");
+      throw new UsageError("--limit must be an integer >= 0");
     }
     filters.limit = parsed;
   }
@@ -896,7 +898,7 @@ function parseHistoryFilters(values: Values): HistoryFilters {
 function parseHistoryId(value: string | undefined): number {
   const id = value === undefined ? NaN : Number(value);
   if (!Number.isInteger(id) || id < 1) {
-    throw new UsageError("el id debe ser un entero positivo");
+    throw new UsageError("the id must be a positive integer");
   }
   return id;
 }
@@ -921,14 +923,14 @@ function expectConfigArity(
   usage: string,
 ): void {
   if (positionals.length !== expected) {
-    throw new UsageError(`uso: ${usage}`);
+    throw new UsageError(`usage: ${usage}`);
   }
 }
 
 function parseConfigKey(value: string | undefined): ConfigKey {
   if (value === undefined || !isConfigKey(value)) {
     throw new UsageError(
-      `clave inválida: ${JSON.stringify(value)} (usa ${CONFIG_KEYS.join(", ")})`,
+      `invalid key: ${JSON.stringify(value)} (use ${CONFIG_KEYS.join(", ")})`,
     );
   }
   return value;
@@ -945,7 +947,7 @@ async function runTemplate(args: string[], io: CliIO): Promise<number> {
   const action = positionals[0];
   if (action === undefined) {
     throw new UsageError(
-      "falta un comando de template (add, create, list, show, edit, delete, remove, validate o render)",
+      "missing a template command (add, create, list, show, edit, delete, remove, validate or render)",
     );
   }
 
@@ -969,7 +971,7 @@ async function runTemplate(args: string[], io: CliIO): Promise<number> {
       return await templateRender(values, positionals, io);
     default:
       throw new UsageError(
-        `comando de template desconocido: ${JSON.stringify(action)}`,
+        `unknown template command: ${JSON.stringify(action)}`,
       );
   }
 }
@@ -980,27 +982,27 @@ function expectTemplateArity(
   usage: string,
 ): void {
   if (positionals.length !== expected) {
-    throw new UsageError(`uso: ${usage}`);
+    throw new UsageError(`usage: ${usage}`);
   }
 }
 
 function templateName(positionals: string[]): string {
   const name = positionals[1] as string;
   if (name.trim() === "") {
-    throw new UsageError("el nombre de la plantilla no puede estar vacío");
+    throw new UsageError("the template name cannot be empty");
   }
   return name;
 }
 
-/** Separa `<clave>=<valor>` conservando posibles `=` dentro del valor. */
+/** Splits `<key>=<value>` keeping any `=` inside the value. */
 function splitMacroFlag(
   raw: string,
   flag: string,
-  valueLabel = "valor",
+  valueLabel = "value",
 ): { name: string; value: string } {
   const separator = raw.indexOf("=");
   if (separator <= 0) {
-    throw new UsageError(`${flag} espera <clave>=<${valueLabel}>: ${JSON.stringify(raw)}`);
+    throw new UsageError(`${flag} expects <key>=<${valueLabel}>: ${JSON.stringify(raw)}`);
   }
   return {
     name: raw.slice(0, separator).trim(),
@@ -1008,10 +1010,10 @@ function splitMacroFlag(
   };
 }
 
-/** Lee los `--macro-desc <clave>=<texto>` repetibles. */
+/** Reads the repeatable `--macro-desc <key>=<text>`. */
 function macroDescriptionsFlag(values: Values): TemplateMacro[] {
   return asStrings(values["macro-desc"]).map((raw) => {
-    const { name, value } = splitMacroFlag(raw, "--macro-desc", "texto");
+    const { name, value } = splitMacroFlag(raw, "--macro-desc", "text");
     return { name, description: value };
   });
 }
@@ -1025,13 +1027,13 @@ function clearedMacroNames(values: Values, key: string, flag: string): string[] 
     .map((name) => name.trim())
     .filter((name) => {
       if (name === "") {
-        throw new UsageError(`${flag} espera <clave>`);
+        throw new UsageError(`${flag} expects <key>`);
       }
       return true;
     });
 }
 
-/** Lee `--macro-schema <clave>=<json>` y valida cada esquema. */
+/** Reads `--macro-schema <key>=<json>` and validates each schema. */
 function macroSchemasFlag(values: Values): Array<{ name: string; schema: MacroSchema }> {
   return asStrings(values["macro-schema"]).map((raw) => {
     const { name, value } = splitMacroFlag(raw, "--macro-schema");
@@ -1040,7 +1042,7 @@ function macroSchemasFlag(values: Values): Array<{ name: string; schema: MacroSc
       parsed = JSON.parse(value);
     } catch (error) {
       throw new UsageError(
-        `--macro-schema ${JSON.stringify(name)} no es JSON válido: ${messageOf(error)}`,
+        `--macro-schema ${JSON.stringify(name)} is not valid JSON: ${messageOf(error)}`,
       );
     }
     try {
@@ -1056,14 +1058,14 @@ function macroSchemasFlag(values: Values): Array<{ name: string; schema: MacroSc
   });
 }
 
-/** Lee `--macro-type <clave>=<tipo>` como atajo de `{"type":"<tipo>"}`. */
+/** Reads `--macro-type <key>=<type>` as shorthand for `{"type":"<type>"}`. */
 function macroTypesFlag(values: Values): Array<{ name: string; schema: MacroSchema }> {
   return asStrings(values["macro-type"]).map((raw) => {
     const { name, value } = splitMacroFlag(raw, "--macro-type");
     const type = value.trim();
     if (!(MACRO_SCHEMA_TYPES as readonly string[]).includes(type)) {
       throw new UsageError(
-        `--macro-type ${JSON.stringify(name)} espera uno de: ${MACRO_SCHEMA_TYPES.join(" | ")}`,
+        `--macro-type ${JSON.stringify(name)} expects one of: ${MACRO_SCHEMA_TYPES.join(" | ")}`,
       );
     }
     return { name, schema: { type: type as MacroSchemaType } };
@@ -1071,8 +1073,8 @@ function macroTypesFlag(values: Values): Array<{ name: string; schema: MacroSche
 }
 
 /**
- * Combina los metadatos existentes con los flags de macros. Devuelve
- * `undefined` si no hay flags para que el repositorio conserve los actuales.
+ * Merges the existing metadata with the macro flags. Returns `undefined` when
+ * there are no flags so the repository keeps the current values.
  */
 function mergeMacroFlags(
   values: Values,
@@ -1105,7 +1107,7 @@ function mergeMacroFlags(
   for (const name of touched) {
     if (!detected.has(name)) {
       throw new UsageError(
-        `la macro ${JSON.stringify(name)} no está en el body de la plantilla`,
+        `macro ${JSON.stringify(name)} is not in the template body`,
       );
     }
   }
@@ -1146,7 +1148,7 @@ async function templateAdd(
   expectTemplateArity(
     positionals,
     2,
-    "jev template add <name> [--description <texto>] (--body <json> | --body-file <ruta>) [--macro-desc <clave>=<texto>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]...",
+    "jev template add <name> [--description <text>] (--body <json> | --body-file <path>) [--macro-desc <key>=<text>]... [--macro-schema <key>=<json>]... [--macro-type <key>=<type>]...",
   );
   const name = templateName(positionals);
   const raw = await readTemplateBodyInput(values, io);
@@ -1155,7 +1157,7 @@ async function templateAdd(
   const macros = mergeMacroFlags(values, raw);
   return withTemplates(values, io, (repository) => {
     repository.save(name, description, raw, macros);
-    io.stdout(`plantilla guardada: ${name}\n`);
+    io.stdout(`template saved: ${name}\n`);
     return 0;
   });
 }
@@ -1204,7 +1206,7 @@ function templateShow(
   return withTemplates(values, io, (repository) => {
     const template = repository.get(name);
     if (template === undefined) {
-      throw new Error(`plantilla no encontrada: ${name}`);
+      throw new Error(`template not found: ${name}`);
     }
     if (values.json === true) {
       const body = safeParseJson(template.body_json);
@@ -1228,7 +1230,7 @@ function templateShow(
         io.stdout("\nMacros:\n");
         for (const macro of template.macros) {
           io.stdout(`  {{${macro.name}}}\n`);
-          io.stdout(`    ${macro.description || "(sin descripción)"}\n`);
+          io.stdout(`    ${macro.description || "(no description)"}\n`);
           if (macro.schema !== undefined && macro.schema !== null) {
             io.stdout(`    schema: ${JSON.stringify(macro.schema)}\n`);
           }
@@ -1246,15 +1248,15 @@ async function templateDelete(
 ): Promise<number> {
   expectTemplateArity(positionals, 2, "jev template delete <name> [--yes]");
   const name = templateName(positionals);
-  if (values.yes !== true && !(await confirm(io, `¿Eliminar la plantilla ${name}? [s/N] `))) {
-    io.stdout("cancelado\n");
+  if (values.yes !== true && !(await confirm(io, `Delete template ${name}? [y/N] `))) {
+    io.stdout("cancelled\n");
     return 0;
   }
   return withTemplates(values, io, (repository) => {
     if (!repository.remove(name)) {
-      throw new Error(`plantilla no encontrada: ${name}`);
+      throw new Error(`template not found: ${name}`);
     }
-    io.stdout(`plantilla eliminada: ${name}\n`);
+    io.stdout(`template deleted: ${name}\n`);
     return 0;
   });
 }
@@ -1268,9 +1270,9 @@ function templateRemove(
   const name = templateName(positionals);
   return withTemplates(values, io, (repository) => {
     if (!repository.remove(name)) {
-      throw new Error(`plantilla no encontrada: ${name}`);
+      throw new Error(`template not found: ${name}`);
     }
-    io.stdout(`plantilla eliminada: ${name}\n`);
+    io.stdout(`template deleted: ${name}\n`);
     return 0;
   });
 }
@@ -1283,7 +1285,7 @@ async function templateEdit(
   expectTemplateArity(
     positionals,
     2,
-    "jev template edit <name> (--file <ruta> | usa $EDITOR) [--description <texto>] [--macro-desc <clave>=<texto>]... [--clear-macro-desc <clave>]... [--macro-schema <clave>=<json>]... [--macro-type <clave>=<tipo>]... [--clear-macro-schema <clave>]...",
+    "jev template edit <name> (--file <path> | uses $EDITOR) [--description <text>] [--macro-desc <key>=<text>]... [--clear-macro-desc <key>]... [--macro-schema <key>=<json>]... [--macro-type <key>=<type>]... [--clear-macro-schema <key>]...",
   );
   const name = templateName(positionals);
   const file = asString(values.file);
@@ -1293,7 +1295,7 @@ async function templateEdit(
     repository.get(name),
   );
   if (existing === undefined) {
-    throw new Error(`plantilla no encontrada: ${name}`);
+    throw new Error(`template not found: ${name}`);
   }
 
   const raw = await (async () => {
@@ -1303,7 +1305,7 @@ async function templateEdit(
     }
     if (io.openInEditor === undefined) {
       throw new Error(
-        "$EDITOR no está definido. Define EDITOR/VISUAL o usa --file <ruta>.",
+        "$EDITOR is not set. Set EDITOR/VISUAL or use --file <path>.",
       );
     }
     const path = join(
@@ -1324,7 +1326,7 @@ async function templateEdit(
   withTemplates(values, io, (repository) => {
     repository.save(name, finalDescription, raw, macros);
   });
-  io.stdout(`plantilla guardada: ${name}\n`);
+  io.stdout(`template saved: ${name}\n`);
   return 0;
 }
 
@@ -1339,11 +1341,11 @@ async function templateValidate(
     expectTemplateArity(
       positionals,
       2,
-      "jev template validate <name> [--db <ruta>]",
+      "jev template validate <name> [--db <path>]",
     );
     name = templateName(positionals);
   } else {
-    expectTemplateArity(positionals, 1, "jev template validate --file <ruta>");
+    expectTemplateArity(positionals, 1, "jev template validate --file <path>");
   }
 
   const raw =
@@ -1351,12 +1353,12 @@ async function templateValidate(
       ? await readTemplateBodyInput(values, io)
       : withTemplates(values, io, (repository) => repository.get(name)?.body_json);
   if (raw === undefined) {
-    throw new Error(`plantilla no encontrada: ${name}`);
+    throw new Error(`template not found: ${name}`);
   }
 
   validateTemplateBody(raw);
   const label = name ?? file;
-  io.stdout(`plantilla válida: ${label}\n`);
+  io.stdout(`template valid: ${label}\n`);
   return 0;
 }
 
@@ -1370,7 +1372,7 @@ async function readTemplateBodyInput(
     io,
   );
   if (raw === undefined || raw.trim() === "") {
-    throw new Error("falta el body de la plantilla (--body o --file)");
+    throw new Error("missing the template body (--body or --file)");
   }
   return raw;
 }
@@ -1387,7 +1389,7 @@ async function templateRender(
   expectTemplateArity(
     positionals,
     2,
-    "jev template render <name> (--context <json> | --context-file <ruta>)",
+    "jev template render <name> (--context <json> | --context-file <path>)",
   );
   const name = templateName(positionals);
   const context = parseContext(
@@ -1400,7 +1402,7 @@ async function templateRender(
   return withTemplates(values, io, (repository) => {
     const template = repository.get(name);
     if (template === undefined) {
-      throw new Error(`plantilla no encontrada: ${name}`);
+      throw new Error(`template not found: ${name}`);
     }
     const request = resolveTemplateBody(template.body_json, context);
     io.stdout(`${JSON.stringify(request, null, 2)}\n`);
@@ -1416,10 +1418,10 @@ function parseContext(raw: string | undefined): TemplateContext {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`JSON inválido en el contexto: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in the context: ${messageOf(error)}`);
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("el contexto debe ser un objeto JSON");
+    throw new Error("the context must be a JSON object");
   }
   return parsed as TemplateContext;
 }
@@ -1485,13 +1487,13 @@ function readCommonOptions(values: Values, io: CliIO): CommonOptions {
     timeoutSeconds !== undefined &&
     (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0)
   ) {
-    throw new UsageError("--timeout debe ser un número positivo en segundos");
+    throw new UsageError("--timeout must be a positive number of seconds");
   }
 
   const retriesValue = asString(values.retries);
   const retries = retriesValue === undefined ? undefined : Number(retriesValue);
   if (retries !== undefined && (!Number.isInteger(retries) || retries < 0)) {
-    throw new UsageError("--retries debe ser un entero >= 0");
+    throw new UsageError("--retries must be an integer >= 0");
   }
 
   const stored = withDatabase(values, io, (repository) => {
@@ -1556,7 +1558,7 @@ function createService(values: Values, io: CliIO): JevService {
   });
 }
 
-/** ¿Se usó algún flag tipado (--noul/--choice/--score/--option/--level)? */
+/** Was any typed flag (--noul/--choice/--score/--option/--level) used? */
 function hasTypedQuestionFlags(values: Values): boolean {
   return (
     asStrings(values.noul).length > 0 ||
@@ -1567,31 +1569,31 @@ function hasTypedQuestionFlags(values: Values): boolean {
   );
 }
 
-/** Separa `<pregunta>.<opción>=<descripción>` de un `--option`. */
+/** Splits `<question>.<option>=<description>` from an `--option`. */
 function splitOptionFlag(
   raw: string,
 ): { question: string; option: string; value: string } {
-  const { name, value } = splitMacroFlag(raw, "--option", "descripción");
+  const { name, value } = splitMacroFlag(raw, "--option", "description");
   const dot = name.indexOf(".");
   if (dot <= 0 || dot === name.length - 1) {
     throw new UsageError(
-      `--option espera <pregunta>.<opción>=<descripción>: ${JSON.stringify(raw)}`,
+      `--option expects <question>.<option>=<description>: ${JSON.stringify(raw)}`,
     );
   }
   const question = name.slice(0, dot);
   const option = name.slice(dot + 1);
   if (option.includes(".")) {
     throw new UsageError(
-      `--option: la opción no puede contener '.': ${JSON.stringify(raw)}`,
+      `--option: the option cannot contain '.': ${JSON.stringify(raw)}`,
     );
   }
   return { question, option, value };
 }
 
 /**
- * Construye las `questions` a partir de los flags tipados `--noul`, `--choice`,
- * `--score`, `--option` y `--level`. Traduce la entrada de consola al request
- * JSON que el cliente ya entiende, validando localmente los errores de forma.
+ * Builds the `questions` from the typed flags `--noul`, `--choice`, `--score`,
+ * `--option` and `--level`. Translates the console input into the JSON request
+ * the client already understands, validating shape errors locally.
  */
 export function buildQuestionsFromFlags(
   values: Values,
@@ -1603,10 +1605,10 @@ export function buildQuestionsFromFlags(
     raw: string,
     flag: string,
   ): void => {
-    const { name, value } = splitMacroFlag(raw, flag, "instrucción");
+    const { name, value } = splitMacroFlag(raw, flag, "instruction");
     if (Object.prototype.hasOwnProperty.call(questions, name)) {
       throw new UsageError(
-        `clave duplicada: ${JSON.stringify(name)} (--noul/--choice/--score)`,
+        `duplicate key: ${JSON.stringify(name)} (--noul/--choice/--score)`,
       );
     }
     if (kind === "noul") {
@@ -1634,22 +1636,22 @@ export function buildQuestionsFromFlags(
     if (target === undefined || target.type !== "choice") {
       throw new UsageError(
         `--option ${JSON.stringify(question + "." + option)}: ` +
-          `la pregunta ${JSON.stringify(question)} no es un --choice`,
+          `question ${JSON.stringify(question)} is not a --choice`,
       );
     }
     const criteria = target.criteria as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(criteria, option)) {
-      throw new UsageError(`opción duplicada: ${JSON.stringify(question + "." + option)}`);
+      throw new UsageError(`duplicate option: ${JSON.stringify(question + "." + option)}`);
     }
     criteria[option] = value;
   }
 
   for (const raw of asStrings(values.level)) {
-    const { name, value } = splitMacroFlag(raw, "--level", "nivel");
+    const { name, value } = splitMacroFlag(raw, "--level", "level");
     const target = questions[name];
     if (target === undefined || target.type !== "score") {
       throw new UsageError(
-        `--level ${JSON.stringify(name)}: la pregunta ${JSON.stringify(name)} no es un --score`,
+        `--level ${JSON.stringify(name)}: question ${JSON.stringify(name)} is not a --score`,
       );
     }
     (target.criteria as unknown[]).push(value);
@@ -1659,15 +1661,15 @@ export function buildQuestionsFromFlags(
     if (question.type === "choice") {
       if (Object.keys(question.criteria as Record<string, unknown>).length === 0) {
         throw new UsageError(
-          `--choice ${JSON.stringify(name)} necesita al menos un --option ` +
-            `${JSON.stringify(name)}.<opción>=<descripción>`,
+          `--choice ${JSON.stringify(name)} needs at least one --option ` +
+            `${JSON.stringify(name)}.<option>=<description>`,
         );
       }
     } else if (question.type === "score") {
       if ((question.criteria as unknown[]).length === 0) {
         throw new UsageError(
-          `--score ${JSON.stringify(name)} necesita al menos un --level ` +
-            `${JSON.stringify(name)}=<nivel>`,
+          `--score ${JSON.stringify(name)} needs at least one --level ` +
+            `${JSON.stringify(name)}=<level>`,
         );
       }
     }
@@ -1693,7 +1695,7 @@ async function buildRequest(
       asString(values["questions-file"]) !== undefined
     ) {
       throw new UsageError(
-        "--noul/--choice/--score no se combinan con --questions, --questions-file, --request ni --request-file",
+        "--noul/--choice/--score do not combine with --questions, --questions-file, --request or --request-file",
       );
     }
     const stateRaw = await readInput(
@@ -1702,7 +1704,7 @@ async function buildRequest(
       io,
     );
     if (stateRaw === undefined || stateRaw.trim() === "") {
-      throw new Error("el state está vacío");
+      throw new Error("the state is empty");
     }
     return mergeAssets(
       {
@@ -1717,7 +1719,7 @@ async function buildRequest(
   if (requestInline !== undefined || requestFile !== undefined) {
     const raw = await readInput(requestInline, requestFile, io);
     if (raw === undefined) {
-      throw new Error("el request está vacío");
+      throw new Error("the request is empty");
     }
     return mergeAssets(buildRequestFromPayload(raw, options, io), flagAssets);
   }
@@ -1728,7 +1730,7 @@ async function buildRequest(
     io,
   );
   if (stateRaw === undefined || stateRaw.trim() === "") {
-    throw new Error("el state está vacío");
+    throw new Error("the state is empty");
   }
 
   const questionsRaw = await readInput(
@@ -1737,7 +1739,7 @@ async function buildRequest(
     io,
   );
   if (questionsRaw === undefined || questionsRaw.trim() === "") {
-    throw new Error("faltan --questions o --questions-file");
+    throw new Error("missing --questions or --questions-file");
   }
 
   return mergeAssets(
@@ -1760,7 +1762,7 @@ function mergeAssets(
   return { ...request, assets: { ...(request.assets ?? {}), ...assets } };
 }
 
-/** Separa `--asset [<ref>=]<ruta>` conservando `=` dentro de la ruta. */
+/** Splits `--asset [<ref>=]<path>` keeping `=` inside the path. */
 function splitAssetFlag(raw: string): { ref: string | undefined; path: string } {
   const separator = raw.indexOf("=");
   if (separator <= 0) {
@@ -1769,7 +1771,7 @@ function splitAssetFlag(raw: string): { ref: string | undefined; path: string } 
   return { ref: raw.slice(0, separator).trim(), path: raw.slice(separator + 1) };
 }
 
-/** Carga las imágenes de `--asset` y `--assets-file`; valida límites. */
+/** Loads the images from `--asset` and `--assets-file`; validates limits. */
 async function buildAssets(
   values: Values,
   io: CliIO,
@@ -1786,16 +1788,16 @@ async function buildAssets(
   if (assetsFile !== undefined) {
     const raw = await readInput(undefined, assetsFile, io);
     if (raw === undefined || raw.trim() === "") {
-      throw new Error("--assets-file está vacío");
+      throw new Error("--assets-file is empty");
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch (error) {
-      throw new Error(`JSON inválido en --assets-file: ${messageOf(error)}`);
+      throw new Error(`invalid JSON in --assets-file: ${messageOf(error)}`);
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("--assets-file debe ser un objeto JSON { ref: asset }");
+      throw new Error("--assets-file must be a JSON object { ref: asset }");
     }
     for (const [ref, value] of Object.entries(parsed as Record<string, unknown>)) {
       assets[ref] = await resolveAssetEntry(ref, value);
@@ -1805,13 +1807,13 @@ async function buildAssets(
   return Object.keys(assets).length === 0 ? undefined : assets;
 }
 
-/** Resuelve una entrada del mapa `assets` (ruta, data_base64 o asset completo). */
+/** Resolves an entry of the `assets` map (path, data_base64 or full asset). */
 async function resolveAssetEntry(ref: string, value: unknown): Promise<ImageAsset> {
   if (typeof value === "string") {
     return (await loadImageAsset(value, ref)).asset;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`el asset ${JSON.stringify(ref)} debe ser una ruta o un objeto`);
+    throw new Error(`asset ${JSON.stringify(ref)} must be a path or an object`);
   }
   const record = value as Record<string, unknown>;
   if (typeof record.path === "string") {
@@ -1827,17 +1829,17 @@ function buildRequestFromPayload(
   io: CliIO,
 ): JevRequest {
   if (raw.trim() === "") {
-    throw new Error("el request está vacío");
+    throw new Error("the request is empty");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`JSON inválido en el request: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in the request: ${messageOf(error)}`);
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("el request debe ser un objeto JSON");
+    throw new Error("the request must be a JSON object");
   }
 
   const request = parsed as Partial<JevRequest>;
@@ -1846,10 +1848,10 @@ function buildRequestFromPayload(
     typeof request.questions !== "object" ||
     Object.keys(request.questions).length === 0
   ) {
-    throw new Error("el request no tiene preguntas");
+    throw new Error("the request has no questions");
   }
   if (request.state === undefined) {
-    throw new Error("el request no tiene state");
+    throw new Error("the request has no state");
   }
 
   return {
@@ -1870,7 +1872,7 @@ async function readInput(
   io: CliIO,
 ): Promise<string | undefined> {
   if (inline !== undefined && file !== undefined) {
-    throw new UsageError("usa el flag inline o el -file, no ambos");
+    throw new UsageError("use the inline flag or the -file flag, not both");
   }
   if (inline === "-" || file === "-") {
     return io.readStdin();
@@ -1879,20 +1881,20 @@ async function readInput(
     try {
       return await readFile(file, "utf8");
     } catch (error) {
-      throw new Error(`no se pudo leer ${file}: ${messageOf(error)}`);
+      throw new Error(`could not read ${file}: ${messageOf(error)}`);
     }
   }
   return inline;
 }
 
-/** El state puede ser texto plano o JSON (objeto/array). */
+/** The state can be plain text or JSON (object/array). */
 export function decodeState(raw: string): State {
   const trimmed = raw.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       return JSON.parse(trimmed) as State;
     } catch (error) {
-      throw new Error(`JSON inválido en el state: ${messageOf(error)}`);
+      throw new Error(`invalid JSON in the state: ${messageOf(error)}`);
     }
   }
   return raw.endsWith("\n") ? raw.slice(0, -1) : raw;
@@ -1903,7 +1905,7 @@ export function decodeQuestions(raw: string): Record<string, Question> {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`JSON inválido en las preguntas: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in the questions: ${messageOf(error)}`);
   }
   return validateQuestions(parsed);
 }
@@ -1938,7 +1940,7 @@ function printError(stderr: (text: string) => void, error: unknown): void {
 
   const hint = jevErrorHint(error);
   if (hint !== undefined) {
-    stderr(`pista: ${hint}\n`);
+    stderr(`hint: ${hint}\n`);
   }
 }
 

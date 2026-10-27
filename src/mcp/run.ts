@@ -5,24 +5,24 @@ import { type ConfigFlags } from "../config.js";
 import { createMcpContext, type McpServerOptions } from "./context.js";
 import { runMcpServer } from "./server.js";
 
-export const MCP_USAGE = `Uso: jev mcp [flags]
+export const MCP_USAGE = `Usage: jev mcp [flags]
 
-Arranca el servidor MCP por stdio (JSON-RPC en stdout, logs en stderr).
+Starts the MCP server over stdio (JSON-RPC on stdout, logs on stderr).
 
 Flags:
-  --db <ruta>              base SQLite (env: JEV_DB)
-  --key <clave>            API key (env: OPENCODE_API_KEY, JEV_API_KEY)
-  --url <endpoint>         endpoint completo (env: JEV_URL)
-  --model <modelo>         modelo (env: JEV_MODEL)
-  --timeout <segundos>     timeout de cada intento HTTP (default 30)
-  --retries <n>            reintentos ante 429/5xx (default 2)
-  --read-only              deshabilita crear/editar/borrar plantillas
-  --no-execute             deshabilita jev_ask/jev_batch y las tools de plantilla
-  --allow-destructive      habilita jev_template_delete
-  -h, --help               muestra esta ayuda
+  --db <path>              SQLite database (env: JEV_DB)
+  --key <key>              API key (env: OPENCODE_API_KEY, JEV_API_KEY)
+  --url <endpoint>         full endpoint (env: JEV_URL)
+  --model <model>          model (env: JEV_MODEL)
+  --timeout <seconds>      timeout per HTTP attempt (default 30)
+  --retries <n>            retries on 429/5xx (default 2)
+  --read-only              disables creating/editing/deleting templates
+  --no-execute             disables jev_ask/jev_batch and the template tools
+  --allow-destructive      enables jev_template_delete
+  -h, --help               shows this help
 
-Si falta la API key el servidor arranca igualmente: las tools de lectura
-funcionan y las de ejecución devuelven un error estructurado.
+If the API key is missing the server still starts: read tools work and
+execution tools return a structured error.
 `;
 
 interface McpOutput {
@@ -71,13 +71,13 @@ function parseMcpArgs(argv: string[]): ParsedMcpArgs | "help" {
     timeoutSeconds !== undefined &&
     (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0)
   ) {
-    throw new Error("--timeout debe ser un número positivo en segundos");
+    throw new Error("--timeout must be a positive number of seconds");
   }
 
   const retriesRaw = typeof values.retries === "string" ? values.retries : undefined;
   const retries = retriesRaw === undefined ? undefined : Number(retriesRaw);
   if (retries !== undefined && (!Number.isInteger(retries) || retries < 0)) {
-    throw new Error("--retries debe ser un entero >= 0");
+    throw new Error("--retries must be an integer >= 0");
   }
 
   return {
@@ -94,7 +94,7 @@ function parseMcpArgs(argv: string[]): ParsedMcpArgs | "help" {
   };
 }
 
-/** Comando `jev mcp` (y binario `jev-mcp`): arranca el servidor stdio. */
+/** `jev mcp` command (and `jev-mcp` binary): starts the stdio server. */
 export async function runMcpCommand(argv: string[], io: McpOutput): Promise<number> {
   let parsed: ParsedMcpArgs | "help";
   try {

@@ -36,17 +36,17 @@ import {
   type ToolAnnotations,
 } from "./schema.js";
 
-/** Límite de contextos por llamada a `jev_batch`. */
+/** Context limit per `jev_batch` call. */
 export const MCP_BATCH_LIMIT = 100;
 
-/** Tools cuya ejecución muta el catálogo y debe emitir `tools/list_changed`. */
+/** Tools whose execution mutates the catalog and must emit `tools/list_changed`. */
 export const TEMPLATE_MUTATION_TOOLS = new Set([
   "jev_template_create",
   "jev_template_update",
   "jev_template_delete",
 ]);
 
-/** Una tool publicada por el servidor MCP (fija o generada por plantilla). */
+/** A tool published by the MCP server (built-in or generated from a template). */
 export interface ToolDefinition {
   name: string;
   title?: string;
@@ -56,7 +56,7 @@ export interface ToolDefinition {
   annotations: ToolAnnotations;
   source: "builtin" | "template";
   templateName?: string;
-  /** `false` cuando un flag del servidor la deshabilita. */
+  /** `false` when a server flag disables it. */
   enabled: boolean;
   disabledReason?: string;
   run(args: Record<string, unknown>, ctx: McpContext): Promise<unknown>;
@@ -101,12 +101,12 @@ function stringArg(
   const value = args[key];
   if (value === undefined) {
     if (options.required) {
-      fail("invalid_arguments", `falta el argumento requerido: ${key}`);
+      fail("invalid_arguments", `missing required argument: ${key}`);
     }
     return undefined;
   }
   if (typeof value !== "string" || value.trim() === "") {
-    fail("invalid_arguments", `${key} debe ser una cadena no vacía`);
+    fail("invalid_arguments", `${key} must be a non-empty string`);
   }
   return value;
 }
@@ -119,12 +119,12 @@ function objectArg(
   const value = args[key];
   if (value === undefined) {
     if (options.required) {
-      fail("invalid_arguments", `falta el argumento requerido: ${key}`);
+      fail("invalid_arguments", `missing required argument: ${key}`);
     }
     return undefined;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    fail("invalid_arguments", `${key} debe ser un objeto JSON`);
+    fail("invalid_arguments", `${key} must be a JSON object`);
   }
   return value as Record<string, unknown>;
 }
@@ -139,14 +139,14 @@ function integerArg(
     return undefined;
   }
   if (!Number.isInteger(value)) {
-    fail("invalid_arguments", `${key} debe ser un entero`);
+    fail("invalid_arguments", `${key} must be an integer`);
   }
   const number = value as number;
   if (options.min !== undefined && number < options.min) {
-    fail("invalid_arguments", `${key} debe ser >= ${options.min}`);
+    fail("invalid_arguments", `${key} must be >= ${options.min}`);
   }
   if (options.max !== undefined && number > options.max) {
-    fail("invalid_arguments", `${key} debe ser <= ${options.max}`);
+    fail("invalid_arguments", `${key} must be <= ${options.max}`);
   }
   return number;
 }
@@ -157,15 +157,15 @@ function booleanArg(args: Record<string, unknown>, key: string): boolean | undef
     return undefined;
   }
   if (typeof value !== "boolean") {
-    fail("invalid_arguments", `${key} debe ser un booleano`);
+    fail("invalid_arguments", `${key} must be a boolean`);
   }
   return value;
 }
 
 /**
- * Normaliza el parámetro `assets`: `{ ref: { path?, data_base64?, format? } }`.
- * Con `path` el servidor lee el fichero (stdio local); con `data_base64` se usa
- * tal cual (validando formato).
+ * Normalizes the `assets` parameter: `{ ref: { path?, data_base64?, format? } }`.
+ * With `path` the server reads the file (local stdio); with `data_base64` it is
+ * used as-is (validating the format).
  */
 async function assetsFromArgs(
   args: Record<string, unknown>,
@@ -175,7 +175,7 @@ async function assetsFromArgs(
     return undefined;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    fail("invalid_arguments", "assets debe ser un objeto { ref: { path | data_base64 } }");
+    fail("invalid_arguments", "assets must be an object { ref: { path | data_base64 } }");
   }
   const assets: Record<string, ImageAsset> = {};
   for (const [ref, entry] of Object.entries(value as Record<string, unknown>)) {
@@ -184,7 +184,7 @@ async function assetsFromArgs(
       continue;
     }
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      fail("invalid_arguments", `el asset ${JSON.stringify(ref)} debe ser un objeto`);
+      fail("invalid_arguments", `asset ${JSON.stringify(ref)} must be an object`);
     }
     const record = entry as Record<string, unknown>;
     if (typeof record.path === "string") {
@@ -200,40 +200,40 @@ async function assetsFromArgs(
   return Object.keys(assets).length === 0 ? undefined : assets;
 }
 
-/** Acepta un body como cadena JSON o como objeto y devuelve la cadena JSON. */
+/** Accepts a body as a JSON string or as an object and returns the JSON string. */
 function bodyJsonFromArgs(value: unknown): string {
   if (typeof value === "string") {
     if (value.trim() === "") {
-      fail("invalid_template_body", "el body no puede estar vacío");
+      fail("invalid_template_body", "body cannot be empty");
     }
     return value;
   }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return JSON.stringify(value);
   }
-  fail("invalid_template_body", "body debe ser una cadena JSON o un objeto");
+  fail("invalid_template_body", "body must be a JSON string or an object");
 }
 
-/** Normaliza y valida las macros de entrada (create/update). */
+/** Normalizes and validates the input macros (create/update). */
 function macrosFromArgs(value: unknown): TemplateMacro[] | undefined {
   if (value === undefined) {
     return undefined;
   }
   if (!Array.isArray(value)) {
-    fail("invalid_macros", "macros debe ser un array de { name, description?, schema? }");
+    fail("invalid_macros", "macros must be an array of { name, description?, schema? }");
   }
   return value.map((entry, index) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      fail("invalid_macro", `la macro #${index + 1} debe ser un objeto`);
+      fail("invalid_macro", `macro #${index + 1} must be an object`);
     }
     const record = entry as Record<string, unknown>;
     const name = typeof record.name === "string" ? record.name.trim() : "";
     if (name === "") {
-      fail("invalid_macro", `la macro #${index + 1} necesita un name no vacío`);
+      fail("invalid_macro", `macro #${index + 1} needs a non-empty name`);
     }
     const description = typeof record.description === "string" ? record.description : "";
     if (record.description !== undefined && typeof record.description !== "string") {
-      fail("invalid_macro", `la descripción de ${JSON.stringify(name)} debe ser texto`);
+      fail("invalid_macro", `the description of ${JSON.stringify(name)} must be text`);
     }
     return {
       name,
@@ -282,19 +282,19 @@ function safeParse(value: string): unknown {
 
 function mapTemplateError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("ya existe")) {
+  if (message.includes("template already exists")) {
     fail("template_conflict", message);
   }
-  if (message.includes("no encontrada")) {
+  if (message.includes("template not found")) {
     fail("template_not_found", message);
   }
-  if (message.includes("macro") || message.includes("esquema") || message.includes("descripción")) {
+  if (message.includes("macro") || message.includes("schema") || message.includes("description")) {
     fail("invalid_macro", message);
   }
   throw error;
 }
 
-/** Valida el body y traduce los errores de dominio a códigos MCP. */
+/** Validates the body and translates domain errors into MCP codes. */
 function validateBody(bodyJson: string): void {
   try {
     validateTemplateBody(bodyJson);
@@ -305,18 +305,18 @@ function validateBody(bodyJson: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Catálogo
+// Catalog
 // ---------------------------------------------------------------------------
 
 /**
- * Devuelve las tools fijas y dinámicas del servidor. Se calcula contra SQLite
- * en cada llamada, de modo que los cambios externos se ven sin reiniciar.
+ * Returns the server's built-in and dynamic tools. It is computed against
+ * SQLite on every call, so external changes are visible without a restart.
  */
 export function buildToolCatalog(ctx: McpContext): ToolDefinition[] {
   return [...builtinTools(ctx), ...dynamicTools(ctx)];
 }
 
-/** Solo las tools habilitadas, en el orden canónico. */
+/** Only enabled tools, in canonical order. */
 export function enabledTools(ctx: McpContext): ToolDefinition[] {
   return buildToolCatalog(ctx).filter((tool) => tool.enabled);
 }
@@ -347,25 +347,25 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     readOnlyTool({
       name: "jev_overview",
-      title: "Estado de jev-client",
+      title: "jev-client status",
       description: overviewDescription(),
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       run: overviewRun,
     }),
     readOnlyTool({
       name: "jev_docs",
-      title: "Documentación de la app o de una tool",
+      title: "App or tool documentation",
       description:
-        "Devuelve la documentación de jev-client o el detalle de una tool. Usa 'topic' con " +
-        "'overview', 'tools', 'mcp', 'examples' o el nombre de una tool. Es la primera tool que " +
-        "conviene consultar para orientarse.",
+        "Returns the jev-client documentation or the details of one tool. Use 'topic' with " +
+        "'overview', 'tools', 'mcp', 'examples' or the name of a tool. It is the first tool " +
+        "worth consulting to get oriented.",
       inputSchema: {
         type: "object",
         properties: {
           topic: {
             type: "string",
             description:
-              "Tema: 'overview' | 'tools' | 'mcp' | 'examples' o el nombre de una tool concreta.",
+              "Topic: 'overview' | 'tools' | 'mcp' | 'examples' or the name of a specific tool.",
           },
         },
         additionalProperties: false,
@@ -374,16 +374,16 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_template_list",
-      title: "Lista plantillas",
+      title: "List templates",
       description:
-        "Lista las plantillas guardadas con descripción, macros, metadatos y el nombre de la tool " +
-        "MCP con que se publica cada una (toolName/toolEnabled). Admite 'query' (filtro por nombre " +
-        "o descripción) y 'limit'.",
+        "Lists the saved templates with description, macros, metadata and the name of the MCP " +
+        "tool each one is published as (toolName/toolEnabled). Accepts 'query' (filter by name " +
+        "or description) and 'limit'.",
       inputSchema: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Filtro parcial por nombre o descripción." },
-          limit: { type: "integer", minimum: 1, description: "Número máximo de resultados." },
+          query: { type: "string", description: "Partial filter by name or description." },
+          limit: { type: "integer", minimum: 1, description: "Maximum number of results." },
         },
         additionalProperties: false,
       },
@@ -391,13 +391,13 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_template_get",
-      title: "Detalle de plantilla",
+      title: "Template details",
       description:
-        "Devuelve el body JSON, las macros (con descripción y JSON Schema), las fechas y el nombre " +
-        "de su tool MCP. Úsala para conocer las macros antes de generar un contexto.",
+        "Returns the JSON body, the macros (with description and JSON Schema), the timestamps and " +
+        "the name of its MCP tool. Use it to learn the macros before generating a context.",
       inputSchema: {
         type: "object",
-        properties: { name: { type: "string", description: "Nombre de la plantilla." } },
+        properties: { name: { type: "string", description: "Template name." } },
         required: ["name"],
         additionalProperties: false,
       },
@@ -405,10 +405,10 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_template_starters",
-      title: "Plantillas de ejemplo",
+      title: "Starter templates",
       description:
-        "Devuelve los starters integrados (noul, choice, score) listos para crear una plantilla. " +
-        "Con 'id' devuelve solo uno.",
+        "Returns the built-in starters (noul, choice, score) ready to create a template. " +
+        "With 'id' it returns only one.",
       inputSchema: {
         type: "object",
         properties: { id: { type: "string", enum: ["noul", "choice", "score"] } },
@@ -418,15 +418,15 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_template_validate",
-      title: "Valida una plantilla",
+      title: "Validate a template",
       description:
-        "Valida un body inline (o una plantilla guardada) sin llamar a Jev y devuelve las macros " +
-        "detectadas. Usa 'body' o 'name', no ambos.",
+        "Validates an inline body (or a saved template) without calling Jev and returns the " +
+        "detected macros. Use 'body' or 'name', not both.",
       inputSchema: {
         type: "object",
         properties: {
-          body: { type: "string", description: "Body JSON inline (con macros)." },
-          name: { type: "string", description: "Nombre de una plantilla guardada." },
+          body: { type: "string", description: "Inline JSON body (with macros)." },
+          name: { type: "string", description: "Name of a saved template." },
         },
         additionalProperties: false,
       },
@@ -434,18 +434,18 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_template_render",
-      title: "Renderiza una plantilla (dry-run)",
+      title: "Render a template (dry-run)",
       description:
-        "Resuelve las macros de una plantilla con un contexto y devuelve el request resultante sin " +
-        "llamar a Jev. Es el dry-run recomendado antes de ejecutar: falla listando las macros ausentes.",
+        "Resolves a template's macros with a context and returns the resulting request without " +
+        "calling Jev. It is the recommended dry-run before executing: it fails listing missing macros.",
       inputSchema: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Nombre de la plantilla." },
-          context: { type: "object", description: "Mapa clave → valor para las macros." },
+          name: { type: "string", description: "Template name." },
+          context: { type: "object", description: "Key → value map for the macros." },
           assets: {
             type: "object",
-            description: "Imágenes opcionales: { ref: { path | data_base64, format } }. Requiere header experimental.",
+            description: "Optional images: { ref: { path | data_base64, format } }. Requires the experimental header.",
           },
         },
         required: ["name", "context"],
@@ -455,18 +455,18 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_image_check",
-      title: "Valida una imagen sin gastar llamada",
+      title: "Validate an image without spending a call",
       description:
-        "Comprueba una imagen (por ruta o data_base64) y devuelve formato, dimensiones, bytes, si " +
-        "cumple los límites de la API de imágenes y el motivo del rechazo. Es el dry-run para no " +
-        "gastar una llamada real. Las imágenes son experimentales y requieren el header " +
-        "TypeSafe-Danger-Zone-Images.",
+        "Checks an image (by path or data_base64) and returns format, dimensions, bytes, whether " +
+        "it meets the image API limits and the rejection reason. It is the dry-run to avoid " +
+        "spending a real call. Images are experimental and require the " +
+        "TypeSafe-Danger-Zone-Images header.",
       inputSchema: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Ruta local del fichero de imagen (PNG/JPEG)." },
-          data_base64: { type: "string", description: "Base64 sin prefijo data: y sin saltos de línea." },
-          format: { type: "string", enum: ["png", "jpg", "jpeg"], description: "Formato cuando se usa data_base64." },
+          path: { type: "string", description: "Local path of the image file (PNG/JPEG)." },
+          data_base64: { type: "string", description: "Base64 without the data: prefix and without line breaks." },
+          format: { type: "string", enum: ["png", "jpg", "jpeg"], description: "Format when data_base64 is used." },
         },
         additionalProperties: false,
       },
@@ -478,21 +478,21 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     tools.push(
       mutationTool({
         name: "jev_template_create",
-        title: "Crea una plantilla",
+        title: "Create a template",
         description:
-          "Crea una plantilla validando el body y los metadatos de sus macros. El body puede ser una " +
-          "cadena JSON o un objeto. 'macros' es opcional: array de { name, description?, schema? }.",
+          "Creates a template after validating the body and its macro metadata. The body can be a " +
+          "JSON string or an object. 'macros' is optional: array of { name, description?, schema? }.",
         inputSchema: {
           type: "object",
           properties: {
-            name: { type: "string", description: "Nombre único de la plantilla." },
-            description: { type: "string", description: "Descripción opcional." },
+            name: { type: "string", description: "Unique template name." },
+            description: { type: "string", description: "Optional description." },
             body: {
-              description: "Body JSON (cadena u objeto) con macros {{clave}}.",
+              description: "JSON body (string or object) with {{key}} macros.",
             },
             macros: {
               type: "array",
-              description: "Metadatos de macros: { name, description?, schema? }.",
+              description: "Macro metadata: { name, description?, schema? }.",
             },
           },
           required: ["name", "body"],
@@ -502,18 +502,18 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
       }),
       mutationTool({
         name: "jev_template_update",
-        title: "Actualiza una plantilla",
+        title: "Update a template",
         description:
-          "Actualiza body, descripción y/o macros de una plantilla; con 'renameTo' también la " +
-          "renombra. Solo los campos presentes se modifican.",
+          "Updates the body, description and/or macros of a template; with 'renameTo' it also " +
+          "renames it. Only the fields present are modified.",
         inputSchema: {
           type: "object",
           properties: {
-            name: { type: "string", description: "Nombre actual de la plantilla." },
-            description: { type: "string", description: "Nueva descripción." },
-            body: { description: "Nuevo body JSON (cadena u objeto)." },
-            macros: { type: "array", description: "Metadatos de macros." },
-            renameTo: { type: "string", description: "Nuevo nombre (renombra)." },
+            name: { type: "string", description: "Current template name." },
+            description: { type: "string", description: "New description." },
+            body: { description: "New JSON body (string or object)." },
+            macros: { type: "array", description: "Macro metadata." },
+            renameTo: { type: "string", description: "New name (renames)." },
           },
           required: ["name"],
           additionalProperties: false,
@@ -527,15 +527,15 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     tools.push(
       destructiveTool({
         name: "jev_template_delete",
-        title: "Borra una plantilla",
+        title: "Delete a template",
         description:
-          "Borra una plantilla de forma permanente (sus macros se borran en cascada; el historial " +
-          "conserva template_name). Exige 'confirm: true'.",
+          "Permanently deletes a template (its macros are deleted in cascade; the history " +
+          "keeps template_name). Requires 'confirm: true'.",
         inputSchema: {
           type: "object",
           properties: {
-            name: { type: "string", description: "Nombre de la plantilla." },
-            confirm: { type: "boolean", description: "Debe ser true para confirmar el borrado." },
+            name: { type: "string", description: "Template name." },
+            confirm: { type: "boolean", description: "Must be true to confirm the deletion." },
           },
           required: ["name", "confirm"],
           additionalProperties: false,
@@ -549,28 +549,28 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     tools.push(
       executionTool({
         name: "jev_ask",
-        title: "Ejecuta un request ad-hoc",
+        title: "Run an ad-hoc request",
         description:
-          "Ejecuta un request contra Jev y guarda la petición en el historial (source='mcp'). " +
-          "'state' puede ser texto u objeto/array JSON; 'questions' es un mapa noul/choice/score. " +
-          "Devuelve answers, usage y requestId.",
+          "Runs a request against Jev and stores the request in the history (source='mcp'). " +
+          "'state' can be text or a JSON object/array; 'questions' is a noul/choice/score map. " +
+          "Returns answers, usage and requestId.",
         inputSchema: {
           type: "object",
           properties: {
             state: {
-              description: "Contenido a evaluar: texto, objeto JSON o array.",
+              description: "Content to evaluate: text, JSON object or array.",
               oneOf: [{ type: "string" }, { type: "object" }, { type: "array" }],
             },
             questions: {
               type: "object",
-              description: "Preguntas tipadas (noul, choice, score) con instructions/criteria.",
+              description: "Typed questions (noul, choice, score) with instructions/criteria.",
             },
-            model: { type: "string", description: "Modelo opcional para esta ejecución." },
+            model: { type: "string", description: "Optional model for this execution." },
             assets: {
               type: "object",
               description:
-                "Imágenes opcionales: { ref: { path | data_base64, format } }. La referencia se escribe " +
-                "en state/instructions/criteria. Requiere el header experimental TypeSafe-Danger-Zone-Images.",
+                "Optional images: { ref: { path | data_base64, format } }. The reference is written " +
+                "in state/instructions/criteria. Requires the experimental TypeSafe-Danger-Zone-Images header.",
             },
           },
           required: ["state", "questions"],
@@ -580,20 +580,20 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
       }),
       executionTool({
         name: "jev_batch",
-        title: "Ejecuta una plantilla sobre varios contextos",
+        title: "Run a template over several contexts",
         description:
-          "Ejecuta una plantilla una vez por cada contexto y guarda cada petición con el mismo " +
-          "batch_id. Admite concurrency 1-10 y failFast. Máximo 100 contextos por llamada.",
+          "Runs a template once per context and stores each request with the same " +
+          "batch_id. Accepts concurrency 1-10 and failFast. Maximum 100 contexts per call.",
         inputSchema: {
           type: "object",
           properties: {
-            template: { type: "string", description: "Nombre de la plantilla." },
-            contexts: { type: "array", description: "Array de mapas de contexto." },
+            template: { type: "string", description: "Template name." },
+            contexts: { type: "array", description: "Array of context maps." },
             concurrency: { type: "integer", minimum: 1, maximum: 10 },
-            failFast: { type: "boolean", description: "Detenerse ante el primer error." },
+            failFast: { type: "boolean", description: "Stop at the first error." },
             assets: {
               type: "object",
-              description: "Imágenes opcionales adjuntadas a cada petición del lote.",
+              description: "Optional images attached to each request in the batch.",
             },
           },
           required: ["template", "contexts"],
@@ -607,19 +607,19 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
   tools.push(
     readOnlyTool({
       name: "jev_history_list",
-      title: "Historial de peticiones",
+      title: "Request history",
       description:
-        "Lista las peticiones guardadas (incluidas las de MCP) con filtros: since (ISO), status, " +
-        "model, template, batch y limit.",
+        "Lists the saved requests (including MCP ones) with filters: since (ISO), status, " +
+        "model, template, batch and limit.",
       inputSchema: {
         type: "object",
         properties: {
-          since: { type: "string", description: "Solo peticiones con created_at >= esta fecha ISO." },
-          status: { type: "integer", description: "Código HTTP exacto." },
-          model: { type: "string", description: "Modelo exacto." },
-          template: { type: "string", description: "Nombre de plantilla exacto." },
-          batch: { type: "string", description: "batch_id exacto." },
-          limit: { type: "integer", minimum: 0, description: "Número máximo de resultados." },
+          since: { type: "string", description: "Only requests with created_at >= this ISO date." },
+          status: { type: "integer", description: "Exact HTTP status code." },
+          model: { type: "string", description: "Exact model." },
+          template: { type: "string", description: "Exact template name." },
+          batch: { type: "string", description: "Exact batch_id." },
+          limit: { type: "integer", minimum: 0, description: "Maximum number of results." },
         },
         additionalProperties: false,
       },
@@ -627,11 +627,11 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_history_get",
-      title: "Detalle de una petición",
-      description: "Devuelve el detalle completo de una petición: request, response, uso, error y source.",
+      title: "Request details",
+      description: "Returns the full details of a request: request, response, usage, error and source.",
       inputSchema: {
         type: "object",
-        properties: { id: { type: "integer", minimum: 1, description: "Id de la petición." } },
+        properties: { id: { type: "integer", minimum: 1, description: "Request id." } },
         required: ["id"],
         additionalProperties: false,
       },
@@ -639,10 +639,10 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
     }),
     readOnlyTool({
       name: "jev_config_get",
-      title: "Configuración efectiva",
+      title: "Effective config",
       description:
-        "Devuelve la configuración efectiva (endpoint, modelo, timeout, retries) con la API key " +
-        "enmascarada. Nunca revela la API key.",
+        "Returns the effective config (endpoint, model, timeout, retries) with the API key " +
+        "masked. It never reveals the API key.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       run: configGetRun,
     }),
@@ -653,8 +653,8 @@ function builtinTools(ctx: McpContext): ToolDefinition[] {
 
 function overviewDescription(): string {
   return (
-    "Estado de la app: versión, esquema SQLite, ruta de la base, contadores, si hay API key y las " +
-    "tools disponibles (fijas y dinámicas). Sin efectos secundarios ni secretos."
+    "App status: version, SQLite schema, database path, counters, whether an API key is present and " +
+    "the available tools (built-in and dynamic). No side effects and no secrets."
   );
 }
 
@@ -696,7 +696,7 @@ async function docsRun(args: Record<string, unknown>, ctx: McpContext): Promise<
   const { docsProvider } = await import("./docs.js");
   const content = docsProvider(ctx).contentFor(topic);
   if (content === undefined) {
-    fail("tool_not_found", `tema o tool desconocida: ${JSON.stringify(topic)}`);
+    fail("tool_not_found", `unknown topic or tool: ${JSON.stringify(topic)}`);
   }
   return { topic: topic || "overview", content: content.text };
 }
@@ -707,7 +707,7 @@ async function templateListRun(args: Record<string, unknown>, ctx: McpContext): 
   return listTemplatesPayload(ctx, query, limit);
 }
 
-/** Payload de `jev_template_list` y del resource `jev://templates`. */
+/** Payload of `jev_template_list` and the `jev://templates` resource. */
 export function listTemplatesPayload(
   ctx: McpContext,
   query = "",
@@ -732,14 +732,14 @@ async function templateGetRun(args: Record<string, unknown>, ctx: McpContext): P
   return getTemplatePayload(ctx, name);
 }
 
-/** Payload de `jev_template_get` y del resource `jev://templates/{name}`. */
+/** Payload of `jev_template_get` and the `jev://templates/{name}` resource. */
 export function getTemplatePayload(
   ctx: McpContext,
   name: string,
 ): Record<string, unknown> {
   const entry = findTemplate(ctx, name);
   if (entry === undefined) {
-    fail("template_not_found", `plantilla no encontrada: ${name}`);
+    fail("template_not_found", `template not found: ${name}`);
   }
   return templateDetail(entry.template, entry.toolName);
 }
@@ -750,7 +750,7 @@ async function templateStartersRun(args: Record<string, unknown>, _ctx: McpConte
   }
   const starter = getTemplateStarter(args.id as TemplateStarterId);
   if (starter === undefined) {
-    fail("invalid_arguments", `starter desconocido: ${JSON.stringify(args.id)}`);
+    fail("invalid_arguments", `unknown starter: ${JSON.stringify(args.id)}`);
   }
   return starter;
 }
@@ -759,7 +759,7 @@ async function templateValidateRun(args: Record<string, unknown>, ctx: McpContex
   const bodyInline = args.body;
   const name = args.name;
   if (bodyInline !== undefined && name !== undefined) {
-    fail("invalid_arguments", "usa 'body' o 'name', no ambos");
+    fail("invalid_arguments", "use 'body' or 'name', not both");
   }
   let bodyJson: string;
   let label: string;
@@ -767,7 +767,7 @@ async function templateValidateRun(args: Record<string, unknown>, ctx: McpContex
     const templateName = stringArg(args, "name") as string;
     const template = ctx.templates.get(templateName);
     if (template === undefined) {
-      fail("template_not_found", `plantilla no encontrada: ${templateName}`);
+      fail("template_not_found", `template not found: ${templateName}`);
     }
     bodyJson = template.body_json;
     label = templateName;
@@ -784,7 +784,7 @@ async function templateRenderRun(args: Record<string, unknown>, ctx: McpContext)
   const context = objectArg(args, "context", { required: true }) as Record<string, unknown>;
   const template = ctx.templates.get(name);
   if (template === undefined) {
-    fail("template_not_found", `plantilla no encontrada: ${name}`);
+    fail("template_not_found", `template not found: ${name}`);
   }
   try {
     const request = resolveTemplateBody(template.body_json, context as TemplateContext);
@@ -801,27 +801,27 @@ async function imageCheckRun(args: Record<string, unknown>, _ctx: McpContext): P
   const dataBase64 = args.data_base64;
 
   if (path === undefined && dataBase64 === undefined) {
-    fail("invalid_arguments", "usa 'path' o 'data_base64' (no ambos)");
+    fail("invalid_arguments", "use 'path' or 'data_base64' (not both)");
   }
   if (path !== undefined && dataBase64 !== undefined) {
-    fail("invalid_arguments", "usa 'path' o 'data_base64', no ambos");
+    fail("invalid_arguments", "use 'path' or 'data_base64', not both");
   }
 
   let buffer: Buffer;
   let format: ImageAsset["format"];
   if (typeof path === "string") {
     if (path.trim() === "") {
-      fail("invalid_arguments", "path debe ser una cadena no vacía");
+      fail("invalid_arguments", "path must be a non-empty string");
     }
     const loaded = await loadImageAsset(path);
     buffer = Buffer.from(loaded.asset.data_base64 ?? "", "base64");
     format = loaded.asset.format;
   } else {
     if (typeof dataBase64 !== "string" || dataBase64.trim() === "") {
-      fail("invalid_arguments", "data_base64 debe ser una cadena no vacía");
+      fail("invalid_arguments", "data_base64 must be a non-empty string");
     }
     if (args.format !== undefined && typeof args.format !== "string") {
-      fail("invalid_arguments", "format debe ser png|jpg|jpeg");
+      fail("invalid_arguments", "format must be png|jpg|jpeg");
     }
     let asset: ImageAsset;
     try {
@@ -840,7 +840,7 @@ async function imageCheckRun(args: Record<string, unknown>, _ctx: McpContext): P
   const size = readImageSize(buffer);
   const report = assertImageLimits(buffer);
   return {
-    format: format ?? detected ?? "desconocido",
+    format: format ?? detected ?? "unknown",
     width: size?.width ?? report.width ?? null,
     height: size?.height ?? report.height ?? null,
     bytes: buffer.length,
@@ -854,7 +854,7 @@ async function imageCheckRun(args: Record<string, unknown>, _ctx: McpContext): P
 async function templateCreateRun(args: Record<string, unknown>, ctx: McpContext): Promise<unknown> {
   const name = stringArg(args, "name", { required: true }) as string;
   if (args.description !== undefined && typeof args.description !== "string") {
-    fail("invalid_arguments", "description debe ser una cadena");
+    fail("invalid_arguments", "description must be a string");
   }
   const description = typeof args.description === "string" ? args.description : "";
   const bodyJson = bodyJsonFromArgs(args.body);
@@ -862,7 +862,7 @@ async function templateCreateRun(args: Record<string, unknown>, ctx: McpContext)
   const macros = macrosFromArgs(args.macros);
   try {
     if (ctx.templates.get(name) !== undefined) {
-      fail("template_conflict", `ya existe la plantilla: ${name}`);
+      fail("template_conflict", `template already exists: ${name}`);
     }
     ctx.templates.save(name, description, bodyJson, macros);
   } catch (error) {
@@ -871,7 +871,7 @@ async function templateCreateRun(args: Record<string, unknown>, ctx: McpContext)
     }
     mapTemplateError(error);
   }
-  ctx.log(`plantilla creada: ${name}`);
+  ctx.log(`template created: ${name}`);
   return templateDetail(ctx.templates.get(name) as Template, toolNameFor(ctx, name));
 }
 
@@ -879,7 +879,7 @@ async function templateUpdateRun(args: Record<string, unknown>, ctx: McpContext)
   const name = stringArg(args, "name", { required: true }) as string;
   const existing = ctx.templates.get(name);
   if (existing === undefined) {
-    fail("template_not_found", `plantilla no encontrada: ${name}`);
+    fail("template_not_found", `template not found: ${name}`);
   }
   const bodyJson = args.body === undefined ? existing.body_json : bodyJsonFromArgs(args.body);
   if (args.body !== undefined) {
@@ -888,7 +888,7 @@ async function templateUpdateRun(args: Record<string, unknown>, ctx: McpContext)
   let description = existing.description;
   if (args.description !== undefined) {
     if (typeof args.description !== "string") {
-      fail("invalid_arguments", "description debe ser una cadena");
+      fail("invalid_arguments", "description must be a string");
     }
     description = args.description;
   }
@@ -902,7 +902,7 @@ async function templateUpdateRun(args: Record<string, unknown>, ctx: McpContext)
   let finalName = name;
   if (args.renameTo !== undefined) {
     if (typeof args.renameTo !== "string" || args.renameTo.trim() === "") {
-      fail("invalid_arguments", "renameTo debe ser una cadena no vacía");
+      fail("invalid_arguments", "renameTo must be a non-empty string");
     }
     if (args.renameTo !== name) {
       try {
@@ -913,7 +913,7 @@ async function templateUpdateRun(args: Record<string, unknown>, ctx: McpContext)
       finalName = args.renameTo;
     }
   }
-  ctx.log(`plantilla actualizada: ${finalName}`);
+  ctx.log(`template updated: ${finalName}`);
   return templateDetail(ctx.templates.get(finalName) as Template, toolNameFor(ctx, finalName));
 }
 
@@ -922,13 +922,13 @@ async function templateDeleteRun(args: Record<string, unknown>, ctx: McpContext)
   if (args.confirm !== true) {
     fail(
       "confirmation_required",
-      "borrar una plantilla es irreversible: pasa 'confirm: true' para confirmar",
+      "deleting a template is irreversible: pass 'confirm: true' to confirm",
     );
   }
   if (!ctx.templates.remove(name)) {
-    fail("template_not_found", `plantilla no encontrada: ${name}`);
+    fail("template_not_found", `template not found: ${name}`);
   }
-  ctx.log(`plantilla eliminada: ${name}`);
+  ctx.log(`template deleted: ${name}`);
   return { ok: true, deleted: name };
 }
 
@@ -941,13 +941,13 @@ async function runTemplateTool(
   if (template === undefined) {
     fail(
       "template_not_found",
-      `la plantilla "${templateName}" ya no existe; refresca la lista de tools`,
+      `template "${templateName}" no longer exists; refresh the tool list`,
     );
   }
   const macroNames = new Set(template.macros.map((macro) => macro.name));
   for (const key of Object.keys(args)) {
     if (!macroNames.has(key)) {
-      fail("invalid_arguments", `argumento desconocido para la plantilla: ${key}`);
+      fail("invalid_arguments", `unknown argument for the template: ${key}`);
     }
   }
   let request: JevRequest;
@@ -963,7 +963,7 @@ async function runTemplateTool(
 
 async function askRun(args: Record<string, unknown>, ctx: McpContext): Promise<unknown> {
   if (!("state" in args)) {
-    fail("invalid_request", "el request no tiene state");
+    fail("invalid_request", "the request has no state");
   }
   const state = args.state;
   const stateValid =
@@ -971,11 +971,11 @@ async function askRun(args: Record<string, unknown>, ctx: McpContext): Promise<u
       ? state.trim() !== ""
       : state !== null && typeof state === "object";
   if (!stateValid) {
-    fail("invalid_request", "state debe ser texto no vacío u objeto/array JSON");
+    fail("invalid_request", "state must be non-empty text or a JSON object/array");
   }
   const model = args.model;
   if (model !== undefined && (typeof model !== "string" || model.trim() === "")) {
-    fail("invalid_request", "model debe ser una cadena no vacía");
+    fail("invalid_request", "model must be a non-empty string");
   }
   let questions: Record<string, Question>;
   try {
@@ -998,17 +998,17 @@ async function askRun(args: Record<string, unknown>, ctx: McpContext): Promise<u
 async function batchRun(args: Record<string, unknown>, ctx: McpContext): Promise<unknown> {
   const template = stringArg(args, "template", { required: true }) as string;
   if (ctx.templates.get(template) === undefined) {
-    fail("template_not_found", `plantilla no encontrada: ${template}`);
+    fail("template_not_found", `template not found: ${template}`);
   }
   const contexts = args.contexts;
   if (!Array.isArray(contexts)) {
-    fail("invalid_contexts", "contexts debe ser un array de mapas de contexto");
+    fail("invalid_contexts", "contexts must be an array of context maps");
   }
   if (contexts.length === 0) {
-    fail("invalid_contexts", "contexts no puede estar vacío");
+    fail("invalid_contexts", "contexts cannot be empty");
   }
   if (contexts.length > MCP_BATCH_LIMIT) {
-    fail("batch_too_large", `máximo ${MCP_BATCH_LIMIT} contextos por llamada`);
+    fail("batch_too_large", `maximum ${MCP_BATCH_LIMIT} contexts per call`);
   }
   const concurrency = integerArg(args, "concurrency", { min: 1, max: MAX_CONCURRENCY }) ?? 1;
   const failFast = booleanArg(args, "failFast") ?? false;
@@ -1050,7 +1050,7 @@ async function historyGetRun(args: Record<string, unknown>, ctx: McpContext): Pr
   const id = integerArg(args, "id", { min: 1 }) as number;
   const record = ctx.requests.get(id);
   if (record === undefined) {
-    fail("history_not_found", `no existe la petición ${id}`);
+    fail("history_not_found", `request ${id} does not exist`);
   }
   return historyRecordToJson(record);
 }
@@ -1068,7 +1068,7 @@ async function configGetRun(_args: Record<string, unknown>, ctx: McpContext): Pr
 }
 
 // ---------------------------------------------------------------------------
-// Helpers de catálogo
+// Catalog helpers
 // ---------------------------------------------------------------------------
 
 function catalogedTemplates(ctx: McpContext): CatalogedTemplate[] {
@@ -1133,7 +1133,7 @@ function batchResultJson(batch: BatchResult): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Registro de tools
+// Tool registry
 // ---------------------------------------------------------------------------
 
 function readOnlyTool(tool: Omit<ToolDefinition, "source" | "annotations" | "enabled">): ToolDefinition {

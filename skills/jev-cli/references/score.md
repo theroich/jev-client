@@ -1,92 +1,92 @@
-# Operación `score`
+# `score` operation
 
-## 1. Qué es y qué devuelve
+## 1. What it is and what it returns
 
-`score` asigna una **nota dentro de una escala ordenada**. `criteria` es un
-**array ordenado** `[nivel0, nivel1, …]`; la posición en el array es la nota
-(`0` el primero, `1` el segundo…). Sirve para urgencia, frustración,
-prioridad, gravedad…
+`score` assigns a **rating within an ordered scale**. `criteria` is an
+**ordered array** `[level0, level1, …]`; the position in the array is the score
+(`0` for the first, `1` for the second…). It is used for urgency, frustration,
+priority, severity…
 
-Forma exacta de la respuesta (por pregunta):
+Exact shape of the response (per question):
 
 ```json
 {
   "type": "score",
   "score": 1.99,
   "confidence": 0.98,
-  "legend": { "0": "Puede esperar", "1": "Esta semana", "2": "Hoy mismo" },
+  "legend": { "0": "It can wait", "1": "This week", "2": "Today" },
   "probabilities": { "2": 0.99, "1": 0.01, "0": 0 }
 }
 ```
 
-- `score`: media ponderada de la nota; puede ser decimal.
-- `legend`: mapa `"posición" -> etiqueta` de tu `criteria`.
-- `probabilities`: probabilidad por cada posición.
+- `score`: weighted mean of the rating; it can be a decimal.
+- `legend`: map `"position" -> label` from your `criteria`.
+- `probabilities`: probability for each position.
 
-En el informe legible de la CLI, cuando el `score` cae entre dos niveles se
-marca con `≈`:
+In the CLI's readable report, when the `score` falls between two levels it is
+marked with `≈`:
 
 ```text
-  urgency: score=1.99 ≈ "Hoy mismo" (confidence=0.98)
+  urgency: score=1.99 ≈ "Today" (confidence=0.98)
     2=0.99, 1=0.01, 0=0
 ```
 
-Cuando cae exacto en un nivel, no lleva `≈`.
+When it falls exactly on a level, there is no `≈`.
 
-## 2. Forma del JSON de la pregunta
+## 2. Shape of the question JSON
 
 ```json
 {
   "urgency": {
     "type": "score",
-    "instructions": "¿Cómo de urgente es la incidencia?",
-    "criteria": ["Puede esperar", "Esta semana", "Hoy mismo"]
+    "instructions": "How urgent is the issue?",
+    "criteria": ["It can wait", "This week", "Today"]
   }
 }
 ```
 
-`criteria` es **obligatorio** en `score`: un array ordenado, de menor a mayor.
+`criteria` is **required** in `score`: an ordered array, from lowest to highest.
 
-## 3. Ejemplos de consola
+## 3. Console examples
 
-### Inline con `--state` y `--score`
+### Inline with `--state` and `--score`
 
 ```sh
 jev ask \
-  --state "Llevamos dos días sin respuesta y el checkout está caído." \
-  --score 'urgency=¿Cómo de urgente es la incidencia?' \
-  --level 'urgency=Puede esperar' \
-  --level 'urgency=Esta semana' \
-  --level 'urgency=Hoy mismo'
+  --state "We have gone two days without a reply and the checkout is down." \
+  --score 'urgency=How urgent is the issue?' \
+  --level 'urgency=It can wait' \
+  --level 'urgency=This week' \
+  --level 'urgency=Today'
 ```
 
 ```text
-modelo: jev-1.13
-  urgency: score=1.99 ≈ "Hoy mismo" (confidence=0.98)
+model: jev-1.13
+  urgency: score=1.99 ≈ "Today" (confidence=0.98)
     2=0.99, 1=0.01, 0=0
-tokens: 20 in / 5 out, cost=2.9e-6      ← a stderr
+tokens: 20 in / 5 out, cost=2.9e-6      ← to stderr
 ```
 
-### Desde ficheros (`--state-file`, `--questions-file`)
+### From files (`--state-file`, `--questions-file`)
 
 ```sh
 jev ask --state-file examples/state.json --questions-file examples/questions.json
 ```
 
-La pregunta `urgency` de `examples/questions.json` es un `score` con
-`["Puede esperar", "Esta semana", "Hoy mismo"]`.
+The `urgency` question in `examples/questions.json` is a `score` with
+`["It can wait", "This week", "Today"]`.
 
-### Por stdin (`--state -`)
+### From stdin (`--state -`)
 
 ```sh
-echo "El cliente amenaza con darse de baja." | jev ask --state - \
-  --score 'frustracion=¿Cómo de frustrado está el cliente?' \
-  --level 'frustracion=Tranquilo' \
-  --level 'frustracion=Molesto' \
-  --level 'frustracion=Muy enfadado'
+echo "The customer is threatening to cancel." | jev ask --state - \
+  --score 'frustration=How frustrated is the customer?' \
+  --level 'frustration=Calm' \
+  --level 'frustration=Upset' \
+  --level 'frustration=Very angry'
 ```
 
-### Con `--json` para consumo por máquina
+### With `--json` for machine consumption
 
 ```sh
 jev ask --state-file examples/state.json --questions-file examples/questions.json \
@@ -101,7 +101,7 @@ jev ask --state-file examples/state.json --questions-file examples/questions.jso
       "type": "score",
       "score": 0.42,
       "confidence": 0.79,
-      "legend": { "0": "Puede esperar", "1": "Esta semana", "2": "Hoy mismo" },
+      "legend": { "0": "It can wait", "1": "This week", "2": "Today" },
       "probabilities": { "0": 0.61, "1": 0.36, "2": 0.03 }
     }
   },
@@ -109,9 +109,9 @@ jev ask --state-file examples/state.json --questions-file examples/questions.jso
 }
 ```
 
-### Mezclando varios tipos en un mismo request
+### Mixing several types in the same request
 
-`jev demo` ejecuta los tres tipos a la vez (`is_urgent` noul, `team` choice,
+`jev demo` runs the three types at once (`is_urgent` noul, `team` choice,
 `frustration` score):
 
 ```sh
@@ -119,8 +119,8 @@ jev demo
 ```
 
 ```text
-modelo: jev-1.13
-  frustration: score=1.99 ≈ "Muy enfadado" (confidence=0.98)
+model: jev-1.13
+  frustration: score=1.99 ≈ "Very angry" (confidence=0.98)
     2=0.99, 1=0.01, 0=0
   is_urgent: noul=0.99
   team: choice=infra (confidence=0.59)
@@ -128,10 +128,10 @@ modelo: jev-1.13
 tokens: 449 in / 73 out, cost=1.886e-5
 ```
 
-## 4. Ejemplo en script bash
+## 4. Bash script example
 
-Función reutilizable, lectura del resultado con `jq`, umbral sobre el score y
-manejo de códigos de salida:
+Reusable function, reading the result with `jq`, a threshold on the score and
+exit-code handling:
 
 ```bash
 #!/usr/bin/env bash
@@ -139,26 +139,26 @@ manejo de códigos de salida:
 DB="$(mktemp -d)/jev.db"
 trap 'rm -rf "$(dirname "$DB")"' EXIT
 
-# Puntúa urgencia y devuelve "score<TAB>nivel" (etiqueta más cercana).
-score_urgencia() {
+# Rate urgency and return "score<TAB>level" (nearest label).
+score_urgency() {
   local state="$1"
 
   local out code
   out=$(jev ask --db "$DB" --no-save --json \
           --state "$state" \
-          --score 'urgency=¿Cómo de urgente es la incidencia?' \
-          --level 'urgency=Puede esperar' \
-          --level 'urgency=Esta semana' \
-          --level 'urgency=Hoy mismo' \
+          --score 'urgency=How urgent is the issue?' \
+          --level 'urgency=It can wait' \
+          --level 'urgency=This week' \
+          --level 'urgency=Today' \
           2>/dev/null)
   code=$?
 
   if [ "$code" -ne 0 ]; then
-    echo "error: jev ask salió con código $code" >&2
+    echo "error: jev ask exited with code $code" >&2
     return "$code"
   fi
 
-  # score + etiqueta del nivel redondeado (clave "0"/"1"/"2" del legend).
+  # score + label of the rounded level ("0"/"1"/"2" key of the legend).
   jq -r '
     .answers.urgency as $u
     | ($u.score | round | tostring) as $k
@@ -167,57 +167,58 @@ score_urgencia() {
   ' <<<"$out"
 }
 
-ticket="El checkout está caído desde hace una hora."
+ticket="The checkout has been down for an hour."
 
-read -r score nivel <<<"$(score_urgencia "$ticket")" || exit $?
+read -r score level <<<"$(score_urgency "$ticket")" || exit $?
 
-echo "urgencia: $score → $nivel"
+echo "urgency: $score → $level"
 
-# Umbral sobre el score (>= 1 se considera urgente).
+# Threshold on the score (>= 1 is considered urgent).
 if awk "BEGIN{exit !($score >= 1)}"; then
-  echo "→ escalar hoy"
+  echo "→ escalate today"
 else
-  echo "→ planificar"
+  echo "→ schedule"
 fi
 ```
 
 ```text
-urgencia: 1.99 → Hoy mismo
-→ escalar hoy
+urgency: 1.99 → Today
+→ escalate today
 ```
 
-Notas del script:
+Script notes:
 
-- `round` sobre el score localiza el nivel del `legend` (la CLI usa el mismo
-  criterio para imprimir la etiqueta, con `≈` cuando no es exacto).
-- `--no-save` + `--db` temporal aíslan la ejecución.
-- El código de salida de `jev ask` se captura y propaga (`0`/`1`/`2`).
+- `round` on the score locates the `legend` level (the CLI uses the same
+  criterion to print the label, with `≈` when it is not exact).
+- `--no-save` + a temporary `--db` isolate the run.
+- The exit code of `jev ask` is captured and propagated (`0`/`1`/`2`).
 
-## 5. Errores típicos y pistas
+## 5. Typical errors and hints
 
-- **`criteria` con la forma equivocada** — en `score` debe ser un **array
-  ordenado** (`["a","b","c"]`). Pasar un objeto `{ "0": "a", … }` o un string
-  produce una pregunta mal formada; usa objeto para `choice`.
-- **`criteria` vacío o ausente** — `score` exige al menos dos niveles; sin
-  `criteria` la API responde `422` (la CLI añade `pista:`).
-- **Orden del array** — la posición define la nota; asegúrate de ordenar de
-  menor a mayor intensidad, o el resultado será contraintuitivo.
-- **Todos los scores salen casi iguales** — si evalúas varios elementos en un
-  solo request, nómbralos en cada `instructions`: la clave no se envía al
-  modelo y `state` es compartido (ver
-  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
-- **`401` / `api_key_expired`** — key inválida/caducada; renueva en
+- **`criteria` with the wrong shape** — in `score` it must be an **ordered
+  array** (`["a","b","c"]`). Passing an object `{ "0": "a", … }` or a string
+  produces a malformed question; use an object for `choice`.
+- **Empty or missing `criteria`** — `score` requires at least two levels;
+  without `criteria` the API responds `422` (the CLI adds a `hint:`).
+- **Array order** — the position defines the rating; make sure to order from
+  lowest to highest intensity, or the result will be counterintuitive.
+- **All scores come out nearly the same** — if you evaluate several items in a
+  single request, name them in each `instructions`: the key is not sent to the
+  model and `state` is shared (see
+  [`question-anatomy.md`](question-anatomy.md)).
+- **`401` / `api_key_expired`** — invalid/expired key; renew it at
   https://opencode.ai/console.
-- **`429 FreeUsageLimitError`** — cuota agotada; prueba `--model jev-1.13`.
-- **`422`** — pregunta mal formada o fallo upstream; revisa
+- **`429 FreeUsageLimitError`** — quota exhausted; try `--model jev-1.13`.
+- **`422`** — malformed question or upstream failure; check
   https://docs.typesafe.ai/primitives.
-- **Timeouts y reintentos** — `--timeout` (default 30 s) por intento y
-  `--retries` (default 2) ante 429/5xx y errores de red.
+- **Timeouts and retries** — `--timeout` (default 30 s) per attempt and
+  `--retries` (default 2) on 429/5xx and network errors.
 
-## 6. Notas de precisión
+## 6. Precision notes
 
-El modelo está entrenado sobre todo en inglés; acepta español con algo menos de
-precisión. Con escalas subjetivas, haz los niveles **mutuamente excluyentes y
-anclados a señales observables** («Puede esperar», «Esta semana», «Hoy mismo»
-son más estables que «poco», «algo», «mucho») y pon el criterio dentro de la
-`instructions` («¿cómo de urgente es la incidencia en términos de plazo?»).
+The model is trained mostly in English; it accepts other languages with
+somewhat less precision. With subjective scales, make the levels **mutually
+exclusive and anchored to observable signals** ("It can wait", "This week",
+"Today" are more stable than "a little", "somewhat", "a lot") and put the
+criterion inside the `instructions` ("how urgent is the issue in terms of
+deadline?").

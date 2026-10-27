@@ -1,8 +1,8 @@
 import { JevApiError, jevErrorHint } from "../errors.js";
 
 /**
- * Error de tool MCP con un código estable. Se convierte en un resultado MCP
- * `isError: true` con `code`, `message`, `hint` y `requestId` cuando aplica.
+ * MCP tool error with a stable code. It becomes an MCP result with
+ * `isError: true` carrying `code`, `message`, `hint` and `requestId` when applicable.
  */
 export class McpToolError extends Error {
   override readonly name = "McpToolError";
@@ -17,7 +17,7 @@ export class McpToolError extends Error {
   }
 }
 
-/** Código estable para un error arbitrario lanzado por un handler de tool. */
+/** Stable code for an arbitrary error thrown by a tool handler. */
 export function errorCodeOf(error: unknown): string {
   if (error instanceof McpToolError) {
     return error.code;
@@ -31,7 +31,7 @@ export function errorCodeOf(error: unknown): string {
   return "execution_error";
 }
 
-/** Pista accionable cuando la hay; nunca incluye la API key. */
+/** Actionable hint when available; never includes the API key. */
 export function errorHintOf(error: unknown): string | undefined {
   if (error instanceof McpToolError) {
     return error.hint;
@@ -40,16 +40,16 @@ export function errorHintOf(error: unknown): string | undefined {
     return jevErrorHint(error);
   }
   const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("falta la API key")) {
+  if (message.includes("missing API key")) {
     return (
-      "Configura la API key con 'jev config set api_key', --key o la variable " +
-      "OPENCODE_API_KEY/JEV_API_KEY. Sin ella, las tools de lectura siguen funcionando."
+      "Configure the API key with 'jev config set api_key', --key or the " +
+      "OPENCODE_API_KEY/JEV_API_KEY variable. Without it, read tools keep working."
     );
   }
   return undefined;
 }
 
-/** `requestId` asociado al error, cuando el handler lo aporta. */
+/** `requestId` associated with the error, when the handler provides it. */
 export function errorRequestIdOf(error: unknown): number | null | undefined {
   return error instanceof McpToolError ? error.requestId : undefined;
 }

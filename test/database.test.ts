@@ -15,7 +15,7 @@ import {
   resolveDatabasePath,
 } from "../src/database.js";
 
-test("la ruta usa el home del SO y la precedencia --db > JEV_DB", () => {
+test("the path uses the OS home and the --db > JEV_DB precedence", () => {
   const defaultPath = join(homedir(), ".jev-client", "db", "jev.db");
   assert.equal(defaultDatabasePath(), defaultPath);
   assert.equal(resolveDatabasePath(undefined, {}), defaultPath);
@@ -30,7 +30,7 @@ test("la ruta usa el home del SO y la precedencia --db > JEV_DB", () => {
   assert.equal(resolveDatabasePath(":memory:"), ":memory:");
 });
 
-test("crea .jev-client/db y la base con permisos restrictivos", async (t) => {
+test("creates .jev-client/db and the database with restrictive permissions", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, ".jev-client", "db");
@@ -45,7 +45,7 @@ test("crea .jev-client/db y la base con permisos restrictivos", async (t) => {
   }
 });
 
-test("las migraciones son idempotentes y conservan los datos", async (t) => {
+test("migrations are idempotent and preserve the data", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
@@ -69,7 +69,7 @@ test("las migraciones son idempotentes y conservan los datos", async (t) => {
   db.close();
 });
 
-test("el repositorio implementa get, set, unset y list", () => {
+test("the repository implements get, set, unset and list", () => {
   const db = openDatabase(":memory:");
   const repository = new ConfigRepository(db);
 
@@ -89,14 +89,14 @@ test("el repositorio implementa get, set, unset y list", () => {
   db.close();
 });
 
-test("no se abre una base con un esquema más reciente", () => {
+test("a database with a newer schema is not opened", () => {
   const db = openDatabase(":memory:");
   db.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
-  assert.throws(() => migrateDatabase(db), /esquema/);
+  assert.throws(() => migrateDatabase(db), /schema/);
   db.close();
 });
 
-test("actualiza de v1 a v2 conservando config y creando templates", async (t) => {
+test("updates from v1 to v2 preserving config and creating templates", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
@@ -125,7 +125,7 @@ test("actualiza de v1 a v2 conservando config y creando templates", async (t) =>
   db.close();
 });
 
-test("actualiza de v3 a v4 creando template_macros sin backfill", async (t) => {
+test("updates from v3 to v4 creating template_macros without backfill", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
@@ -144,7 +144,7 @@ test("actualiza de v3 a v4 creando template_macros sin backfill", async (t) => {
     .prepare(
       "INSERT INTO templates (name, description, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
     )
-    .run("legacy", "", '{"model":"m","state":"{{estado}}"}', "2024-01-01", "2024-01-01");
+    .run("legacy", "", '{"model":"m","state":"{{state}}"}', "2024-01-01", "2024-01-01");
   legacy.pragma("user_version = 3");
   legacy.close();
 
@@ -162,14 +162,14 @@ test("actualiza de v3 a v4 creando template_macros sin backfill", async (t) => {
       .get(),
     { name: "template_macros" },
   );
-  // Una base v3 sin backfill funciona: el repositorio fusiona las macros del body.
+  // A v3 database without backfill works: the repository merges the body macros.
   assert.deepEqual(new TemplateRepository(db).get("legacy")?.macros, [
-    { name: "estado", description: "", schema: null },
+    { name: "state", description: "", schema: null },
   ]);
   db.close();
 });
 
-test("actualiza de v4 a v5 añadiendo schema_json sin backfill", async (t) => {
+test("updates from v4 to v5 adding schema_json without backfill", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
@@ -198,12 +198,12 @@ test("actualiza de v4 a v5 añadiendo schema_json sin backfill", async (t) => {
     .prepare(
       "INSERT INTO templates (name, description, body_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
     )
-    .run("legacy", "", '{"model":"m","state":"{{estado}}"}', "2024-01-01", "2024-01-01");
+    .run("legacy", "", '{"model":"m","state":"{{state}}"}', "2024-01-01", "2024-01-01");
   legacy
     .prepare(
       "INSERT INTO template_macros (template_name, macro, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
     )
-    .run("legacy", "estado", "Estado previo", "2024-01-01", "2024-01-01");
+    .run("legacy", "state", "Previous state", "2024-01-01", "2024-01-01");
   legacy.pragma("user_version = 4");
   legacy.close();
 
@@ -215,19 +215,19 @@ test("actualiza de v4 a v5 añadiendo schema_json sin backfill", async (t) => {
     .map((column) => column.name);
   assert.ok(columns.includes("schema_json"));
   assert.deepEqual(new TemplateRepository(db).get("legacy")?.macros, [
-    { name: "estado", description: "Estado previo", schema: null },
+    { name: "state", description: "Previous state", schema: null },
   ]);
-  // Reaplicar la migración no duplica la columna ni pierde filas.
+  // Reapplying the migration does not duplicate the column or lose rows.
   migrateDatabase(db);
   assert.equal(db.pragma("user_version", { simple: true }), SCHEMA_VERSION);
   assert.deepEqual(
     db.prepare("SELECT macro, description, schema_json FROM template_macros").all(),
-    [{ macro: "estado", description: "Estado previo", schema_json: null }],
+    [{ macro: "state", description: "Previous state", schema_json: null }],
   );
   db.close();
 });
 
-test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
+test("the repository saves, preserves and clears macro schemas", () => {
   const db = openDatabase(":memory:");
   const repository = new TemplateRepository(db);
   const body = JSON.stringify({
@@ -236,12 +236,12 @@ test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
     questions: { q: { type: "noul" } },
   });
 
-  repository.save("pedido", "", body, [
-    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+  repository.save("order", "", body, [
+    { name: "plan", description: "Contracted plan", schema: { type: "string", enum: ["free", "pro"] } },
     { name: "ticket", description: "Ticket", schema: true },
   ]);
-  assert.deepEqual(repository.get("pedido")?.macros, [
-    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+  assert.deepEqual(repository.get("order")?.macros, [
+    { name: "plan", description: "Contracted plan", schema: { type: "string", enum: ["free", "pro"] } },
     { name: "ticket", description: "Ticket", schema: true },
   ]);
   assert.deepEqual(
@@ -249,35 +249,35 @@ test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
       .prepare("SELECT macro, description, schema_json FROM template_macros ORDER BY macro")
       .all(),
     [
-      { macro: "plan", description: "Plan contratado", schema_json: '{"type":"string","enum":["free","pro"]}' },
+      { macro: "plan", description: "Contracted plan", schema_json: '{"type":"string","enum":["free","pro"]}' },
       { macro: "ticket", description: "Ticket", schema_json: "true" },
     ],
   );
 
-  // Sin metadatos explícitos se conservan descripción y esquema.
-  repository.save("pedido", "", body);
-  assert.deepEqual(repository.get("pedido")?.macros, [
-    { name: "plan", description: "Plan contratado", schema: { type: "string", enum: ["free", "pro"] } },
+  // Without explicit metadata, description and schema are preserved.
+  repository.save("order", "", body);
+  assert.deepEqual(repository.get("order")?.macros, [
+    { name: "plan", description: "Contracted plan", schema: { type: "string", enum: ["free", "pro"] } },
     { name: "ticket", description: "Ticket", schema: true },
   ]);
 
-  // `schema: null` limpia el esquema y conserva la descripción.
-  repository.save("pedido", "", body, [
-    { name: "plan", description: "Plan contratado", schema: null },
+  // `schema: null` clears the schema and preserves the description.
+  repository.save("order", "", body, [
+    { name: "plan", description: "Contracted plan", schema: null },
     { name: "ticket", description: "Ticket", schema: false },
   ]);
-  assert.deepEqual(repository.get("pedido")?.macros, [
-    { name: "plan", description: "Plan contratado", schema: null },
-    { name: "ticket", description: "Ticket", schema: false },
-  ]);
-
-  repository.rename("pedido", "pedido-2");
-  assert.deepEqual(repository.get("pedido-2")?.macros, [
-    { name: "plan", description: "Plan contratado", schema: null },
+  assert.deepEqual(repository.get("order")?.macros, [
+    { name: "plan", description: "Contracted plan", schema: null },
     { name: "ticket", description: "Ticket", schema: false },
   ]);
 
-  assert.equal(repository.remove("pedido-2"), true);
+  repository.rename("order", "order-2");
+  assert.deepEqual(repository.get("order-2")?.macros, [
+    { name: "plan", description: "Contracted plan", schema: null },
+    { name: "ticket", description: "Ticket", schema: false },
+  ]);
+
+  assert.equal(repository.remove("order-2"), true);
   assert.deepEqual(
     db.prepare("SELECT COUNT(*) AS total FROM template_macros").get(),
     { total: 0 },
@@ -285,7 +285,7 @@ test("el repositorio guarda, conserva y limpia esquemas de macros", () => {
   db.close();
 });
 
-test("actualiza de v5 a v6 añadiendo source a requests", async (t) => {
+test("updates from v5 to v6 adding source to requests", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-db-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
@@ -308,7 +308,7 @@ test("actualiza de v5 a v6 añadiendo source a requests", async (t) => {
     .all()
     .map((column) => column.name);
   assert.ok(columns.includes("source"));
-  // El default es 'cli' y reaplicar no duplica la columna.
+  // The default is 'cli' and reapplying does not duplicate the column.
   migrateDatabase(db);
   const source = db
     .prepare<[], { dflt_value: string | null }>(

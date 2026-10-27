@@ -5,15 +5,15 @@ import { JevService } from "../service.js";
 import { TemplateRepository } from "../template-repository.js";
 
 export interface McpServerOptions {
-  /** Deshabilita create/update/delete de plantillas. */
+  /** Disables template create/update/delete. */
   readOnly?: boolean;
-  /** Deshabilita ask/batch y oculta las tools de ejecución. */
+  /** Disables ask/batch and hides the execution tools. */
   noExecute?: boolean;
-  /** Habilita `jev_template_delete` (por defecto no se registra). */
+  /** Enables `jev_template_delete` (not registered by default). */
   allowDestructive?: boolean;
 }
 
-/** Estado compartido por tools, resources, docs y el transporte MCP. */
+/** State shared by tools, resources, docs and the MCP transport. */
 export interface McpContext {
   service: JevService;
   templates: TemplateRepository;
@@ -22,7 +22,7 @@ export interface McpContext {
   flags: ConfigFlags;
   options: McpServerOptions;
   env: NodeJS.ProcessEnv;
-  /** Log hacia stderr; nunca hacia stdout (reservado a JSON-RPC). */
+  /** Log to stderr; never to stdout (reserved for JSON-RPC). */
   log: (message: string) => void;
 }
 
@@ -45,7 +45,7 @@ export function createMcpContext(
   };
 }
 
-/** Configuración efectiva del proceso MCP (flag > env > SQLite > defecto). */
+/** Effective MCP process config (flag > env > SQLite > default). */
 export function resolvedConfig(ctx: McpContext): ResolvedConfig {
   const stored = {};
   for (const { key, value } of ctx.config.list()) {
@@ -54,7 +54,7 @@ export function resolvedConfig(ctx: McpContext): ResolvedConfig {
   return resolveConfig(ctx.flags, ctx.env, stored);
 }
 
-/** Versión del esquema SQLite en uso. */
+/** SQLite schema version in use. */
 export function schemaVersion(ctx: McpContext): number {
   return ctx.service.db.pragma("user_version", { simple: true }) as number;
 }

@@ -1,12 +1,12 @@
 import type { ImageAsset, JevRequest, Question, State } from "./types.js";
 
-/** Mapa clave-valor usado para resolver las macros de una plantilla. */
+/** Key-value map used to resolve a template's macros. */
 export type TemplateContext = Record<string, unknown>;
 
-/** Resultado de resolver una o varias macros. */
+/** Result of resolving one or more macros. */
 export interface MacroResolution {
   value: unknown;
-  /** Claves de macros referenciadas y ausentes del contexto, en orden de aparición. */
+  /** Macro keys referenced but missing from the context, in order of appearance. */
   missing: string[];
 }
 
@@ -16,9 +16,9 @@ interface Token {
 }
 
 /**
- * Separa un string en texto literal y macros `{{clave}}`. `\` escapa al
- * siguiente carácter, de modo que `\{{...}}` produce el texto literal `{{...}}`.
- * Una macro sin cierre (`{{`) se trata como texto literal.
+ * Splits a string into literal text and `{{key}}` macros. `\` escapes the
+ * next character, so `\{{...}}` produces the literal text `{{...}}`.
+ * An unclosed macro (`{{`) is treated as literal text.
  */
 function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
@@ -70,8 +70,8 @@ function tokenize(text: string): Token[] {
 }
 
 /**
- * Busca `path` en el contexto. Primero como clave literal (permite claves con
- * puntos) y, si no existe, como ruta anidada separada por `.`.
+ * Looks up `path` in the context. First as a literal key (allows keys with
+ * dots) and, if it does not exist, as a nested path separated by `.`.
  */
 function lookupPath(
   context: TemplateContext,
@@ -95,7 +95,7 @@ function lookupPath(
   return { found: true, value: current };
 }
 
-/** Convierte un valor a string para interpolarlo dentro de texto. */
+/** Converts a value to a string for interpolation inside text. */
 function stringifyInterpolation(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
@@ -111,9 +111,9 @@ function stringifyInterpolation(value: unknown): string {
 }
 
 /**
- * Resuelve las macros de un string. Si el string es exactamente una macro se
- * conserva el tipo nativo del valor; si está embebido en texto se interpola
- * como string.
+ * Resolves the macros of a string. If the string is exactly one macro, the
+ * value's native type is preserved; if embedded in text, it is interpolated
+ * as a string.
  */
 export function resolveStringMacros(
   text: string,
@@ -144,7 +144,7 @@ export function resolveStringMacros(
   return { value: result, missing };
 }
 
-/** Recorre un valor JSON resolviendo las macros de todos sus strings. */
+/** Walks a JSON value resolving the macros of all its strings. */
 export function resolveJsonMacros(
   value: unknown,
   context: TemplateContext,
@@ -176,8 +176,8 @@ export function resolveJsonMacros(
 }
 
 /**
- * Resuelve el cuerpo de una plantilla contra un contexto y lo valida como
- * request. Si falta alguna macro, falla listando todas las claves ausentes.
+ * Resolves a template body against a context and validates it as a
+ * request. If any macro is missing, it fails listing all absent keys.
  */
 export function resolveTemplateBody(
   bodyJson: string,
@@ -187,36 +187,36 @@ export function resolveTemplateBody(
   try {
     parsed = JSON.parse(bodyJson);
   } catch (error) {
-    throw new Error(`JSON inválido en la plantilla: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in template: ${messageOf(error)}`);
   }
 
   const { value, missing } = resolveJsonMacros(parsed, context);
   const unique = [...new Set(missing)].sort();
   if (unique.length > 0) {
-    throw new Error(`faltan macros en el contexto: ${unique.join(", ")}`);
+    throw new Error(`missing macros in context: ${unique.join(", ")}`);
   }
 
   return validateTemplateRequest(value);
 }
 
 /**
- * Parsea y valida el cuerpo de una plantilla (con macros sin resolver) como
- * request de Jev. No resuelve macros: solo comprueba la estructura y los tipos.
+ * Parses and validates a template body (with unresolved macros) as a
+ * Jev request. It does not resolve macros: it only checks structure and types.
  */
 export function validateTemplateBody(bodyJson: string): JevRequest {
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyJson);
   } catch (error) {
-    throw new Error(`JSON inválido en la plantilla: ${messageOf(error)}`);
+    throw new Error(`invalid JSON in template: ${messageOf(error)}`);
   }
   return validateTemplateRequest(parsed);
 }
 
 /**
- * Devuelve las claves de macro `{{clave}}` presentes en un body de plantilla,
- * ordenadas y sin duplicados. No valida la estructura: si el JSON no se puede
- * parsear, devuelve una lista vacía (la validación la hace `validateTemplateBody`).
+ * Returns the `{{key}}` macro keys present in a template body, sorted and
+ * without duplicates. It does not validate structure: if the JSON cannot be
+ * parsed, it returns an empty list (`validateTemplateBody` does the validation).
  */
 export function detectMacros(bodyJson: string): string[] {
   let parsed: unknown;
@@ -252,30 +252,30 @@ function collectMacros(value: unknown, keys: Set<string>): void {
   }
 }
 
-/** Valida un valor ya resuelto como request de Jev. */
+/** Validates an already resolved value as a Jev request. */
 export function validateTemplateRequest(value: unknown): JevRequest {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("la plantilla debe ser un objeto JSON");
+    throw new Error("the template must be a JSON object");
   }
   const record = value as Record<string, unknown>;
 
   const model = record.model;
   if (model === undefined) {
-    throw new Error("la plantilla no tiene model");
+    throw new Error("the template has no model");
   }
   if (typeof model !== "string" || model === "") {
-    throw new Error("la plantilla tiene un model inválido");
+    throw new Error("the template has an invalid model");
   }
 
   const state = record.state;
   if (state === undefined) {
-    throw new Error("la plantilla no tiene state");
+    throw new Error("the template has no state");
   }
   if (
     typeof state !== "string" &&
     !(state !== null && typeof state === "object")
   ) {
-    throw new Error("la plantilla tiene un state inválido");
+    throw new Error("the template has an invalid state");
   }
 
   const assets = validateTemplateAssets(record.assets);
@@ -291,9 +291,9 @@ export function validateTemplateRequest(value: unknown): JevRequest {
 }
 
 /**
- * Valida el `assets` de una plantilla. Las plantillas no guardan base64: solo
- * pueden contener referencias (el `data_base64` se aporta en tiempo de
- * ejecución vía `--asset`, MCP o la consola web).
+ * Validates a template's `assets`. Templates do not store base64: they can
+ * only contain references (`data_base64` is provided at run time via
+ * `--asset`, MCP or the web console).
  */
 export function validateTemplateAssets(
   value: unknown,
@@ -302,41 +302,41 @@ export function validateTemplateAssets(
     return undefined;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("los assets deben ser un objeto JSON");
+    throw new Error("assets must be a JSON object");
   }
   const assets = value as Record<string, ImageAsset>;
   for (const [ref, asset] of Object.entries(assets)) {
     if (!asset || typeof asset !== "object" || Array.isArray(asset)) {
-      throw new Error(`el asset ${JSON.stringify(ref)} debe ser un objeto`);
+      throw new Error(`asset ${JSON.stringify(ref)} must be an object`);
     }
     if (asset.data_base64 !== undefined) {
       throw new Error(
-        `el asset ${JSON.stringify(ref)} no puede incluir data_base64 en una plantilla: ` +
-          "aporta la imagen en tiempo de ejecución (--asset, MCP o subida web)",
+        `asset ${JSON.stringify(ref)} cannot include data_base64 in a template: ` +
+          "provide the image at run time (--asset, MCP or web upload)",
       );
     }
   }
   return assets;
 }
 
-/** Valida un objeto de preguntas (nombres y tipos soportados). */
+/** Validates a questions object (names and supported types). */
 export function validateQuestions(value: unknown): Record<string, Question> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("las preguntas deben ser un objeto JSON");
+    throw new Error("questions must be a JSON object");
   }
   const questions = value as Record<string, Question>;
   if (Object.keys(questions).length === 0) {
-    throw new Error("se necesita al menos una pregunta");
+    throw new Error("at least one question is required");
   }
 
   for (const [name, question] of Object.entries(questions)) {
     if (!question || typeof question.type !== "string" || question.type === "") {
-      throw new Error(`la pregunta ${JSON.stringify(name)} no tiene type`);
+      throw new Error(`question ${JSON.stringify(name)} has no type`);
     }
     if (!["noul", "choice", "score"].includes(question.type)) {
       throw new Error(
-        `la pregunta ${JSON.stringify(name)} usa un tipo no soportado: ` +
-          `${JSON.stringify(question.type)} (usa noul, choice o score)`,
+        `question ${JSON.stringify(name)} uses an unsupported type: ` +
+          `${JSON.stringify(question.type)} (use noul, choice or score)`,
       );
     }
   }

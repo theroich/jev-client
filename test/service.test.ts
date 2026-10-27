@@ -18,8 +18,8 @@ import { TemplateRepository } from "../src/template-repository.js";
 
 const TEMPLATE_BODY = JSON.stringify({
   model: "template-model",
-  state: "{{mensaje}}",
-  questions: { q: { type: "noul", instructions: "¿?" } },
+  state: "{{message}}",
+  questions: { q: { type: "noul", instructions: "?" } },
 });
 
 async function databasePath(t: test.TestContext): Promise<string> {
@@ -30,7 +30,7 @@ async function databasePath(t: test.TestContext): Promise<string> {
 
 function addTemplate(path: string): void {
   const db = openDatabase(path);
-  new TemplateRepository(db).save("pedido", "", TEMPLATE_BODY);
+  new TemplateRepository(db).save("order", "", TEMPLATE_BODY);
   db.close();
 }
 
@@ -65,7 +65,7 @@ function sentBody(init: RequestInit): {
   };
 }
 
-test("ask/demo usan la configuración SQLite y devuelven requestId", async (t) => {
+test("ask/demo use the SQLite configuration and return requestId", async (t) => {
   const dbPath = await databasePath(t);
   const db = openDatabase(dbPath);
   const config = new ConfigRepository(db);
@@ -88,7 +88,7 @@ test("ask/demo usan la configuración SQLite y devuelven requestId", async (t) =
 
   const ask = await service.ask({
     model: "request-model",
-    state: "hola",
+    state: "hello",
     questions: { q: { type: "noul" } },
   });
   assert.equal(ask.requestId, 1);
@@ -100,7 +100,7 @@ test("ask/demo usan la configuración SQLite y devuelven requestId", async (t) =
   const notSaved = await service.ask(
     {
       model: "request-model",
-      state: "hola",
+      state: "hello",
       questions: { q: { type: "noul" } },
     },
     { save: false, model: "call-model" },
@@ -123,7 +123,7 @@ test("ask/demo usan la configuración SQLite y devuelven requestId", async (t) =
   inspect.close();
 });
 
-test("demoQuestions devuelve una copia modificable", () => {
+test("demoQuestions returns a modifiable copy", () => {
   const first = demoQuestions();
   const second = demoQuestions();
   assert.notEqual(first, second);
@@ -131,7 +131,7 @@ test("demoQuestions devuelve una copia modificable", () => {
   assert.ok(DEMO_STATE.includes("checkout"));
 });
 
-test("batch usa un pool real, conserva el orden y sella el historial", async (t) => {
+test("batch uses a real pool, preserves order and stamps the history", async (t) => {
   const dbPath = await databasePath(t);
   addTemplate(dbPath);
   let active = 0;
@@ -149,10 +149,10 @@ test("batch usa un pool real, conserva el orden y sella el historial", async (t)
   };
   const service = serviceFor(t, dbPath, fetch);
   const contexts = Array.from({ length: 6 }, (_, index) => ({
-    mensaje: `estado-${index}`,
+    message: `state-${index}`,
   }));
 
-  const result = await service.batch("pedido", contexts, {
+  const result = await service.batch("order", contexts, {
     concurrency: 3,
     onEvent: (event) => events.push(event),
   });
@@ -179,12 +179,12 @@ test("batch usa un pool real, conserva el orden y sella el historial", async (t)
   const requests = new RequestRepository(inspect);
   const rows = requests.list({ batch: result.batchId });
   assert.equal(rows.length, 6);
-  assert.ok(rows.every((row) => row.templateName === "pedido"));
+  assert.ok(rows.every((row) => row.templateName === "order"));
   assert.ok(rows.every((row) => row.batchId === result.batchId));
   inspect.close();
 });
 
-test("batch fail-fast no programa los items siguientes", async (t) => {
+test("batch fail-fast does not schedule the following items", async (t) => {
   const dbPath = await databasePath(t);
   addTemplate(dbPath);
   let calls = 0;
@@ -196,8 +196,8 @@ test("batch fail-fast no programa los items siguientes", async (t) => {
   const service = serviceFor(t, dbPath, fetch);
 
   const result = await service.batch(
-    "pedido",
-    [{}, { mensaje: "uno" }, { mensaje: "dos" }],
+    "order",
+    [{}, { message: "one" }, { message: "two" }],
     { failFast: true, onEvent: (event) => events.push(event) },
   );
 
@@ -217,7 +217,7 @@ test("batch fail-fast no programa los items siguientes", async (t) => {
   assert.equal(events.filter((event) => event.type === "item.skip").length, 2);
 });
 
-test("batch cancela en vuelo, no reintenta y marca el resto omitido", async (t) => {
+test("batch cancels in flight, does not retry and marks the rest as skipped", async (t) => {
   const dbPath = await databasePath(t);
   addTemplate(dbPath);
   const controller = new AbortController();
@@ -239,8 +239,8 @@ test("batch cancela en vuelo, no reintenta y marca el resto omitido", async (t) 
   const service = serviceFor(t, dbPath, fetch);
 
   const pending = service.batch(
-    "pedido",
-    [{ mensaje: "uno" }, { mensaje: "dos" }, { mensaje: "tres" }, { mensaje: "cuatro" }],
+    "order",
+    [{ message: "one" }, { message: "two" }, { message: "three" }, { message: "four" }],
     {
       concurrency: 2,
       signal: controller.signal,
@@ -276,23 +276,23 @@ test("batch cancela en vuelo, no reintenta y marca el resto omitido", async (t) 
   inspect.close();
 });
 
-test("batch respeta save false y valida la concurrencia", async (t) => {
+test("batch honors save false and validates concurrency", async (t) => {
   const dbPath = await databasePath(t);
   addTemplate(dbPath);
   const fetch: FetchLike = async () =>
     new Response(responseBody(), { status: 200 });
   const service = serviceFor(t, dbPath, fetch);
 
-  const result = await service.batch("pedido", [{ mensaje: "uno" }], {
+  const result = await service.batch("order", [{ message: "one" }], {
     save: false,
   });
   assert.equal(result.items[0]?.requestId, null);
   await assert.rejects(
-    service.batch("pedido", [], { concurrency: 0 }),
+    service.batch("order", [], { concurrency: 0 }),
     /concurrency/,
   );
   await assert.rejects(
-    service.batch("pedido", [], { concurrency: 11 }),
+    service.batch("order", [], { concurrency: 11 }),
     /concurrency/,
   );
 

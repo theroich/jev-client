@@ -100,47 +100,47 @@ export function OverviewScreen({ initialData }: { initialData: Overview }) {
   };
 
   const shortcuts: Array<[string, string]> = [
-    ["jev demo", "ejemplo integrado"],
-    ["jev ask --state - --questions-file q.json", "state por stdin"],
-    ["jev batch pedido --contexts examples/contexts.json", "lote por contextos"],
+    ["jev demo", "built-in example"],
+    ["jev ask --state - --questions-file q.json", "state from stdin"],
+    ["jev batch order --contexts examples/contexts.json", "batch by contexts"],
   ];
 
   return (
     <section>
       <ScreenHead
-        eyebrow={`Sesión local · iniciada con ${data.launchCommand}`}
-        title="Resumen"
-        description="Estado del provider, actividad reciente y accesos directos. Todo lo que ves aquí procede de Jev o de la misma base SQLite que usa la CLI."
+        eyebrow={`Local session · started with ${data.launchCommand}`}
+        title="Overview"
+        description="Provider status, recent activity and shortcuts. Everything you see here comes from Jev or from the same SQLite database the CLI uses."
         actions={<>
-          <Button onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" />Actualizar</Button>
-          <Button variant="primary" onClick={() => router.push("/evaluar")}><Icon name="check" />Nueva evaluación</Button>
+          <Button onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" />Refresh</Button>
+          <Button variant="primary" onClick={() => router.push("/evaluate")}><Icon name="check" />New evaluation</Button>
         </>}
       />
 
       {!data.provider.apiKeyMasked || data.provider.apiKeyMasked === "—" ? (
-        <div className="mt-12"><Callout>No hay una API key efectiva. <Link href="/configuracion" className="link">Configurar provider</Link>. La navegación y la biblioteca siguen disponibles.</Callout></div>
+        <div className="mt-12"><Callout>There is no effective API key. <Link href="/settings" className="link">Configure provider</Link>. Navigation and the library remain available.</Callout></div>
       ) : null}
-      {error ? <div className="mt-12"><Callout tone="danger"><strong>{error.code}</strong>: {error.message}{error.hint ? <><br /><strong>pista:</strong> {error.hint}</> : null}</Callout></div> : null}
+      {error ? <div className="mt-12"><Callout tone="danger"><strong>{error.code}</strong>: {error.message}{error.hint ? <><br /><strong>hint:</strong> {error.hint}</> : null}</Callout></div> : null}
 
       <div className="stats" aria-busy={refreshing}>
-        <Stat label="Peticiones en requests" value={data.stats.total} note={`${Math.min(data.stats.total, data.stats.window)} en la ventana de ${data.stats.window}`} />
-        <Stat label={`Tasa de éxito · últimas ${data.stats.window}`} value={`${data.stats.successRate.toFixed(1)}%`} note={`${data.stats.ok} ok · ${data.stats.errors} con error`} />
-        <Stat label="Tokens · ventana" value={<>{data.stats.inputTokens}<small>in</small></>} note={`${data.stats.outputTokens} out · informados por la API`} />
-        <Stat label="Coste acumulado · ventana" value={formatCost(data.stats.cost)} note={`${data.stats.costUnknown} sin coste informado`} />
+        <Stat label="Requests recorded" value={data.stats.total} note={`${Math.min(data.stats.total, data.stats.window)} in the last ${data.stats.window}`} />
+        <Stat label={`Success rate · last ${data.stats.window}`} value={`${data.stats.successRate.toFixed(1)}%`} note={`${data.stats.ok} ok · ${data.stats.errors} with errors`} />
+        <Stat label="Tokens · window" value={<>{data.stats.inputTokens}<small>in</small></>} note={`${data.stats.outputTokens} out · reported by the API`} />
+        <Stat label="Accumulated cost · window" value={formatCost(data.stats.cost)} note={`${data.stats.costUnknown} without reported cost`} />
       </div>
       <div className="row-between" style={{ margin: "-8px 0 14px" }}>
-        <span className="hint">Las métricas (salvo el total) usan las últimas peticiones, no un periodo temporal.</span>
-        <label className="row hint">Ventana <select className="select mono" style={{ width: 82 }} aria-label="Ventana de métricas" value={data.stats.window} onChange={(event) => void setWindow(Number(event.target.value))}><option>30</option><option>50</option><option>100</option><option>200</option></select></label>
+        <span className="hint">Metrics (except the total) use the latest requests, not a time period.</span>
+        <label className="row hint">Window <select className="select mono" style={{ width: 82 }} aria-label="Metrics window" value={data.stats.window} onChange={(event) => void setWindow(Number(event.target.value))}><option>30</option><option>50</option><option>100</option><option>200</option></select></label>
       </div>
 
       <div className="grid grid-resumen">
         <div className="stack">
-          <Panel title="Últimas peticiones" action={<Link href="/historial" className="btn btn-ghost btn-sm">Ver historial completo →</Link>} tight>
-            {data.recent.length === 0 ? <EmptyState title="Todavía no hay peticiones" action={<Link href="/evaluar" className="btn btn-primary btn-sm">Evaluar o ejecutar demo</Link>}>El historial real aparecerá después de la primera ejecución guardada.</EmptyState> : (
-              <div className="table-wrap"><table className="dt" aria-label="Últimas peticiones">
-                <thead><tr><th>Hora</th><th>Estado</th><th>Modelo</th><th>Plantilla</th><th className="num">Tokens</th><th className="num">Coste</th><th className="num">Duración</th></tr></thead>
+          <Panel title="Latest requests" action={<Link href="/history" className="btn btn-ghost btn-sm">View full history →</Link>} tight>
+            {data.recent.length === 0 ? <EmptyState title="No requests yet" action={<Link href="/evaluate" className="btn btn-primary btn-sm">Evaluate or run the demo</Link>}>Real history appears after the first saved run.</EmptyState> : (
+              <div className="table-wrap"><table className="dt" aria-label="Latest requests">
+                <thead><tr><th>Time</th><th>Status</th><th>Model</th><th>Template</th><th className="num">Tokens</th><th className="num">Cost</th><th className="num">Duration</th></tr></thead>
                 <tbody>{data.recent.map((record) => (
-                  <tr key={record.id} className="clickable" tabIndex={0} aria-label={`Abrir petición ${record.id}`} onClick={() => router.push(`/historial?id=${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/historial?id=${record.id}`); } }}>
+                  <tr key={record.id} className="clickable" tabIndex={0} aria-label={`Open request ${record.id}`} onClick={() => router.push(`/history?id=${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/history?id=${record.id}`); } }}>
                     <td className="cell-muted mono" style={{ fontSize: 11.5 }} suppressHydrationWarning>{relativeDate(record.createdAt)}</td>
                     <td><StatusPill status={record.statusCode} ok={record.ok} /></td>
                     <td className="mono" style={{ fontSize: 11.5 }}>{record.model ?? "—"}</td>
@@ -153,38 +153,38 @@ export function OverviewScreen({ initialData }: { initialData: Overview }) {
               </table></div>
             )}
           </Panel>
-          <Panel title="Atajos equivalentes" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>CLI</span>}>
-            <div className="stack" style={{ gap: 8 }}>{shortcuts.map(([command, note]) => <div className="row" key={command}><code className="mono" style={{ fontSize: 11.5, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{command}</code><span className="hint">{note}</span><IconButton label={`Copiar ${command}`} onClick={() => void copy(command)}><Icon name="copy" /></IconButton></div>)}</div>
+          <Panel title="Equivalent shortcuts" action={<span className="mono text-muted" style={{ fontSize: 10.5 }}>CLI</span>}>
+            <div className="stack" style={{ gap: 8 }}>{shortcuts.map(([command, note]) => <div className="row" key={command}><code className="mono" style={{ fontSize: 11.5, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{command}</code><span className="hint">{note}</span><IconButton label={`Copy ${command}`} onClick={() => void copy(command)}><Icon name="copy" /></IconButton></div>)}</div>
           </Panel>
         </div>
 
         <div className="stack">
-          <Panel title="Provider" action={<Pill tone={data.provider.status === "ok" ? "ok" : data.provider.status === "error" ? "err" : "neutral"}>{data.provider.status === "ok" ? "conectado" : data.provider.status === "error" ? "error" : "desconocido"}</Pill>}>
+          <Panel title="Provider" action={<Pill tone={data.provider.status === "ok" ? "ok" : data.provider.status === "error" ? "err" : "neutral"}>{data.provider.status === "ok" ? "connected" : data.provider.status === "error" ? "error" : "unknown"}</Pill>}>
             <KvList items={[
               ["endpoint", <span className="code-value" key="endpoint">{data.provider.endpoint}</span>],
-              ["modelo", <span className="code-value" key="model">{data.provider.model}</span>],
+              ["model", <span className="code-value" key="model">{data.provider.model}</span>],
               ["api_key", <span className="code-value" key="key">{data.provider.apiKeyMasked || "—"} · {sourceLabel(data.provider.apiKeySource)}</span>],
               ["timeout", <span className="code-value" key="timeout">{data.provider.timeoutMs / 1000} s</span>],
-              ["reintentos", <span className="code-value" key="retries">{data.provider.retries}</span>],
+              ["retries", <span className="code-value" key="retries">{data.provider.retries}</span>],
             ]} />
             <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "12px 0" }} />
-            <p className="hint" style={{ marginBottom: 10 }}>La prueba consume una petición real mínima y nunca se guarda en el historial.</p>
+            <p className="hint" style={{ marginBottom: 10 }}>The test consumes one minimal real request and is never stored in history.</p>
             <div className="row-between">
-              <Button size="sm" onClick={() => void check()} disabled={checking}>{checking ? "Comprobando…" : "Probar conexión"}</Button>
-              {checking ? <Loading label="petición en curso" /> : <span className="status-text">{checkResult ? `${checkResult.statusCode ?? "error"} · ${checkResult.latencyMs} ms` : "sin comprobar"}</span>}
+              <Button size="sm" onClick={() => void check()} disabled={checking}>{checking ? "Checking…" : "Test connection"}</Button>
+              {checking ? <Loading label="request in progress" /> : <span className="status-text">{checkResult ? `${checkResult.statusCode ?? "error"} · ${checkResult.latencyMs} ms` : "not checked"}</span>}
             </div>
           </Panel>
-          <Panel title="Esta sesión">
+          <Panel title="This session">
             <KvList items={[
-              ["lanzada por", <span className="code-value" key="launch">{data.launchCommand}</span>],
-              ["escucha en", <span className="code-value" key="listen">{data.listen.host}:{data.listen.port}</span>],
-              ["base", <span className="code-value" key="db">{data.dbPath}</span>],
-              ["historial", <span key="history">se guarda salvo con <code>--no-save</code></span>],
-              ["versión", <span className="code-value" key="version">v{data.version}</span>],
-              ["esquema", <span className="code-value" key="schema">{data.schemaVersion}</span>],
+              ["launched by", <span className="code-value" key="launch">{data.launchCommand}</span>],
+              ["listening on", <span className="code-value" key="listen">{data.listen.host}:{data.listen.port}</span>],
+              ["database", <span className="code-value" key="db">{data.dbPath}</span>],
+              ["history", <span key="history">saved unless <code>--no-save</code></span>],
+              ["version", <span className="code-value" key="version">v{data.version}</span>],
+              ["schema", <span className="code-value" key="schema">{data.schemaVersion}</span>],
             ]} />
           </Panel>
-          <Button className="w-full" onClick={() => router.push("/historial")}>Consultar actividad real</Button>
+          <Button className="w-full" onClick={() => router.push("/history")}>Browse real activity</Button>
         </div>
       </div>
       <CliBar command="jev history list --limit 5" />
@@ -193,5 +193,5 @@ export function OverviewScreen({ initialData }: { initialData: Overview }) {
 }
 
 function sourceLabel(source: Overview["provider"]["apiKeySource"]): string {
-  return { flag: "flag", env: "entorno", sqlite: "SQLite", default: "defecto" }[source];
+  return { flag: "flag", env: "environment", sqlite: "SQLite", default: "default" }[source];
 }

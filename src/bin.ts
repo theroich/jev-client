@@ -47,15 +47,15 @@ const io: CliIO = {
     const editor = process.env.EDITOR || process.env.VISUAL;
     if (!editor) {
       throw new Error(
-        "$EDITOR no está definido. Define EDITOR/VISUAL o usa --file <ruta>.",
+        "$EDITOR is not set. Set EDITOR/VISUAL or use --file <path>.",
       );
     }
     const result = spawnSync(editor, [filePath], { stdio: "inherit" });
     if (result.error) {
-      throw new Error(`no se pudo abrir $EDITOR (${editor}): ${result.error.message}`);
+      throw new Error(`could not open $EDITOR (${editor}): ${result.error.message}`);
     }
     if (result.status !== 0) {
-      throw new Error(`el editor (${editor}) salió con código ${result.status}`);
+      throw new Error(`the editor (${editor}) exited with code ${result.status}`);
     }
     return readFile(filePath, "utf8");
   },

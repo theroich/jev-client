@@ -24,8 +24,8 @@ export function AnswerCard({ name, answer, question }: { name: string; answer: A
     return <article className="answer">
       <div className="answer-head">{head}<span className="answer-big">{answer.noul === undefined ? "?" : yes.toFixed(2)}</span></div>
       {instructions}
-      <Bar value={yes} large label={`Probabilidad de sí: ${yes.toFixed(2)}`} />
-      <div className="prob-row"><span className="p-label">sí</span><span /><span className="p-val">{yes.toFixed(2)}</span></div>
+      <Bar value={yes} large label={`Probability of yes: ${yes.toFixed(2)}`} />
+      <div className="prob-row"><span className="p-label">yes</span><span /><span className="p-val">{yes.toFixed(2)}</span></div>
       <div className="prob-row"><span className="p-label cell-muted">no</span><span /><span className="p-val">{(1 - yes).toFixed(2)}</span></div>
     </article>;
   }
@@ -36,7 +36,7 @@ export function AnswerCard({ name, answer, question }: { name: string; answer: A
     return <article className="answer">
       <div className="answer-head">{head}<span className="answer-big" style={{ fontSize: 13 }}>{answer.choice ?? "—"}</span></div>
       {instructions}
-      <div className="legend-line">confianza <strong>{answer.confidence === undefined ? "—" : answer.confidence.toFixed(2)}</strong></div>
+      <div className="legend-line">confidence <strong>{answer.confidence === undefined ? "—" : answer.confidence.toFixed(2)}</strong></div>
       {probabilities.map(([key, value]) => {
         const label = Object.prototype.hasOwnProperty.call(criteria, key) ? text(criteria[key]) : key;
         return <div className={`prob-row${key === answer.choice ? " is-lead" : ""}`} key={key}><span className="p-label" title={`${key}: ${label}`}>{label}</span><Bar value={value ?? 0} label={`${key}: ${value.toFixed(2)}`} /><span className="p-val">{value.toFixed(2)}</span></div>;
@@ -53,10 +53,10 @@ export function AnswerCard({ name, answer, question }: { name: string; answer: A
   return <article className="answer">
     <div className="answer-head">{head}<span className="answer-big">{score === undefined ? "?" : score.toFixed(2)}</span></div>
     {instructions}
-    <div className="legend-line">nivel <strong>{nearest === undefined ? "—" : `${exact ? "" : "≈ "}${text(nearest)}`}</strong>{answer.confidence !== undefined ? ` · confianza ${answer.confidence.toFixed(2)}` : ""}</div>
+    <div className="legend-line">level <strong>{nearest === undefined ? "—" : `${exact ? "" : "≈ "}${text(nearest)}`}</strong>{answer.confidence !== undefined ? ` · confidence ${answer.confidence.toFixed(2)}` : ""}</div>
     {levels.map((key) => {
       const value = answer.probabilities?.[key];
-      return <div className="prob-row" key={key}><span className="p-label" title={text(legend[key])}>{text(legend[key])}</span><Bar value={value ?? 0} label={`${text(legend[key])}: ${value?.toFixed(2) ?? "sin probabilidad"}`} /><span className="p-val">{value === undefined ? "—" : value.toFixed(2)}</span></div>;
+      return <div className="prob-row" key={key}><span className="p-label" title={text(legend[key])}>{text(legend[key])}</span><Bar value={value ?? 0} label={`${text(legend[key])}: ${value?.toFixed(2) ?? "no probability"}`} /><span className="p-val">{value === undefined ? "—" : value.toFixed(2)}</span></div>;
     })}
   </article>;
 }

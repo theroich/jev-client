@@ -50,7 +50,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-test("envía el request correcto y parsea la respuesta", async () => {
+test("sends the correct request and parses the response", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({
     apiKey: "test-key",
@@ -58,8 +58,8 @@ test("envía el request correcto y parsea la respuesta", async () => {
     fetch: fetchImpl,
   });
 
-  const response = await client.systemOne("hola", {
-    is_urgent: { type: "noul", instructions: "¿Urgente?" },
+  const response = await client.systemOne("hello", {
+    is_urgent: { type: "noul", instructions: "Urgent?" },
   });
 
   assert.equal(calls.length, 1);
@@ -78,7 +78,7 @@ test("envía el request correcto y parsea la respuesta", async () => {
     questions: Record<string, { type: string }>;
   };
   assert.equal(sent.model, "jev-1.13");
-  assert.equal(sent.state, "hola");
+  assert.equal(sent.state, "hello");
   assert.equal(sent.questions.is_urgent?.type, "noul");
 
   assert.equal(response.answers.is_urgent?.noul, 0.99);
@@ -88,7 +88,7 @@ test("envía el request correcto y parsea la respuesta", async () => {
   assert.deepEqual(response.raw, okBody);
 });
 
-test("respeta el modelo del request", async () => {
+test("honors the request model", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
 
@@ -102,14 +102,14 @@ test("respeta el modelo del request", async () => {
   assert.equal(sent.model, "jev-1.13-free");
 });
 
-test("exige API key y al menos una pregunta", async () => {
-  assert.throws(() => new JevClient({ apiKey: "" }), /falta la API key/);
+test("requires an API key and at least one question", async () => {
+  assert.throws(() => new JevClient({ apiKey: "" }), /missing API key/);
 
   const client = new JevClient({ apiKey: "k", fetch: fakeFetch(() => jsonResponse({})).fetchImpl });
-  await assert.rejects(client.systemOne("x", {}), /al menos una pregunta/);
+  await assert.rejects(client.systemOne("x", {}), /at least one question/);
 });
 
-test("no reintenta errores de autenticación", async () => {
+test("does not retry authentication errors", async () => {
   const { fetchImpl, calls } = fakeFetch(() =>
     jsonResponse(
       {
@@ -137,7 +137,7 @@ test("no reintenta errores de autenticación", async () => {
   assert.equal(calls.length, 1);
 });
 
-test("reintenta errores 5xx", async () => {
+test("retries 5xx errors", async () => {
   let attempts = 0;
   const { fetchImpl, calls } = fakeFetch(() => {
     attempts += 1;
@@ -159,7 +159,7 @@ test("reintenta errores 5xx", async () => {
   assert.equal(response.answers.is_urgent?.noul, 0.99);
 });
 
-test("no reintenta el 429 de cuota ni espera su Retry-After", async () => {
+test("does not retry the quota 429 or wait for its Retry-After", async () => {
   const { fetchImpl, calls } = fakeFetch(
     () =>
       new Response(
@@ -181,10 +181,10 @@ test("no reintenta el 429 de cuota ni espera su Retry-After", async () => {
   });
 
   assert.equal(calls.length, 1);
-  assert.ok(Date.now() - start < 1000, "no debe esperar las horas del Retry-After");
+  assert.ok(Date.now() - start < 1000, "must not wait the hours of Retry-After");
 });
 
-test("capa el Retry-After", async () => {
+test("caps Retry-After", async () => {
   let attempts = 0;
   const { fetchImpl } = fakeFetch(() => {
     attempts += 1;
@@ -206,10 +206,10 @@ test("capa el Retry-After", async () => {
 
   const start = Date.now();
   await client.systemOne("x", { q: { type: "noul" } });
-  assert.ok(Date.now() - start < 1000, "el Retry-After debe quedar capado");
+  assert.ok(Date.now() - start < 1000, "Retry-After must end up capped");
 });
 
-test("run cancela una petición en vuelo sin reintentarla", async () => {
+test("run cancels an in-flight request without retrying it", async () => {
   const controller = new AbortController();
   const { fetchImpl, calls } = fakeFetch(({ init }) =>
     new Promise<Response>((_resolve, reject) => {
@@ -245,10 +245,10 @@ test("run cancela una petición en vuelo sin reintentarla", async () => {
   assert.equal(calls.length, 1);
 });
 
-test("la cancelación interrumpe la espera entre reintentos", async () => {
+test("cancellation interrupts the wait between retries", async () => {
   const controller = new AbortController();
   const { fetchImpl, calls } = fakeFetch(() => {
-    throw new Error("red temporal");
+    throw new Error("temporary network error");
   });
   const client = new JevClient({
     apiKey: "k",
@@ -273,7 +273,7 @@ test("la cancelación interrumpe la espera entre reintentos", async () => {
   assert.equal(calls.length, 1);
 });
 
-test("parsea los formatos de error conocidos", () => {
+test("parses the known error formats", () => {
   const cases: Array<{
     name: string;
     body: string;
@@ -293,13 +293,13 @@ test("parsea los formatos de error conocidos", () => {
       code: "api_usage_error",
     },
     {
-      name: "validación",
+      name: "validation",
       body: '{"detail":[{"loc":["body","questions","x","criteria"],"msg":"Field required"}]}',
       message: "body.questions.x.criteria: Field required",
       code: "validation_error",
     },
-    { name: "texto plano", body: "error code: 1010", message: "error code: 1010" },
-    { name: "vacío", body: "", message: "error desconocido" },
+    { name: "plain text", body: "error code: 1010", message: "error code: 1010" },
+    { name: "empty", body: "", message: "unknown error" },
   ];
 
   for (const testCase of cases) {
@@ -309,7 +309,7 @@ test("parsea los formatos de error conocidos", () => {
   }
 });
 
-test("emite el hook onRequest en una petición correcta", async () => {
+test("emits the onRequest hook on a successful request", async () => {
   let log: import("../src/types.js").RequestLog | undefined;
   const { fetchImpl } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({
@@ -339,7 +339,7 @@ test("emite el hook onRequest en una petición correcta", async () => {
   assert.ok(log.durationMs >= 0);
 });
 
-test("emite el hook onRequest en un error de API", async () => {
+test("emits the onRequest hook on an API error", async () => {
   let log: import("../src/types.js").RequestLog | undefined;
   const { fetchImpl } = fakeFetch(() =>
     jsonResponse({ error: { code: "api_key_expired", message: "expired" } }, 401),
@@ -363,10 +363,10 @@ test("emite el hook onRequest en un error de API", async () => {
   assert.equal(log.cost, undefined);
 });
 
-test("emite el hook onRequest en un error de red", async () => {
+test("emits the onRequest hook on a network error", async () => {
   let log: import("../src/types.js").RequestLog | undefined;
   const { fetchImpl } = fakeFetch(() => {
-    throw new Error("conexión rechazada");
+    throw new Error("connection refused");
   });
   const client = new JevClient({
     apiKey: "k",
@@ -382,18 +382,18 @@ test("emite el hook onRequest en un error de red", async () => {
   assert.ok(log);
   assert.equal(log.ok, false);
   assert.equal(log.statusCode, null);
-  assert.match(log.errorMessage ?? "", /no se pudo conectar/);
+  assert.match(log.errorMessage ?? "", /could not connect/);
   assert.equal(log.responseBody, null);
 });
 
-test("incluye assets en el body y el header solo cuando hay imágenes", async () => {
+test("includes assets in the body and the header only when there are images", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
 
   await client.run({
     model: "",
-    state: { foto: "ref-1" },
-    questions: { q: { type: "noul", instructions: "¿Qué hay en ref-1?" } },
+    state: { photo: "ref-1" },
+    questions: { q: { type: "noul", instructions: "What is in ref-1?" } },
     assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
   });
 
@@ -403,7 +403,7 @@ test("incluye assets en el body y el header solo cuando hay imágenes", async ()
   assert.equal(headers.get("typeSafe-danger-zone-images"), "true");
 });
 
-test("no añade assets ni header cuando no hay imágenes", async () => {
+test("does not add assets or the header when there are no images", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
 
@@ -415,13 +415,13 @@ test("no añade assets ni header cuando no hay imágenes", async () => {
   assert.equal(headers.get("typeSafe-danger-zone-images"), null);
 });
 
-test("imagesHeader false omite el header pero conserva los assets", async () => {
+test("imagesHeader false omits the header but keeps the assets", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl, imagesHeader: false });
 
   await client.run({
     model: "",
-    state: { foto: "ref-1" },
+    state: { photo: "ref-1" },
     questions: { q: { type: "noul", instructions: "ref-1" } },
     assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
   });
@@ -432,7 +432,7 @@ test("imagesHeader false omite el header pero conserva los assets", async () => 
   assert.ok(sent.assets);
 });
 
-test("extraHeaders se mezclan sin poder tocar Authorization", async () => {
+test("extraHeaders are merged without being able to touch Authorization", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({
     apiKey: "k",
@@ -446,7 +446,7 @@ test("extraHeaders se mezclan sin poder tocar Authorization", async () => {
   assert.equal(headers.get("authorization"), "Bearer k");
 });
 
-test("rechaza localmente assets con referencias huérfanas", async () => {
+test("rejects assets with orphan references locally", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
 
@@ -457,44 +457,44 @@ test("rechaza localmente assets con referencias huérfanas", async () => {
       questions: { q: { type: "noul" } },
       assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
     }),
-    /no están referenciados/,
+    /are not referenced/,
   );
   assert.equal(calls.length, 0);
 });
 
-test("rechaza localmente data_base64 con prefijo data: o format inválido", async () => {
+test("rejects locally a data_base64 with the data: prefix or an invalid format", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl });
 
   await assert.rejects(
     client.run({
       model: "",
-      state: { foto: "ref-1" },
+      state: { photo: "ref-1" },
       questions: { q: { type: "noul", instructions: "ref-1" } },
       assets: { "ref-1": { type: "image", format: "jpg", data_base64: "data:YWJj" } },
     }),
-    /data_base64 inválido/,
+    /invalid data_base64/,
   );
   await assert.rejects(
     client.run({
       model: "",
-      state: { foto: "ref-1" },
+      state: { photo: "ref-1" },
       questions: { q: { type: "noul", instructions: "ref-1" } },
       assets: { "ref-1": { type: "image", data_base64: "YWJj" } },
     }),
-    /necesita un format/,
+    /needs a png\|jpg\|jpeg format/,
   );
   assert.equal(calls.length, 0);
 });
 
-test("expone las cabeceras enviadas en onRequest", async () => {
+test("exposes the sent headers in onRequest", async () => {
   let log: import("../src/types.js").RequestLog | undefined;
   const { fetchImpl } = fakeFetch(() => jsonResponse(okBody));
   const client = new JevClient({ apiKey: "k", fetch: fetchImpl, onRequest: (entry) => (log = entry) });
 
   await client.run({
     model: "",
-    state: { foto: "ref-1" },
+    state: { photo: "ref-1" },
     questions: { q: { type: "noul", instructions: "ref-1" } },
     assets: { "ref-1": { type: "image", format: "jpg", data_base64: "YWJj" } },
   });
@@ -502,7 +502,7 @@ test("expone las cabeceras enviadas en onRequest", async () => {
   assert.equal(log?.requestHeaders?.["TypeSafe-Danger-Zone-Images"], "true");
 });
 
-test("funciona contra un servidor HTTP real", async (t) => {
+test("works against a real HTTP server", async (t) => {
   let receivedAuth = "";
   let receivedPath = "";
 
@@ -527,7 +527,7 @@ test("funciona contra un servidor HTTP real", async (t) => {
     endpoint: `http://127.0.0.1:${address.port}/inference/systemone/v1/systemone`,
   });
 
-  const response = await client.systemOne("hola", { q: { type: "noul" } });
+  const response = await client.systemOne("hello", { q: { type: "noul" } });
 
   assert.equal(receivedAuth, "Bearer real-key");
   assert.equal(receivedPath, "/inference/systemone/v1/systemone");

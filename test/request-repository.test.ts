@@ -17,7 +17,7 @@ function log(overrides: Partial<RequestLog> = {}): RequestLog {
     ok: true,
     requestBody: {
       model: "jev-1.13",
-      state: "hola",
+      state: "hello",
       questions: { q: { type: "noul" } },
     },
     responseBody: JSON.stringify({
@@ -31,7 +31,7 @@ function log(overrides: Partial<RequestLog> = {}): RequestLog {
   };
 }
 
-test("inserta y lee una petición correcta", () => {
+test("inserts and reads a successful request", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -52,14 +52,14 @@ test("inserta y lee una petición correcta", () => {
   assert.equal(record.finishedAt, "2026-01-01T00:00:00.123Z");
   assert.deepEqual(JSON.parse(record.requestJson ?? "null"), {
     model: "jev-1.13",
-    state: "hola",
+    state: "hello",
     questions: { q: { type: "noul" } },
   });
 
   db.close();
 });
 
-test("redacta data_base64 al persistir para no volcar imágenes", () => {
+test("redacts data_base64 when persisting so images are not dumped", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -67,7 +67,7 @@ test("redacta data_base64 al persistir para no volcar imágenes", () => {
     log({
       requestBody: {
         model: "jev-1.13",
-        state: { foto: "uuid-1" },
+        state: { photo: "uuid-1" },
         questions: { q: { type: "noul", instructions: "uuid-1" } },
         assets: {
           "uuid-1": { type: "image", format: "jpg", data_base64: "YWJjZA==" },
@@ -89,7 +89,7 @@ test("redacta data_base64 al persistir para no volcar imágenes", () => {
   db.close();
 });
 
-test("el coste y los tokens son NULL cuando la API no los informa", () => {
+test("cost and tokens are NULL when the API does not report them", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -106,7 +106,7 @@ test("el coste y los tokens son NULL cuando la API no los informa", () => {
   db.close();
 });
 
-test("registra una petición fallida con su error", () => {
+test("records a failed request with its error", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -141,7 +141,7 @@ test("registra una petición fallida con su error", () => {
   db.close();
 });
 
-test("lista por id descendente y aplica filtros", () => {
+test("lists by descending id and applies filters", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -173,7 +173,7 @@ test("lista por id descendente y aplica filtros", () => {
   db.close();
 });
 
-test("el filtro --since es inclusivo sobre created_at", () => {
+test("the --since filter is inclusive on created_at", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -193,14 +193,14 @@ test("el filtro --since es inclusivo sobre created_at", () => {
   db.close();
 });
 
-test("devuelve undefined para un id inexistente", () => {
+test("returns undefined for a nonexistent id", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
   assert.equal(repository.get(999), undefined);
   db.close();
 });
 
-test("filtra por batch de forma parametrizada y expone count y facets", () => {
+test("filters by batch parametrically and exposes count and facets", () => {
   const db = openDatabase(":memory:");
   const repository = new RequestRepository(db);
 
@@ -234,7 +234,7 @@ test("filtra por batch de forma parametrizada y expone count y facets", () => {
   db.close();
 });
 
-test("crea los índices sobre created_at, model y template_name", () => {
+test("creates the indexes on created_at, model and template_name", () => {
   const db = openDatabase(":memory:");
   const rows = db
     .prepare(

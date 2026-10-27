@@ -41,19 +41,19 @@ function jpegBuffer(width: number, height: number): Buffer {
   return buffer;
 }
 
-test("detectImageFormat reconoce PNG, JPEG y rechaza otros", () => {
+test("detectImageFormat recognizes PNG, JPEG and rejects others", () => {
   assert.equal(detectImageFormat(pngBuffer(300, 300)), "png");
   assert.equal(detectImageFormat(jpegBuffer(300, 300)), "jpg");
-  assert.equal(detectImageFormat(Buffer.from("no es una imagen")), undefined);
+  assert.equal(detectImageFormat(Buffer.from("not an image")), undefined);
 });
 
-test("readImageSize lee IHDR de PNG y SOF de JPEG", () => {
+test("readImageSize reads PNG IHDR and JPEG SOF", () => {
   assert.deepEqual(readImageSize(pngBuffer(300, 400)), { width: 300, height: 400 });
   assert.deepEqual(readImageSize(jpegBuffer(550, 550)), { width: 550, height: 550 });
   assert.equal(readImageSize(Buffer.from("x")), undefined);
 });
 
-test("assertImageLimits valida lados, píxeles y tamaño", () => {
+test("assertImageLimits validates sides, pixels and size", () => {
   assert.equal(assertImageLimits(pngBuffer(300, 300)).ok, true);
   assert.deepEqual(assertImageLimits(pngBuffer(300, 300)), {
     ok: true,
@@ -63,18 +63,18 @@ test("assertImageLimits valida lados, píxeles y tamaño", () => {
 
   const small = assertImageLimits(pngBuffer(100, 100));
   assert.equal(small.ok, false);
-  assert.match(small.reason ?? "", /mínimo por lado/);
+  assert.match(small.reason ?? "", /minimum per side/);
 
   const tooWide = assertImageLimits(jpegBuffer(2000, 300));
   assert.equal(tooWide.ok, false);
-  assert.match(tooWide.reason ?? "", /máximo por lado/);
+  assert.match(tooWide.reason ?? "", /maximum per side/);
 });
 
-test("loadImageAsset detecta formato por magic bytes y valida límites", async (t) => {
+test("loadImageAsset detects format from magic bytes and validates limits", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-assets-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
 
-  const png = join(dir, "foto.png");
+  const png = join(dir, "photo.png");
   await writeFile(png, pngBuffer(300, 300));
   const loaded = await loadImageAsset(png, "ref-1");
   assert.equal(loaded.ref, "ref-1");
@@ -89,25 +89,25 @@ test("loadImageAsset detecta formato por magic bytes y valida límites", async (
 
   const small = join(dir, "small.png");
   await writeFile(small, pngBuffer(50, 50));
-  await assert.rejects(loadImageAsset(small), /mínimo por lado/);
+  await assert.rejects(loadImageAsset(small), /minimum per side/);
 });
 
-test("validateImageAsset rechaza prefijo data:, saltos y format inválido", () => {
+test("validateImageAsset rejects the data: prefix, line breaks and an invalid format", () => {
   assert.throws(
     () => validateImageAsset("a", { data_base64: "data:abc", format: "jpg" }),
-    /data_base64 inválido/,
+    /invalid data_base64/,
   );
   assert.throws(
     () => validateImageAsset("a", { data_base64: "YWJj\nZGVm", format: "jpg" }),
-    /data_base64 inválido/,
+    /invalid data_base64/,
   );
   assert.throws(
     () => validateImageAsset("a", { data_base64: "YWJj" }),
-    /necesita un format/,
+    /needs a png\|jpg\|jpeg format/,
   );
   assert.throws(
     () => validateImageAsset("a", { data_base64: "YWJj", format: "gif" as "png" }),
-    /necesita un format/,
+    /needs a png\|jpg\|jpeg format/,
   );
   assert.deepEqual(validateImageAsset("a", { data_base64: "YWJj", format: "jpg" }), {
     type: "image",
@@ -116,10 +116,10 @@ test("validateImageAsset rechaza prefijo data:, saltos y format inválido", () =
   });
 });
 
-test("orphanAssetRefs detecta referencias que la API rechazaría", () => {
+test("orphanAssetRefs detects references the API would reject", () => {
   const request = {
-    state: { foto: "uuid-1" },
-    questions: { q: { type: "noul", instructions: "¿Qué ves en `uuid-1`?" } },
+    state: { photo: "uuid-1" },
+    questions: { q: { type: "noul", instructions: "What do you see in `uuid-1`?" } },
     assets: { "uuid-1": { data_base64: "YWJj", format: "jpg" } as ImageAsset },
   };
   assert.deepEqual(orphanAssetRefs(request), []);
@@ -134,21 +134,21 @@ test("orphanAssetRefs detecta referencias que la API rechazaría", () => {
   assert.deepEqual(orphanAssetRefs(orphan), ["uuid-2"]);
 });
 
-test("redactAssets nunca expone data_base64", () => {
+test("redactAssets never exposes data_base64", () => {
   const assets: Record<string, ImageAsset> = {
-    foto: { type: "image", format: "jpg", data_base64: Buffer.from("hola").toString("base64") },
+    photo: { type: "image", format: "jpg", data_base64: Buffer.from("hello").toString("base64") },
   };
   const redacted = redactAssets(assets);
   assert.ok(redacted);
-  assert.equal(redacted?.foto?.format, "jpg");
-  assert.equal(redacted?.foto?.bytes, 4);
-  assert.equal(redacted?.foto?.sha256, createHash("sha256").update("hola").digest("hex"));
-  assert.equal("data_base64" in (redacted?.foto ?? {}), false);
+  assert.equal(redacted?.photo?.format, "jpg");
+  assert.equal(redacted?.photo?.bytes, 5);
+  assert.equal(redacted?.photo?.sha256, createHash("sha256").update("hello").digest("hex"));
+  assert.equal("data_base64" in (redacted?.photo ?? {}), false);
   assert.equal(redactAssets(undefined), undefined);
   assert.equal(redactAssets({}), undefined);
 });
 
-test("newImageRef devuelve un UUID y estimateImageTokens es informativo", () => {
+test("newImageRef returns a UUID and estimateImageTokens is informative", () => {
   const ref = newImageRef();
   assert.match(ref, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   assert.equal(estimateImageTokens(0), undefined);

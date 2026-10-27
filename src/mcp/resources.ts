@@ -18,60 +18,60 @@ export interface PromptDescriptor {
   arguments?: Array<{ name: string; description: string; required?: boolean }>;
 }
 
-/** Resources estáticas más el listado de plantillas. */
+/** Static resources plus the template listing. */
 export function listResources(): ResourceDescriptor[] {
   return [
     {
       name: "overview",
       uri: "jev://docs/overview",
-      description: "Qué es jev-client, conceptos, almacenamiento y seguridad.",
+      description: "What jev-client is, core concepts, storage and security.",
       mimeType: MARKDOWN,
     },
     {
       name: "tools",
       uri: "jev://docs/tools",
-      description: "Catálogo completo de tools (fijas y por plantilla) en JSON.",
+      description: "Full catalog of tools (built-in and per-template) in JSON.",
       mimeType: JSON_MIME,
     },
     {
       name: "examples",
       uri: "jev://docs/examples",
-      description: "Casos de uso end-to-end con JSON real.",
+      description: "End-to-end use cases with real JSON.",
       mimeType: MARKDOWN,
     },
     {
       name: "mcp",
       uri: "jev://docs/mcp",
-      description: "Cómo configurar el servidor en OpenCode/Claude Desktop.",
+      description: "How to configure the server in OpenCode/Claude Desktop.",
       mimeType: MARKDOWN,
     },
     {
       name: "templates",
       uri: "jev://templates",
-      description: "Listado de plantillas (mismo payload que jev_template_list).",
+      description: "Template listing (same payload as jev_template_list).",
       mimeType: JSON_MIME,
     },
   ];
 }
 
-/** Plantilla de resource `jev://templates/{name}`. */
+/** `jev://templates/{name}` resource template. */
 export function listResourceTemplates(): Array<Omit<ResourceDescriptor, "uri"> & { uriTemplate: string }> {
   return [
     {
       name: "template",
       uriTemplate: "jev://templates/{name}",
-      description: "Detalle de una plantilla (mismo payload que jev_template_get).",
+      description: "Details of one template (same payload as jev_template_get).",
       mimeType: JSON_MIME,
     },
   ];
 }
 
-/** Nombres de plantilla para el callback de listado del resource template. */
+/** Template names for the resource template listing callback. */
 export function templateNames(ctx: McpContext): string[] {
   return ctx.templates.list().map((template) => template.name);
 }
 
-/** Lee un resource por URI; `undefined` si no existe. */
+/** Reads a resource by URI; `undefined` if it does not exist. */
 export function readResource(
   uri: string,
   ctx: McpContext,
@@ -102,15 +102,15 @@ export function readResource(
 export function listPrompts(): PromptDescriptor[] {
   return [
     {
-      name: "generar-contextos",
+      name: "generate-contexts",
       description:
-        "Guía para generar un array de contextos JSON para una plantilla respetando sus macros y " +
-        "schemas, renderizando antes de ejecutar.",
+        "Guide to generate a JSON array of contexts for a template while respecting its macros and " +
+        "schemas, rendering before executing.",
       arguments: [
-        { name: "template", description: "Nombre de la plantilla.", required: true },
+        { name: "template", description: "Template name.", required: true },
         {
-          name: "escenarios",
-          description: "Descripción libre de los escenarios a cubrir.",
+          name: "scenarios",
+          description: "Free-form description of the scenarios to cover.",
           required: true,
         },
       ],
@@ -119,22 +119,22 @@ export function listPrompts(): PromptDescriptor[] {
 }
 
 export function getPrompt(name: string): string | undefined {
-  if (name !== "generar-contextos") {
+  if (name !== "generate-contexts") {
     return undefined;
   }
   return [
-    "Tu objetivo es producir un array JSON de contextos para la plantilla indicada.",
+    "Your goal is to produce a JSON array of contexts for the given template.",
     "",
-    "Pasos:",
-    "1. Llama a `jev_template_get` (o `jev_docs` con topic=template) para leer body, macros, ",
-    "   descripciones y JSON Schemas.",
-    "2. Respeta cada macro y su schema (enum, format, pattern, límites, default) sin inventar ",
-    "   claves que no existan.",
-    "3. Genera un array JSON de objetos, uno por escenario, con una clave por macro (las rutas con ",
-    "   puntos son claves planas exactas, p. ej. \"cliente.nombre\").",
-    "4. Antes de ejecutar, valida con `jev_template_render` para detectar macros ausentes.",
-    "5. Ejecuta con `jev_batch` pasando `template` y `contexts`.",
+    "Steps:",
+    "1. Call `jev_template_get` (or `jev_docs` with topic=template) to read the body, macros, ",
+    "   descriptions and JSON Schemas.",
+    "2. Respect every macro and its schema (enum, format, pattern, limits, default) without inventing ",
+    "   keys that do not exist.",
+    "3. Generate a JSON array of objects, one per scenario, with one key per macro (dotted paths ",
+    "   are exact flat keys, e.g. \"customer.name\").",
+    "4. Before executing, validate with `jev_template_render` to detect missing macros.",
+    "5. Execute with `jev_batch` passing `template` and `contexts`.",
     "",
-    "Devuelve solo el array JSON de contextos.",
+    "Return only the JSON array of contexts.",
   ].join("\n");
 }

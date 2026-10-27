@@ -1,12 +1,12 @@
-# Operación `choice`
+# `choice` operation
 
-## 1. Qué es y qué devuelve
+## 1. What it is and what it returns
 
-`choice` clasifica el `state` en **una opción entre varias** fijas. `criteria`
-es un **objeto** `{ clave: descripción }`, donde `clave` es el valor que el
-modelo puede elegir y `descripción` explica qué significa.
+`choice` classifies the `state` into **one option among several** fixed ones.
+`criteria` is an **object** `{ key: description }`, where `key` is the value the
+model can choose and `description` explains what it means.
 
-Forma exacta de la respuesta (por pregunta):
+Exact shape of the response (per question):
 
 ```json
 {
@@ -17,78 +17,78 @@ Forma exacta de la respuesta (por pregunta):
 }
 ```
 
-- `choice`: la clave de `criteria` elegida.
-- `confidence`: confianza (0–1) de la elección.
-- `probabilities`: probabilidad por cada clave de `criteria`.
+- `choice`: the chosen `criteria` key.
+- `confidence`: confidence (0–1) in the choice.
+- `probabilities`: probability for each `criteria` key.
 
-En el informe legible de la CLI:
+In the CLI's readable report:
 
 ```text
   team: choice=infra (confidence=0.59)
     infra=0.73, billing=0.27, sales=0
 ```
 
-Las probabilidades se ordenan de mayor a menor.
+Probabilities are sorted from highest to lowest.
 
-## 2. Forma del JSON de la pregunta
+## 2. Shape of the question JSON
 
 ```json
 {
   "team": {
     "type": "choice",
-    "instructions": "¿Qué equipo debería gestionar la incidencia?",
+    "instructions": "Which team should handle the issue?",
     "criteria": {
-      "billing": "Cobros, facturas o pagos",
-      "infra": "Caídas, errores 500 o problemas de plataforma",
-      "sales": "Precios o dudas comerciales"
+      "billing": "Charges, invoices or payments",
+      "infra": "Outages, 500 errors or platform problems",
+      "sales": "Pricing or sales questions"
     }
   }
 }
 ```
 
-`criteria` es **obligatorio** en `choice` (objeto no vacío). Sin `criteria`, la
-petición llega mal formada y suele terminar en un `422`.
+`criteria` is **required** in `choice` (a non-empty object). Without `criteria`,
+the request arrives malformed and usually ends in a `422`.
 
-## 3. Ejemplos de consola
+## 3. Console examples
 
-### Inline con `--state` y `--choice`
+### Inline with `--state` and `--choice`
 
 ```sh
 jev ask \
-  --state "El checkout lleva caído 30 minutos y perdemos ventas." \
-  --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
-  --option 'team.billing=Cobros, facturas o pagos' \
-  --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
-  --option 'team.sales=Precios o dudas comerciales'
+  --state "The checkout has been down for 30 minutes and we are losing sales." \
+  --choice 'team=Which team should handle the issue?' \
+  --option 'team.billing=Charges, invoices or payments' \
+  --option 'team.infra=Outages, 500 errors or platform problems' \
+  --option 'team.sales=Pricing or sales questions'
 ```
 
 ```text
-modelo: jev-1.13
+model: jev-1.13
   team: choice=infra (confidence=0.59)
     infra=0.73, billing=0.27, sales=0
-tokens: 22 in / 6 out, cost=3.1e-6      ← a stderr
+tokens: 22 in / 6 out, cost=3.1e-6      ← to stderr
 ```
 
-### Desde ficheros (`--state-file`, `--questions-file`)
+### From files (`--state-file`, `--questions-file`)
 
 ```sh
 jev ask --state-file examples/state.json --questions-file examples/questions.json
 ```
 
-La pregunta `team` de `examples/questions.json` es un `choice` con
+The `team` question in `examples/questions.json` is a `choice` with
 `billing`/`infra`/`sales`.
 
-### Por stdin (`--state -`)
+### From stdin (`--state -`)
 
 ```sh
-printf 'La factura de este mes no me ha llegado.' | jev ask --state - \
-  --choice 'team=¿Qué equipo debe atenderlo?' \
-  --option 'team.billing=Facturas' \
-  --option 'team.infra=Caídas' \
-  --option 'team.sales=Comercial'
+printf 'This month’s invoice never arrived.' | jev ask --state - \
+  --choice 'team=Which team should handle it?' \
+  --option 'team.billing=Invoices' \
+  --option 'team.infra=Outages' \
+  --option 'team.sales=Sales'
 ```
 
-### Con `--json` para consumo por máquina
+### With `--json` for machine consumption
 
 ```sh
 jev ask --state-file examples/state.json --questions-file examples/questions.json \
@@ -110,26 +110,26 @@ jev ask --state-file examples/state.json --questions-file examples/questions.jso
 }
 ```
 
-### Mezclando varios tipos en un mismo request
+### Mixing several types in the same request
 
-`examples/request.json` combina `refund` (`noul`) y `tone` (`choice`):
+`examples/request.json` combines `refund` (`noul`) and `tone` (`choice`):
 
 ```sh
 jev ask --request-file examples/request.json
 ```
 
 ```text
-modelo: jev-1.13
+model: jev-1.13
   refund: noul=0.96
   tone: choice=angry (confidence=0.8)
     angry=0.8, calm=0.2
 tokens: 96 in / 14 out, cost=2.2e-6
 ```
 
-## 4. Ejemplo en script bash
+## 4. Bash script example
 
-Función reutilizable, lectura del resultado con `jq`, `case` sobre la respuesta
-y manejo de códigos de salida:
+Reusable function, reading the result with `jq`, a `case` on the answer and
+exit-code handling:
 
 ```bash
 #!/usr/bin/env bash
@@ -137,78 +137,78 @@ y manejo de códigos de salida:
 DB="$(mktemp -d)/jev.db"
 trap 'rm -rf "$(dirname "$DB")"' EXIT
 
-# Clasifica un texto y devuelve la clave elegida.
+# Classify a text and return the chosen key.
 classify() {
   local state="$1"
 
   local out code
   out=$(jev ask --db "$DB" --no-save --json \
           --state "$state" \
-          --choice 'team=¿Qué equipo debería gestionar la incidencia?' \
-          --option 'team.billing=Cobros, facturas o pagos' \
-          --option 'team.infra=Caídas, errores 500 o problemas de plataforma' \
-          --option 'team.sales=Precios o dudas comerciales' \
+          --choice 'team=Which team should handle the issue?' \
+          --option 'team.billing=Charges, invoices or payments' \
+          --option 'team.infra=Outages, 500 errors or platform problems' \
+          --option 'team.sales=Pricing or sales questions' \
           2>/dev/null)
   code=$?
 
   if [ "$code" -ne 0 ]; then
-    echo "error: jev ask salió con código $code" >&2
+    echo "error: jev ask exited with code $code" >&2
     return "$code"
   fi
 
-  # Clave elegida + confianza, separadas por tabulador.
+  # Chosen key + confidence, separated by a tab.
   jq -r '[.answers.team.choice, .answers.team.confidence] | @tsv' <<<"$out"
 }
 
-ticket="El checkout lleva caído 30 minutos y perdemos ventas."
+ticket="The checkout has been down for 30 minutes and we are losing sales."
 
 read -r team conf <<<"$(classify "$ticket")" || exit $?
 
-echo "equipo: $team (confianza: $conf)"
+echo "team: $team (confidence: $conf)"
 
 case "$team" in
-  billing) echo "→ asignar a facturación" ;;
-  infra)   echo "→ asignar a infraestructura" ;;
-  sales)   echo "→ asignar a ventas" ;;
-  *)       echo "→ revisión manual" ;;
+  billing) echo "→ assign to billing" ;;
+  infra)   echo "→ assign to infrastructure" ;;
+  sales)   echo "→ assign to sales" ;;
+  *)       echo "→ manual review" ;;
 esac
 ```
 
 ```text
-equipo: infra (confianza: 0.59)
-→ asignar a infraestructura
+team: infra (confidence: 0.59)
+→ assign to infrastructure
 ```
 
-Notas del script:
+Script notes:
 
-- `jq -r '[…] | @tsv'` produce `infra<TAB>0.59`, que `read -r team conf` separa
-  por el tabulador (IFS por defecto).
-- `--no-save` + `--db` temporal evitan ensuciar el historial del usuario.
-- El `case` despacha la decisión; si `classify` falla, se propaga su código de
-  salida.
+- `jq -r '[…] | @tsv'` produces `infra<TAB>0.59`, which `read -r team conf`
+  splits on the tab (default IFS).
+- `--no-save` + a temporary `--db` avoid polluting the user's history.
+- The `case` dispatches the decision; if `classify` fails, its exit code is
+  propagated.
 
-## 5. Errores típicos y pistas
+## 5. Typical errors and hints
 
-- **`criteria` con la forma equivocada** — en `choice` debe ser un **objeto**
-  `{ clave: descripción }`. Pasar un array (`["a","b"]`) o un string produce una
-  pregunta mal formada; usa array ordenado para `score`, no para `choice`.
-- **`criteria` vacío o ausente** — `choice` exige al menos una clave; sin
-  `criteria` la API responde `422` (la CLI añade `pista:`).
-- **Todas las preguntas eligen la misma opción** — si evalúas varios elementos
-  en un solo request, nómbralos en cada `instructions`: la clave no se envía al
-  modelo y `state` es compartido (ver
-  [`anatomia-pregunta.md`](anatomia-pregunta.md)).
-- **`401` / `api_key_expired`** — key inválida/caducada; la CLI sugiere renovarla
-  en https://opencode.ai/console.
-- **`429 FreeUsageLimitError`** — cuota agotada; prueba `--model jev-1.13`.
-- **`422`** — pregunta mal formada (tipo inválido, falta `criteria`) o fallo
-  upstream; revisa https://docs.typesafe.ai/primitives.
-- **Timeouts y reintentos** — `--timeout` (default 30 s) por intento y
-  `--retries` (default 2) ante 429/5xx y errores de red.
+- **`criteria` with the wrong shape** — in `choice` it must be an **object**
+  `{ key: description }`. Passing an array (`["a","b"]`) or a string produces a
+  malformed question; use an ordered array for `score`, not for `choice`.
+- **Empty or missing `criteria`** — `choice` requires at least one key; without
+  `criteria` the API responds `422` (the CLI adds a `hint:`).
+- **All questions choose the same option** — if you evaluate several items in a
+  single request, name them in each `instructions`: the key is not sent to the
+  model and `state` is shared (see
+  [`question-anatomy.md`](question-anatomy.md)).
+- **`401` / `api_key_expired`** — invalid/expired key; the CLI suggests renewing
+  it at https://opencode.ai/console.
+- **`429 FreeUsageLimitError`** — quota exhausted; try `--model jev-1.13`.
+- **`422`** — malformed question (invalid type, missing `criteria`) or upstream
+  failure; check https://docs.typesafe.ai/primitives.
+- **Timeouts and retries** — `--timeout` (default 30 s) per attempt and
+  `--retries` (default 2) on 429/5xx and network errors.
 
-## 6. Notas de precisión
+## 6. Precision notes
 
-El modelo está entrenado sobre todo en inglés; acepta español con algo menos de
-precisión. Haz las descripciones de `criteria` **mutuamente excluyentes y
-explícitas** para que la clasificación sea estable: «Cobros, facturas o pagos»
-es más fiable que «billing».
+The model is trained mostly in English; it accepts other languages with
+somewhat less precision. Make the `criteria` descriptions **mutually exclusive
+and explicit** so that classification is stable: "Charges, invoices or
+payments" is more reliable than "billing".

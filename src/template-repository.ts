@@ -1,13 +1,13 @@
 import type { SqliteDatabase } from "./database.js";
 import { detectMacros } from "./template.js";
 
-/** Longitud máxima de la descripción libre de una macro. */
+/** Maximum length of a macro's free-form description. */
 export const MAX_MACRO_DESCRIPTION_LENGTH = 500;
 
-/** Tamaño máximo del JSON compacto de un esquema de macro. */
+/** Maximum size of a macro schema's compact JSON. */
 export const MAX_MACRO_SCHEMA_BYTES = 8 * 1024;
 
-/** Tipos admitidos por el editor básico de JSON Schema. */
+/** Types accepted by the basic JSON Schema editor. */
 export const MACRO_SCHEMA_TYPES = [
   "string",
   "number",
@@ -20,10 +20,10 @@ export const MACRO_SCHEMA_TYPES = [
 
 export type MacroSchemaType = (typeof MACRO_SCHEMA_TYPES)[number];
 
-/** Esquema JSON informativo de una macro (objeto o booleano). */
+/** Informative JSON schema for a macro (object or boolean). */
 export type MacroSchema = boolean | Record<string, unknown>;
 
-/** Códigos estables que la API traduce a 400. */
+/** Stable codes that the API maps to 400. */
 export type MacroSchemaErrorCode =
   | "invalid_macro_schema"
   | "invalid_macro_schema_type";
@@ -38,11 +38,11 @@ export class MacroSchemaError extends Error {
   }
 }
 
-/** Metadatos de una macro detectada en el body de una plantilla. */
+/** Metadata of a macro detected in a template body. */
 export interface TemplateMacro {
   name: string;
   description: string;
-  /** Esquema persistido; `null` o ausente equivale a macro sin esquema. */
+  /** Persisted schema; `null` or absent means a macro without a schema. */
   schema?: MacroSchema | null;
 }
 
@@ -59,7 +59,7 @@ function schemaError(message: string): MacroSchemaError {
   return new MacroSchemaError("invalid_macro_schema", message);
 }
 
-/** Comprueba que ningún `$ref` apunte fuera del documento. */
+/** Checks that no `$ref` points outside the document. */
 function assertLocalRefs(value: unknown): void {
   if (Array.isArray(value)) {
     for (const item of value) assertLocalRefs(item);
@@ -70,7 +70,7 @@ function assertLocalRefs(value: unknown): void {
     if (key === "$ref") {
       if (typeof child !== "string" || !child.startsWith("#")) {
         throw schemaError(
-          "$ref remoto no permitido: solo se admiten referencias locales que empiecen por #",
+          "remote $ref not allowed: only local references starting with # are accepted",
         );
       }
       continue;
@@ -80,23 +80,23 @@ function assertLocalRefs(value: unknown): void {
 }
 
 /**
- * Valida la estructura mínima de un esquema de macro sin resolver el
- * meta-esquema completo: forma JSON, `type`, keywords del editor básico,
- * `$ref` locales y tamaño máximo.
+ * Validates the minimal structure of a macro schema without resolving the
+ * full meta-schema: JSON shape, `type`, basic-editor keywords, local
+ * `$ref`s and maximum size.
  */
 export function validateMacroSchema(value: unknown): MacroSchema {
   if (typeof value === "boolean") return value;
   if (!isPlainObject(value)) {
-    throw schemaError("el esquema debe ser un objeto JSON o un booleano");
+    throw schemaError("the schema must be a JSON object or a boolean");
   }
 
   const serialized = JSON.stringify(value);
   if (serialized === undefined) {
-    throw schemaError("el esquema no se pudo serializar como JSON");
+    throw schemaError("the schema could not be serialized as JSON");
   }
   if (new TextEncoder().encode(serialized).byteLength > MAX_MACRO_SCHEMA_BYTES) {
     throw schemaError(
-      `el esquema supera el límite de ${MAX_MACRO_SCHEMA_BYTES} bytes`,
+      `the schema exceeds the limit of ${MAX_MACRO_SCHEMA_BYTES} bytes`,
     );
   }
 
@@ -112,37 +112,37 @@ export function validateMacroSchema(value: unknown): MacroSchema {
     if (!valid) {
       throw new MacroSchemaError(
         "invalid_macro_schema_type",
-        `type debe ser ${MACRO_SCHEMA_TYPES.join(" | ")} o un array no vacío de esos valores`,
+        `type must be ${MACRO_SCHEMA_TYPES.join(" | ")} or a non-empty array of those values`,
       );
     }
   }
 
   if ("enum" in value && (!Array.isArray(value.enum) || value.enum.length === 0)) {
-    throw schemaError("enum debe ser un array no vacío");
+    throw schemaError("enum must be a non-empty array");
   }
   if ("format" in value && typeof value.format !== "string") {
-    throw schemaError("format debe ser un string");
+    throw schemaError("format must be a string");
   }
   if ("pattern" in value) {
     if (typeof value.pattern !== "string") {
-      throw schemaError("pattern debe ser un string");
+      throw schemaError("pattern must be a string");
     }
     try {
       new RegExp(value.pattern);
     } catch {
-      throw schemaError("pattern no es una expresión regular compilable");
+      throw schemaError("pattern is not a compilable regular expression");
     }
   }
   for (const keyword of ["minLength", "maxLength", "minimum", "maximum"]) {
     if (keyword in value && typeof value[keyword] !== "number") {
-      throw schemaError(`${keyword} debe ser un número`);
+      throw schemaError(`${keyword} must be a number`);
     }
   }
 
   return value;
 }
 
-/** Serializa un esquema ya validado en formato compacto; `null` lo limpia. */
+/** Serializes an already validated schema in compact form; `null` clears it. */
 export function serializeMacroSchema(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   return JSON.stringify(validateMacroSchema(value));
@@ -163,7 +163,7 @@ export interface Template {
   body_json: string;
   created_at: string;
   updated_at: string;
-  /** Macros del body fusionadas con sus metadatos persistidos. */
+  /** Body macros merged with their persisted metadata. */
   macros: TemplateMacro[];
 }
 
@@ -184,8 +184,8 @@ interface MacroRow {
 }
 
 /**
- * Normaliza las descripciones y esquemas recibidos y comprueba que cada macro
- * exista en el body. La última entrada de una macro repetida prevalece.
+ * Normalizes the received descriptions and schemas and checks that each macro
+ * exists in the body. The last entry of a repeated macro wins.
  */
 function normalizeMacros(
   bodyJson: string,
@@ -196,12 +196,12 @@ function normalizeMacros(
   for (const entry of entries) {
     const name = typeof entry.name === "string" ? entry.name.trim() : "";
     if (!detected.has(name)) {
-      throw new Error(`la macro ${JSON.stringify(name)} no está en el body de la plantilla`);
+      throw new Error(`macro ${JSON.stringify(name)} is not in the template body`);
     }
     const description = typeof entry.description === "string" ? entry.description.trim() : "";
     if (description.length > MAX_MACRO_DESCRIPTION_LENGTH) {
       throw new Error(
-        `la descripción de la macro ${JSON.stringify(name)} supera los ${MAX_MACRO_DESCRIPTION_LENGTH} caracteres`,
+        `the description of macro ${JSON.stringify(name)} exceeds ${MAX_MACRO_DESCRIPTION_LENGTH} characters`,
       );
     }
     let schema_json: string | null = null;
@@ -211,7 +211,7 @@ function normalizeMacros(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw error instanceof MacroSchemaError
-          ? new MacroSchemaError(error.code, `esquema de ${JSON.stringify(name)}: ${message}`)
+          ? new MacroSchemaError(error.code, `schema of ${JSON.stringify(name)}: ${message}`)
           : error;
       }
     }
@@ -220,7 +220,7 @@ function normalizeMacros(
   return normalized;
 }
 
-/** Repositorio tipado sobre las tablas templates y template_macros. */
+/** Typed repository over the templates and template_macros tables. */
 export class TemplateRepository {
   constructor(private readonly db: SqliteDatabase) {}
 
@@ -237,11 +237,11 @@ export class TemplateRepository {
   }
 
   /**
-   * Inserta o reemplaza una plantilla; conserva `created_at` al actualizar.
-   * Sincroniza `template_macros` con las macros detectadas en el body: elimina
-   * las filas huérfanas y conserva descripciones y esquemas existentes cuando
-   * no se pasan explícitamente. Sin descripción, la fila queda con `""`; sin
-   * esquema, `schema_json` queda en `NULL`.
+   * Inserts or replaces a template; preserves `created_at` on update.
+   * Syncs `template_macros` with the macros detected in the body: removes
+   * orphan rows and keeps existing descriptions and schemas when they are not
+   * passed explicitly. Without a description, the row keeps `""`; without a
+   * schema, `schema_json` stays `NULL`.
    */
   save(
     name: string,
@@ -327,22 +327,22 @@ export class TemplateRepository {
     );
   }
 
-  /** Renombra sin sobrescribir; cualquier fallo conserva la plantilla original. */
+  /** Renames without overwriting; any failure keeps the original template. */
   rename(name: string, newName: string): void {
     if (newName.trim() === "") {
-      throw new Error("el nombre de la plantilla no puede estar vacío");
+      throw new Error("the template name cannot be empty");
     }
 
     this.db.transaction(() => {
       const source = this.get(name);
       if (source === undefined) {
-        throw new Error(`plantilla no encontrada: ${name}`);
+        throw new Error(`template not found: ${name}`);
       }
       if (name === newName) {
         return;
       }
       if (this.get(newName) !== undefined) {
-        throw new Error(`ya existe la plantilla: ${newName}`);
+        throw new Error(`template already exists: ${newName}`);
       }
 
       this.db

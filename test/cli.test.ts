@@ -99,16 +99,16 @@ async function run(
   }
 }
 
-test("sin argumentos muestra el uso y sale con 2", async () => {
+test("with no arguments prints the usage and exits with 2", async () => {
   const result = await run([]);
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /Uso:/);
+  assert.match(result.stderr, /Usage:/);
 });
 
-test("comando desconocido sale con 2", async () => {
+test("unknown command exits with 2", async () => {
   const result = await run(["nope"]);
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /comando desconocido/);
+  assert.match(result.stderr, /unknown command/);
 });
 
 test("version", async () => {
@@ -125,20 +125,20 @@ test("demo", async () => {
   assert.equal(result.calls[0]?.url, "https://opencode.ai/inference/systemone/v1/systemone");
 });
 
-test("demo con --json devuelve JSON válido", async () => {
+test("demo with --json returns valid JSON", async () => {
   const result = await run(["demo", "--json"]);
   assert.equal(result.code, 0);
   const parsed = JSON.parse(result.stdout) as { model: string };
   assert.equal(parsed.model, "jev-1.13");
 });
 
-test("ask con state y preguntas inline", async () => {
+test("ask with state and inline questions", async () => {
   const result = await run([
     "ask",
     "--state",
-    "Me han cobrado dos veces este mes.",
+    "I was charged twice this month.",
     "--questions",
-    '{"is_urgent":{"type":"noul","instructions":"¿Es urgente?"}}',
+    '{"is_urgent":{"type":"noul","instructions":"Is it urgent?"}}',
   ]);
 
   assert.equal(result.code, 0);
@@ -148,28 +148,28 @@ test("ask con state y preguntas inline", async () => {
     state: unknown;
     questions: Record<string, unknown>;
   };
-  assert.equal(sent.state, "Me han cobrado dos veces este mes.");
+  assert.equal(sent.state, "I was charged twice this month.");
   assert.deepEqual(Object.keys(sent.questions), ["is_urgent"]);
 });
 
-test("ask acepta state JSON estructurado", async () => {
+test("ask accepts a structured JSON state", async () => {
   const result = await run([
     "ask",
     "--state",
-    '{"ticket":"hola","plan":"pro"}',
+    '{"ticket":"hello","plan":"pro"}',
     "--questions",
     '{"q":{"type":"noul","instructions":"?"}}',
   ]);
 
   assert.equal(result.code, 0);
   const sent = JSON.parse(String(result.calls[0]?.init.body)) as { state: unknown };
-  assert.deepEqual(sent.state, { ticket: "hola", plan: "pro" });
+  assert.deepEqual(sent.state, { ticket: "hello", plan: "pro" });
 });
 
-test("ask lee el state de un fichero y de stdin", async () => {
+test("ask reads the state from a file and from stdin", async () => {
   const dir = await mkdtemp(join(tmpdir(), "jev-client-"));
   const statePath = join(dir, "state.txt");
-  await writeFile(statePath, "El checkout está caído.\n", "utf8");
+  await writeFile(statePath, "The checkout is down.\n", "utf8");
 
   const fromFile = await run([
     "ask",
@@ -182,22 +182,22 @@ test("ask lee el state de un fichero y de stdin", async () => {
 
   const fromStdin = await run(
     ["ask", "--state", "-", "--questions", '{"q":{"type":"noul","instructions":"?"}}'],
-    { stdin: "Texto por stdin" },
+    { stdin: "Text from stdin" },
   );
   assert.equal(fromStdin.code, 0);
 
   const sent = JSON.parse(String(fromStdin.calls[0]?.init.body)) as { state: unknown };
-  assert.equal(sent.state, "Texto por stdin");
+  assert.equal(sent.state, "Text from stdin");
 });
 
-test("ask con request-file completo", async () => {
+test("ask with a full request-file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "jev-client-"));
   const requestPath = join(dir, "request.json");
   await writeFile(
     requestPath,
     JSON.stringify({
       model: "jev-1.13-free",
-      state: { ticket: "hola" },
+      state: { ticket: "hello" },
       questions: { q: { type: "noul", instructions: "?" } },
     }),
     "utf8",
@@ -210,143 +210,143 @@ test("ask con request-file completo", async () => {
   assert.equal(sent.model, "jev-1.13-free");
 });
 
-test("ask rechaza tipos de pregunta no soportados", async () => {
+test("ask rejects unsupported question types", async () => {
   const result = await run([
     "ask",
     "--state",
-    "hola",
+    "hello",
     "--questions",
     '{"x":{"type":"invented"}}',
   ]);
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /tipo no soportado/);
+  assert.match(result.stderr, /unsupported type/);
   assert.equal(result.calls.length, 0);
 });
 
-test("buildQuestionsFromFlags mapea noul, choice y score", () => {
+test("buildQuestionsFromFlags maps noul, choice and score", () => {
   assert.deepEqual(
-    buildQuestionsFromFlags({ noul: ["billing=¿Es de facturación?"] }),
-    { billing: { type: "noul", instructions: "¿Es de facturación?" } },
+    buildQuestionsFromFlags({ noul: ["billing=Is this about billing?"] }),
+    { billing: { type: "noul", instructions: "Is this about billing?" } },
   );
 
   assert.deepEqual(
     buildQuestionsFromFlags({
-      choice: ["team=¿Qué equipo?"],
-      option: ["team.billing=Cobros", "team.infra=Caídas"],
+      choice: ["team=Which team?"],
+      option: ["team.billing=Billing", "team.infra=Outages"],
     }),
     {
       team: {
         type: "choice",
-        instructions: "¿Qué equipo?",
-        criteria: { billing: "Cobros", infra: "Caídas" },
+        instructions: "Which team?",
+        criteria: { billing: "Billing", infra: "Outages" },
       },
     },
   );
 
   assert.deepEqual(
     buildQuestionsFromFlags({
-      score: ["urgency=¿Cómo de urgente?"],
+      score: ["urgency=How urgent is it?"],
       level: [
-        "urgency=Puede esperar",
-        "urgency=Esta semana",
-        "urgency=Hoy mismo",
+        "urgency=It can wait",
+        "urgency=This week",
+        "urgency=Today",
       ],
     }),
     {
       urgency: {
         type: "score",
-        instructions: "¿Cómo de urgente?",
-        criteria: ["Puede esperar", "Esta semana", "Hoy mismo"],
+        instructions: "How urgent is it?",
+        criteria: ["It can wait", "This week", "Today"],
       },
     },
   );
 });
 
-test("buildQuestionsFromFlags conserva el orden de aparición de --level", () => {
+test("buildQuestionsFromFlags keeps the order in which --level appears", () => {
   const questions = buildQuestionsFromFlags({
-    score: ["u=¿Urgencia?"],
-    level: ["u=Bajo", "u=Medio", "u=Alto"],
+    score: ["u=Urgency?"],
+    level: ["u=Low", "u=Medium", "u=High"],
   });
-  assert.deepEqual(questions.u?.criteria, ["Bajo", "Medio", "Alto"]);
+  assert.deepEqual(questions.u?.criteria, ["Low", "Medium", "High"]);
 });
 
-test("buildQuestionsFromFlags rechaza errores de forma", () => {
+test("buildQuestionsFromFlags rejects shape errors", () => {
   assert.throws(
-    () => buildQuestionsFromFlags({ choice: ["team=¿?"] }),
-    /necesita al menos un --option/,
+    () => buildQuestionsFromFlags({ choice: ["team=?"] }),
+    /needs at least one --option/,
   );
   assert.throws(
-    () => buildQuestionsFromFlags({ score: ["u=¿?"] }),
-    /necesita al menos un --level/,
+    () => buildQuestionsFromFlags({ score: ["u=?"] }),
+    /needs at least one --level/,
   );
   assert.throws(
-    () => buildQuestionsFromFlags({ option: ["team.billing=Cobros"] }),
-    /no es un --choice/,
+    () => buildQuestionsFromFlags({ option: ["team.billing=Billing"] }),
+    /is not a --choice/,
   );
   assert.throws(
-    () => buildQuestionsFromFlags({ level: ["u=Hoy"] }),
-    /no es un --score/,
+    () => buildQuestionsFromFlags({ level: ["u=Today"] }),
+    /is not a --score/,
   );
   assert.throws(
     () =>
       buildQuestionsFromFlags({
-        noul: ["team=¿?"],
-        option: ["team.billing=Cobros"],
+        noul: ["team=?"],
+        option: ["team.billing=Billing"],
       }),
-    /no es un --choice/,
+    /is not a --choice/,
   );
   assert.throws(
-    () => buildQuestionsFromFlags({ noul: ["a=¿?"], choice: ["a=¿?"] }),
-    /clave duplicada/,
+    () => buildQuestionsFromFlags({ noul: ["a=?"], choice: ["a=?"] }),
+    /duplicate key/,
   );
   assert.throws(
     () =>
       buildQuestionsFromFlags({
-        choice: ["team=¿?"],
-        option: ["team.b.illing=Cobros"],
+        choice: ["team=?"],
+        option: ["team.b.illing=Billing"],
       }),
-    /no puede contener/,
+    /cannot contain/,
   );
 });
 
-test("ask con flags tipados envía el mismo body que --questions", async () => {
+test("ask with typed flags sends the same body as --questions", async () => {
   const noul = await run([
     "ask",
     "--state",
-    "Me han cobrado dos veces este mes.",
+    "I was charged twice this month.",
     "--noul",
-    "billing=¿Es de facturación?",
+    "billing=Is this about billing?",
   ]);
   assert.equal(noul.code, 0);
 
   const choice = await run([
     "ask",
     "--state",
-    "El checkout lleva caído 30 minutos.",
+    "The checkout has been down for 30 minutes.",
     "--choice",
-    "team=¿Qué equipo debería gestionar la incidencia?",
+    "team=Which team should own the incident?",
     "--option",
-    "team.billing=Cobros, facturas o pagos",
+    "team.billing=Billing, invoices or payments",
     "--option",
-    "team.infra=Caídas, errores 500 o problemas de plataforma",
+    "team.infra=Outages, 500 errors or platform problems",
     "--option",
-    "team.sales=Precios o dudas comerciales",
+    "team.sales=Pricing or sales questions",
   ]);
   assert.equal(choice.code, 0);
 
   const score = await run([
     "ask",
     "--state",
-    "Llevamos dos días sin respuesta.",
+    "We have gone two days without an answer.",
     "--score",
-    "urgency=¿Cómo de urgente es la incidencia?",
+    "urgency=How urgent is the incident?",
     "--level",
-    "urgency=Puede esperar",
+    "urgency=It can wait",
     "--level",
-    "urgency=Esta semana",
+    "urgency=This week",
     "--level",
-    "urgency=Hoy mismo",
+    "urgency=Today",
   ]);
   assert.equal(score.code, 0);
 
@@ -361,70 +361,70 @@ test("ask con flags tipados envía el mismo body que --questions", async () => {
   };
 
   assert.deepEqual(flaggedNoul.questions, {
-    billing: { type: "noul", instructions: "¿Es de facturación?" },
+    billing: { type: "noul", instructions: "Is this about billing?" },
   });
   assert.deepEqual(flaggedChoice.questions, {
     team: {
       type: "choice",
-      instructions: "¿Qué equipo debería gestionar la incidencia?",
+      instructions: "Which team should own the incident?",
       criteria: {
-        billing: "Cobros, facturas o pagos",
-        infra: "Caídas, errores 500 o problemas de plataforma",
-        sales: "Precios o dudas comerciales",
+        billing: "Billing, invoices or payments",
+        infra: "Outages, 500 errors or platform problems",
+        sales: "Pricing or sales questions",
       },
     },
   });
   assert.deepEqual(flaggedScore.questions, {
     urgency: {
       type: "score",
-      instructions: "¿Cómo de urgente es la incidencia?",
-      criteria: ["Puede esperar", "Esta semana", "Hoy mismo"],
+      instructions: "How urgent is the incident?",
+      criteria: ["It can wait", "This week", "Today"],
     },
   });
 });
 
-test("ask con --choice sin --option es error de uso local", async () => {
+test("ask with --choice but no --option is a local usage error", async () => {
   const result = await run([
     "ask",
     "--state",
-    "hola",
+    "hello",
     "--choice",
-    "team=¿Qué equipo?",
+    "team=Which team?",
   ]);
 
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /necesita al menos un --option/);
+  assert.match(result.stderr, /needs at least one --option/);
   assert.equal(result.calls.length, 0);
 });
 
-test("ask rechaza mezclar flags tipados con --questions", async () => {
+test("ask rejects mixing typed flags with --questions", async () => {
   const result = await run([
     "ask",
     "--state",
-    "hola",
+    "hello",
     "--noul",
-    "q=¿?",
+    "q=?",
     "--questions",
     '{"q":{"type":"noul"}}',
   ]);
 
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /no se combinan/);
+  assert.match(result.stderr, /do not combine/);
   assert.equal(result.calls.length, 0);
 });
 
-test("--asset ref=ruta carga la imagen y manda el header", async (t) => {
+test("--asset ref=path loads the image and sends the header", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const png = join(dir, "foto.png");
+  const png = join(dir, "photo.png");
   await writeFile(png, pngBytes(300, 300));
 
   const result = await run([
     "ask",
     "--state",
-    '{"foto":"ref-1"}',
+    '{"photo":"ref-1"}',
     "--questions",
-    '{"q":{"type":"noul","instructions":"¿Qué hay en ref-1?"}}',
+    '{"q":{"type":"noul","instructions":"What is in ref-1?"}}',
     "--asset",
     "ref-1=" + png,
   ]);
@@ -433,18 +433,18 @@ test("--asset ref=ruta carga la imagen y manda el header", async (t) => {
   const headers = new Headers(result.calls[0]?.init.headers);
   assert.equal(headers.get("typeSafe-danger-zone-images"), "true");
   const sent = JSON.parse(String(result.calls[0]?.init.body)) as {
-    state: { foto: string };
+    state: { photo: string };
     assets: Record<string, { format: string; data_base64: string }>;
   };
-  assert.equal(sent.state.foto, "ref-1");
+  assert.equal(sent.state.photo, "ref-1");
   assert.equal(sent.assets["ref-1"]?.format, "png");
   assert.ok(sent.assets["ref-1"]?.data_base64);
 });
 
-test("--assets-file lee el mapa assets completo", async (t) => {
+test("--assets-file reads the full assets map", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const png = join(dir, "foto.png");
+  const png = join(dir, "photo.png");
   await writeFile(png, pngBytes(300, 300));
 
   const assetsFile = join(dir, "assets.json");
@@ -452,7 +452,7 @@ test("--assets-file lee el mapa assets completo", async (t) => {
   const file = await run([
     "ask",
     "--state",
-    '{"foto":"ref-a"}',
+    '{"photo":"ref-a"}',
     "--questions",
     '{"q":{"type":"noul","instructions":"ref-a"}}',
     "--assets-file",
@@ -465,7 +465,7 @@ test("--assets-file lee el mapa assets completo", async (t) => {
   assert.equal(fileSent.assets["ref-a"]?.format, "png");
 });
 
-test("--asset con data_base64 en --assets-file lo valida", async (t) => {
+test("--asset with data_base64 in --assets-file validates it", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const assetsFile = join(dir, "assets.json");
@@ -477,7 +477,7 @@ test("--asset con data_base64 en --assets-file lo valida", async (t) => {
   const result = await run([
     "ask",
     "--state",
-    '{"foto":"ref-b"}',
+    '{"photo":"ref-b"}',
     "--questions",
     '{"q":{"type":"noul","instructions":"ref-b"}}',
     "--assets-file",
@@ -490,16 +490,16 @@ test("--asset con data_base64 en --assets-file lo valida", async (t) => {
   assert.equal(sent.assets["ref-b"]?.format, "png");
 });
 
-test("--no-images-header omite el header de imágenes", async (t) => {
+test("--no-images-header omits the images header", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const png = join(dir, "foto.png");
+  const png = join(dir, "photo.png");
   await writeFile(png, pngBytes(300, 300));
 
   const result = await run([
     "ask",
     "--state",
-    '{"foto":"ref-1"}',
+    '{"photo":"ref-1"}',
     "--questions",
     '{"q":{"type":"noul","instructions":"ref-1"}}',
     "--asset",
@@ -512,7 +512,7 @@ test("--no-images-header omite el header de imágenes", async (t) => {
   assert.equal(headers.get("typeSafe-danger-zone-images"), null);
 });
 
-test("--asset con imagen fuera de límites falla antes de llamar", async (t) => {
+test("--asset with an out-of-limits image fails before calling", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "jev-asset-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const png = join(dir, "small.png");
@@ -521,7 +521,7 @@ test("--asset con imagen fuera de límites falla antes de llamar", async (t) => 
   const result = await run([
     "ask",
     "--state",
-    "texto",
+    "text",
     "--questions",
     '{"q":{"type":"noul","instructions":"?"}}',
     "--asset",
@@ -530,26 +530,26 @@ test("--asset con imagen fuera de límites falla antes de llamar", async (t) => 
 
   assert.equal(result.code, 1);
   assert.equal(result.calls.length, 0);
-  assert.match(result.stderr, /mínimo por lado/);
+  assert.match(result.stderr, /minimum per side/);
 });
 
-test("ask sin API key", async () => {
+test("ask without an API key", async () => {
   const result = await run(
-    ["ask", "--state", "hola", "--questions", '{"q":{"type":"noul"}}'],
+    ["ask", "--state", "hello", "--questions", '{"q":{"type":"noul"}}'],
     { env: {} },
   );
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /falta la API key/);
+  assert.match(result.stderr, /missing API key/);
 });
 
-test("ask sin state es error de uso", async () => {
+test("ask without state is a usage error", async () => {
   const result = await run(["ask"]);
   assert.equal(result.code, 2);
-  assert.match(result.stderr, /falta --state/);
+  assert.match(result.stderr, /missing --state/);
 });
 
-test("usa las variables de entorno", async () => {
+test("uses the environment variables", async () => {
   const result = await run(["demo"], {
     env: {
       OPENCODE_API_KEY: "env-key",
@@ -567,7 +567,7 @@ test("usa las variables de entorno", async () => {
   assert.equal(headers.get("authorization"), "Bearer env-key");
 });
 
-test("los flags ganan a las variables de entorno", async () => {
+test("flags win over the environment variables", async () => {
   const result = await run(
     ["demo", "--key", "flag-key", "--url", "https://flag.test", "--model", "flag-model"],
     { env: { OPENCODE_API_KEY: "env-key", JEV_URL: "https://env.test", JEV_MODEL: "env-model" } },
@@ -581,7 +581,7 @@ test("los flags ganan a las variables de entorno", async () => {
   assert.equal(sent.model, "flag-model");
 });
 
-test("un 401 imprime una pista", async () => {
+test("a 401 prints a hint", async () => {
   const result = await run(["demo"], {
     handler: () =>
       new Response(
@@ -591,11 +591,11 @@ test("un 401 imprime una pista", async () => {
   });
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /pista:/);
-  assert.match(result.stderr, /ha caducado/);
+  assert.match(result.stderr, /hint:/);
+  assert.match(result.stderr, /has expired/);
 });
 
-test("un 429 de cuota imprime una pista", async () => {
+test("a 429 quota error prints a hint", async () => {
   const result = await run(["demo"], {
     handler: () =>
       new Response(
@@ -607,10 +607,10 @@ test("un 429 de cuota imprime una pista", async () => {
   });
 
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /límite de uso/);
+  assert.match(result.stderr, /usage limit/);
 });
 
-test("--timeout y --retries inválidos son error de uso", async () => {
+test("invalid --timeout and --retries are usage errors", async () => {
   const badTimeout = await run(["demo", "--timeout", "0"]);
   assert.equal(badTimeout.code, 2);
 
@@ -618,7 +618,7 @@ test("--timeout y --retries inválidos son error de uso", async () => {
   assert.equal(badRetries.code, 2);
 });
 
-test("config gestiona los valores persistentes", async (t) => {
+test("config manages the persistent values", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -641,7 +641,7 @@ test("config gestiona los valores persistentes", async (t) => {
   assert.equal(unset.code, 0);
   const missing = await run(["config", "get", "model"], { dbPath, env: {} });
   assert.equal(missing.code, 1);
-  assert.match(missing.stderr, /no definida/);
+  assert.match(missing.stderr, /not defined/);
 
   const invalid = await run(
     ["config", "set", "retries", "-1"],
@@ -650,7 +650,7 @@ test("config gestiona los valores persistentes", async (t) => {
   assert.equal(invalid.code, 2);
 });
 
-test("demo resuelve key, URL y modelo desde SQLite", async (t) => {
+test("demo resolves key, URL and model from SQLite", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -660,8 +660,8 @@ test("demo resuelve key, URL y modelo desde SQLite", async (t) => {
     { dbPath, env: {} },
   );
   assert.equal(savedKey.code, 0);
-  assert.match(savedKey.stderr, /se guarda en claro/);
-  assert.match(savedKey.stderr, /Para no persistirla/);
+  assert.match(savedKey.stderr, /stored in plain text/);
+  assert.match(savedKey.stderr, /To avoid persisting it/);
   await run(
     ["config", "set", "api_url", "https://stored.test/systemone"],
     { dbPath, env: {} },
@@ -711,7 +711,7 @@ test("demo resuelve key, URL y modelo desde SQLite", async (t) => {
   assert.equal(sent.model, "flag-model");
 });
 
-test("--db gana a JEV_DB", async (t) => {
+test("--db wins over JEV_DB", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const envPath = join(root, "env.db");
@@ -733,7 +733,7 @@ test("--db gana a JEV_DB", async (t) => {
   assert.equal(fromEnv.code, 1);
 });
 
-test("una key pasada por flag no se persiste", async (t) => {
+test("a key passed by flag is not persisted", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -744,7 +744,7 @@ test("una key pasada por flag no se persiste", async (t) => {
   assert.equal(list.stdout, "");
 });
 
-test("template gestiona plantillas y render previsualiza sin llamar a la API", async (t) => {
+test("template manages templates and render previews without calling the API", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -752,74 +752,74 @@ test("template gestiona plantillas y render previsualiza sin llamar a la API", a
   const body = JSON.stringify({
     model: "jev-1.13",
     state: {
-      pedido: "{{estado_de_pedido}}",
-      cliente: "{{cliente.nombre}}",
+      order: "{{order_state}}",
+      customer: "{{customer.name}}",
     },
-    questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+    questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
   });
 
   const add = await run(
-    ["template", "add", "pedido", "--description", "Pedido con cliente", "--body", body],
+    ["template", "add", "order", "--description", "Order with customer", "--body", body],
     { dbPath, env: {} },
   );
   assert.equal(add.code, 0);
-  assert.match(add.stdout, /plantilla guardada: pedido/);
+  assert.match(add.stdout, /template saved: order/);
 
   const list = await run(["template", "list"], { dbPath, env: {} });
   assert.equal(list.code, 0);
-  assert.equal(list.stdout, "pedido - Pedido con cliente\n");
+  assert.equal(list.stdout, "order - Order with customer\n");
 
-  const show = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const show = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.equal(show.code, 0);
   const shown = JSON.parse(show.stdout) as { body: { state: unknown } };
   assert.deepEqual(shown.body.state, {
-    pedido: "{{estado_de_pedido}}",
-    cliente: "{{cliente.nombre}}",
+    order: "{{order_state}}",
+    customer: "{{customer.name}}",
   });
 
   const render = await run(
     [
       "template",
       "render",
-      "pedido",
+      "order",
       "--context",
-      '{"estado_de_pedido":"pendiente","cliente":{"nombre":"Ana"}}',
+      '{"order_state":"pending","customer":{"name":"Ana"}}',
     ],
     { dbPath, env: {} },
   );
   assert.equal(render.code, 0);
   assert.equal(render.calls.length, 0);
   const rendered = JSON.parse(render.stdout) as { state: unknown };
-  assert.deepEqual(rendered.state, { pedido: "pendiente", cliente: "Ana" });
+  assert.deepEqual(rendered.state, { order: "pending", customer: "Ana" });
 
-  const remove = await run(["template", "remove", "pedido"], { dbPath, env: {} });
+  const remove = await run(["template", "remove", "order"], { dbPath, env: {} });
   assert.equal(remove.code, 0);
-  const missing = await run(["template", "show", "pedido"], { dbPath, env: {} });
+  const missing = await run(["template", "show", "order"], { dbPath, env: {} });
   assert.equal(missing.code, 1);
-  assert.match(missing.stderr, /plantilla no encontrada/);
+  assert.match(missing.stderr, /template not found/);
 });
 
-test("template guarda, conserva y limpia descripciones de macros", async (t) => {
+test("template saves, keeps and clears macro descriptions", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const body = JSON.stringify({
     model: "m",
-    state: { ticket: "{{ticket}}", plan: "{{cliente.plan}}" },
+    state: { ticket: "{{ticket}}", plan: "{{customer.plan}}" },
     questions: { q: { type: "noul" } },
   });
   const create = await run(
     [
       "template",
       "create",
-      "pedido",
+      "order",
       "--body",
       body,
       "--macro-desc",
-      "ticket=Identificador del pedido (TCK-1042)",
+      "ticket=Order identifier (TCK-1042)",
       "--macro-desc",
-      "cliente.plan=free | pro | enterprise",
+      "customer.plan=free | pro | enterprise",
     ],
     { dbPath, env: {} },
   );
@@ -828,20 +828,20 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   const listJson = await run(["template", "list", "--json"], { dbPath, env: {} });
   const listed = JSON.parse(listJson.stdout) as Array<{ macros: Array<{ name: string; description: string }> }>;
   assert.deepEqual(listed[0]?.macros, [
-    { name: "cliente.plan", description: "free | pro | enterprise", schema: null },
-    { name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null },
+    { name: "customer.plan", description: "free | pro | enterprise", schema: null },
+    { name: "ticket", description: "Order identifier (TCK-1042)", schema: null },
   ]);
 
-  const showJson = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const showJson = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(showJson.stdout) as { macros: unknown }).macros,
     listed[0]?.macros,
   );
 
-  const human = await run(["template", "show", "pedido"], { dbPath, env: {} });
-  assert.match(human.stdout, /\{\{ticket\}\}\n\s+Identificador del pedido/);
+  const human = await run(["template", "show", "order"], { dbPath, env: {} });
+  assert.match(human.stdout, /\{\{ticket\}\}\n\s+Order identifier/);
 
-  // Editar el body sin flags conserva la descripción de las macros que siguen.
+  // Editing the body without flags keeps the description of the remaining macros.
   const withoutPlan = JSON.stringify({
     model: "m",
     state: { ticket: "{{ticket}}" },
@@ -850,66 +850,66 @@ test("template guarda, conserva y limpia descripciones de macros", async (t) => 
   const file = join(root, "body.json");
   await writeFile(file, withoutPlan, "utf8");
   assert.equal(
-    (await run(["template", "edit", "pedido", "--file", file], { dbPath, env: {} })).code,
+    (await run(["template", "edit", "order", "--file", file], { dbPath, env: {} })).code,
     0,
   );
-  const trimmed = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const trimmed = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(trimmed.stdout) as { macros: unknown }).macros,
-    [{ name: "ticket", description: "Identificador del pedido (TCK-1042)", schema: null }],
+    [{ name: "ticket", description: "Order identifier (TCK-1042)", schema: null }],
   );
 
   const cleared = await run(
-    ["template", "edit", "pedido", "--file", file, "--clear-macro-desc", "ticket"],
+    ["template", "edit", "order", "--file", file, "--clear-macro-desc", "ticket"],
     { dbPath, env: {} },
   );
   assert.equal(cleared.code, 0);
-  const afterClear = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const afterClear = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(afterClear.stdout) as { macros: unknown }).macros,
     [{ name: "ticket", description: "", schema: null }],
   );
 
   const unknown = await run(
-    ["template", "edit", "pedido", "--file", file, "--macro-desc", "nope=x"],
+    ["template", "edit", "order", "--file", file, "--macro-desc", "nope=x"],
     { dbPath, env: {} },
   );
   assert.equal(unknown.code, 2);
-  assert.match(unknown.stderr, /no está en el body/);
+  assert.match(unknown.stderr, /is not in the template body/);
 
   const malformed = await run(
-    ["template", "create", "otra", "--body", body, "--macro-desc", "sin-igual"],
+    ["template", "create", "other", "--body", body, "--macro-desc", "no-equals"],
     { dbPath, env: {} },
   );
   assert.equal(malformed.code, 2);
-  assert.match(malformed.stderr, /espera <clave>=<texto>/);
+  assert.match(malformed.stderr, /expects <key>=<text>/);
 });
 
-test("template guarda, conserva y limpia esquemas de macros", async (t) => {
+test("template saves, keeps and clears macro schemas", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const body = JSON.stringify({
     model: "m",
-    state: { ticket: "{{ticket}}", plan: "{{cliente.plan}}" },
+    state: { ticket: "{{ticket}}", plan: "{{customer.plan}}" },
     questions: { q: { type: "noul" } },
   });
   const create = await run(
     [
       "template",
       "create",
-      "pedido",
+      "order",
       "--body",
       body,
       "--macro-desc",
-      "ticket=Identificador del pedido",
+      "ticket=Order identifier",
       "--macro-desc",
-      "cliente.plan=Plan contratado",
+      "customer.plan=Subscribed plan",
       "--macro-schema",
       'ticket={"type":"string","format":"uuid"}',
       "--macro-type",
-      "cliente.plan=string",
+      "customer.plan=string",
     ],
     { dbPath, env: {} },
   );
@@ -917,13 +917,13 @@ test("template guarda, conserva y limpia esquemas de macros", async (t) => {
 
   const expected = [
     {
-      name: "cliente.plan",
-      description: "Plan contratado",
+      name: "customer.plan",
+      description: "Subscribed plan",
       schema: { type: "string" },
     },
     {
       name: "ticket",
-      description: "Identificador del pedido",
+      description: "Order identifier",
       schema: { type: "string", format: "uuid" },
     },
   ];
@@ -932,92 +932,92 @@ test("template guarda, conserva y limpia esquemas de macros", async (t) => {
     (JSON.parse(listJson.stdout) as Array<{ macros: unknown }>)[0]?.macros,
     expected,
   );
-  const showJson = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const showJson = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual((JSON.parse(showJson.stdout) as { macros: unknown }).macros, expected);
 
-  const human = await run(["template", "show", "pedido"], { dbPath, env: {} });
-  assert.match(human.stdout, /\{\{ticket\}\}\n\s+Identificador del pedido\n\s+schema: \{"type":"string","format":"uuid"\}/);
+  const human = await run(["template", "show", "order"], { dbPath, env: {} });
+  assert.match(human.stdout, /\{\{ticket\}\}\n\s+Order identifier\n\s+schema: \{"type":"string","format":"uuid"\}/);
 
-  // `edit` sin flags de esquema conserva los existentes.
+  // `edit` without schema flags keeps the existing ones.
   const file = join(root, "body.json");
   await writeFile(file, body, "utf8");
   assert.equal(
-    (await run(["template", "edit", "pedido", "--file", file], { dbPath, env: {} })).code,
+    (await run(["template", "edit", "order", "--file", file], { dbPath, env: {} })).code,
     0,
   );
-  const preserved = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const preserved = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual((JSON.parse(preserved.stdout) as { macros: unknown }).macros, expected);
 
-  // `--macro-type` reemplaza solo el esquema de la macro indicada.
+  // `--macro-type` replaces only the schema of the given macro.
   assert.equal(
-    (await run(["template", "edit", "pedido", "--file", file, "--macro-type", "ticket=boolean"], { dbPath, env: {} })).code,
+    (await run(["template", "edit", "order", "--file", file, "--macro-type", "ticket=boolean"], { dbPath, env: {} })).code,
     0,
   );
-  const retyped = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const retyped = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual((JSON.parse(retyped.stdout) as { macros: unknown }).macros, [
     expected[0],
-    { name: "ticket", description: "Identificador del pedido", schema: { type: "boolean" } },
+    { name: "ticket", description: "Order identifier", schema: { type: "boolean" } },
   ]);
 
-  // Limpiar el esquema conserva la descripción.
+  // Clearing the schema keeps the description.
   assert.equal(
-    (await run(["template", "edit", "pedido", "--file", file, "--clear-macro-schema", "ticket"], { dbPath, env: {} })).code,
+    (await run(["template", "edit", "order", "--file", file, "--clear-macro-schema", "ticket"], { dbPath, env: {} })).code,
     0,
   );
-  const cleared = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const cleared = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual((JSON.parse(cleared.stdout) as { macros: unknown }).macros, [
     expected[0],
-    { name: "ticket", description: "Identificador del pedido", schema: null },
+    { name: "ticket", description: "Order identifier", schema: null },
   ]);
 
-  // Los booleanos son JSON Schema válido.
+  // Booleans are valid JSON Schema.
   assert.equal(
-    (await run(["template", "edit", "pedido", "--file", file, "--macro-schema", "ticket=false"], { dbPath, env: {} })).code,
+    (await run(["template", "edit", "order", "--file", file, "--macro-schema", "ticket=false"], { dbPath, env: {} })).code,
     0,
   );
-  const booleanSchema = await run(["template", "show", "pedido", "--json"], { dbPath, env: {} });
+  const booleanSchema = await run(["template", "show", "order", "--json"], { dbPath, env: {} });
   assert.deepEqual(
     (JSON.parse(booleanSchema.stdout) as { macros: Array<{ schema: unknown }> }).macros[1]?.schema,
     false,
   );
 
   const invalidJson = await run(
-    ["template", "create", "otra", "--body", body, "--macro-schema", "ticket={bad"],
+    ["template", "create", "other", "--body", body, "--macro-schema", "ticket={bad"],
     { dbPath, env: {} },
   );
   assert.equal(invalidJson.code, 2);
-  assert.match(invalidJson.stderr, /no es JSON válido/);
+  assert.match(invalidJson.stderr, /is not valid JSON/);
 
   const invalidType = await run(
-    ["template", "create", "otra", "--body", body, "--macro-type", "ticket=texto"],
+    ["template", "create", "other", "--body", body, "--macro-type", "ticket=text"],
     { dbPath, env: {} },
   );
   assert.equal(invalidType.code, 2);
   assert.match(invalidType.stderr, /--macro-type/);
 
   const invalidPattern = await run(
-    ["template", "create", "otra", "--body", body, "--macro-schema", 'ticket={"pattern":"("}'],
+    ["template", "create", "other", "--body", body, "--macro-schema", 'ticket={"pattern":"("}'],
     { dbPath, env: {} },
   );
   assert.equal(invalidPattern.code, 2);
   assert.match(invalidPattern.stderr, /pattern/);
 
   const unknown = await run(
-    ["template", "edit", "pedido", "--file", file, "--macro-schema", "nope={}"],
+    ["template", "edit", "order", "--file", file, "--macro-schema", "nope={}"],
     { dbPath, env: {} },
   );
   assert.equal(unknown.code, 2);
-  assert.match(unknown.stderr, /no está en el body/);
+  assert.match(unknown.stderr, /is not in the template body/);
 });
 
-test("template render con contexto incompleto falla antes de la API", async (t) => {
+test("template render with an incomplete context fails before the API", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const body = JSON.stringify({
-    model: "{{modelo}}",
-    state: "{{estado}}",
+    model: "{{model}}",
+    state: "{{state}}",
     questions: { q: { type: "noul" } },
   });
   await run(["template", "add", "t", "--body", body], { dbPath, env: {} });
@@ -1028,12 +1028,12 @@ test("template render con contexto incompleto falla antes de la API", async (t) 
   );
   assert.equal(render.code, 1);
   assert.equal(render.calls.length, 0);
-  assert.match(render.stderr, /faltan macros en el contexto/);
-  assert.match(render.stderr, /estado/);
-  assert.match(render.stderr, /modelo/);
+  assert.match(render.stderr, /missing macros in context/);
+  assert.match(render.stderr, /state/);
+  assert.match(render.stderr, /model/);
 });
 
-test("config path imprime la ruta resuelta", async (t) => {
+test("config path prints the resolved path", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1046,7 +1046,7 @@ test("config path imprime la ruta resuelta", async (t) => {
   assert.equal(result.stdout.trim(), dbPath);
 });
 
-test("config get api_key enmascara y --reveal la muestra", async (t) => {
+test("config get api_key masks it and --reveal shows it", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1075,7 +1075,7 @@ test("config get api_key enmascara y --reveal la muestra", async (t) => {
   assert.equal(JSON.parse(asJson.stdout), "sk-abcdefgh-1234");
 });
 
-test("config list --json devuelve un objeto", async (t) => {
+test("config list --json returns an object", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1087,35 +1087,35 @@ test("config list --json devuelve un objeto", async (t) => {
   assert.deepEqual(JSON.parse(list.stdout), { model: "jev-1.13-free" });
 });
 
-test("templates (plural) crea, lista, muestra, edita, valida y borra", async (t) => {
+test("templates (plural) creates, lists, shows, edits, validates and deletes", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
 
   const body = JSON.stringify({
     model: "jev-1.13",
-    state: "{{estado}}",
-    questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+    state: "{{state}}",
+    questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
   });
 
   const create = await run(
     [
       "templates",
       "create",
-      "pedido",
+      "order",
       "--description",
-      "Pedido con cliente",
+      "Order with customer",
       "--body",
       body,
     ],
     { dbPath, env: {} },
   );
   assert.equal(create.code, 0);
-  assert.match(create.stdout, /plantilla guardada: pedido/);
+  assert.match(create.stdout, /template saved: order/);
 
   const list = await run(["templates", "list"], { dbPath, env: {} });
   assert.equal(list.code, 0);
-  assert.equal(list.stdout, "pedido - Pedido con cliente\n");
+  assert.equal(list.stdout, "order - Order with customer\n");
 
   const listJson = await run(["templates", "list", "--json"], {
     dbPath,
@@ -1124,19 +1124,19 @@ test("templates (plural) crea, lista, muestra, edita, valida y borra", async (t)
   assert.equal(listJson.code, 0);
   const listed = JSON.parse(listJson.stdout) as Array<{ name: string }>;
   assert.equal(listed.length, 1);
-  assert.equal(listed[0]?.name, "pedido");
+  assert.equal(listed[0]?.name, "order");
 
-  const show = await run(["templates", "show", "pedido", "--json"], { dbPath, env: {} });
+  const show = await run(["templates", "show", "order", "--json"], { dbPath, env: {} });
   assert.equal(show.code, 0);
   assert.equal((JSON.parse(show.stdout) as { body: { model: string } }).body.model, "jev-1.13");
 
   const editedBody = JSON.stringify({
     model: "jev-1.13",
-    state: "{{estado}}",
-    questions: { urgente: { type: "noul", instructions: "¿Urgente?" } },
+    state: "{{state}}",
+    questions: { urgent: { type: "noul", instructions: "Urgent?" } },
   });
   const edit = await run(
-    ["templates", "edit", "pedido"],
+    ["templates", "edit", "order"],
     {
       dbPath,
       env: {},
@@ -1145,47 +1145,47 @@ test("templates (plural) crea, lista, muestra, edita, valida y borra", async (t)
   );
   assert.equal(edit.code, 0);
 
-  const edited = await run(["templates", "show", "pedido", "--json"], {
+  const edited = await run(["templates", "show", "order", "--json"], {
     dbPath,
     env: {},
   });
   const editedShown = JSON.parse(edited.stdout) as { body: { questions: unknown } };
-  assert.deepEqual(Object.keys(editedShown.body.questions as object), ["urgente"]);
+  assert.deepEqual(Object.keys(editedShown.body.questions as object), ["urgent"]);
 
-  const validate = await run(["templates", "validate", "pedido"], {
+  const validate = await run(["templates", "validate", "order"], {
     dbPath,
     env: {},
   });
   assert.equal(validate.code, 0);
-  assert.match(validate.stdout, /plantilla válida: pedido/);
+  assert.match(validate.stdout, /template valid: order/);
 
-  const decline = await run(["templates", "delete", "pedido"], {
+  const decline = await run(["templates", "delete", "order"], {
     dbPath,
     env: {},
     confirm: async () => false,
   });
   assert.equal(decline.code, 0);
-  assert.match(decline.stdout, /cancelado/);
-  const stillThere = await run(["templates", "show", "pedido"], {
+  assert.match(decline.stdout, /cancelled/);
+  const stillThere = await run(["templates", "show", "order"], {
     dbPath,
     env: {},
   });
   assert.equal(stillThere.code, 0);
 
-  const accept = await run(["templates", "delete", "pedido"], {
+  const accept = await run(["templates", "delete", "order"], {
     dbPath,
     env: {},
     confirm: async () => true,
   });
   assert.equal(accept.code, 0);
-  assert.match(accept.stdout, /plantilla eliminada: pedido/);
+  assert.match(accept.stdout, /template deleted: order/);
 
-  const gone = await run(["templates", "show", "pedido"], { dbPath, env: {} });
+  const gone = await run(["templates", "show", "order"], { dbPath, env: {} });
   assert.equal(gone.code, 1);
-  assert.match(gone.stderr, /plantilla no encontrada/);
+  assert.match(gone.stderr, /template not found/);
 });
 
-test("templates delete con --yes no pide confirmación", async (t) => {
+test("templates delete with --yes does not ask for confirmation", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1202,10 +1202,10 @@ test("templates delete con --yes no pide confirmación", async (t) => {
     env: {},
   });
   assert.equal(result.code, 0);
-  assert.match(result.stdout, /plantilla eliminada: t/);
+  assert.match(result.stdout, /template deleted: t/);
 });
 
-test("templates create desde fichero", async (t) => {
+test("templates create from a file", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1222,7 +1222,7 @@ test("templates create desde fichero", async (t) => {
   );
 
   const result = await run(
-    ["templates", "create", "t", "--description", "Desde fichero", "--file", file],
+    ["templates", "create", "t", "--description", "From file", "--file", file],
     { dbPath, env: {} },
   );
   assert.equal(result.code, 0);
@@ -1231,7 +1231,7 @@ test("templates create desde fichero", async (t) => {
   assert.equal(JSON.parse(show.stdout).state, "s");
 });
 
-test("templates validate --file valida sin persistir", async (t) => {
+test("templates validate --file validates without persisting", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1252,7 +1252,7 @@ test("templates validate --file valida sin persistir", async (t) => {
     env: {},
   });
   assert.equal(valid.code, 0);
-  assert.match(valid.stdout, /plantilla válida/);
+  assert.match(valid.stdout, /template valid/);
 
   const badFile = join(root, "bad.json");
   await writeFile(badFile, '{"state":"s"}', "utf8");
@@ -1261,10 +1261,10 @@ test("templates validate --file valida sin persistir", async (t) => {
     env: {},
   });
   assert.equal(invalid.code, 1);
-  assert.match(invalid.stderr, /no tiene model/);
+  assert.match(invalid.stderr, /has no model/);
 });
 
-test("templates edit sin $EDITOR y sin --file falla con mensaje claro", async (t) => {
+test("templates edit without $EDITOR and without --file fails with a clear message", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1278,10 +1278,10 @@ test("templates edit sin $EDITOR y sin --file falla con mensaje claro", async (t
 
   const result = await run(["templates", "edit", "t"], { dbPath, env: {} });
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /\$EDITOR no está definido/);
+  assert.match(result.stderr, /\$EDITOR is not set/);
 });
 
-test("templates edit con --file reemplaza el body", async (t) => {
+test("templates edit with --file replaces the body", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "jev-template-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = join(root, "jev.db");
@@ -1293,10 +1293,10 @@ test("templates edit con --file reemplaza el body", async (t) => {
   });
   await run(["templates", "create", "t", "--body", body], { dbPath, env: {} });
 
-  const file = join(root, "nuevo.json");
+  const file = join(root, "new.json");
   await writeFile(
     file,
-    JSON.stringify({ model: "m", state: "nuevo", questions: { q: { type: "noul" } } }),
+    JSON.stringify({ model: "m", state: "new", questions: { q: { type: "noul" } } }),
     "utf8",
   );
 
@@ -1307,5 +1307,5 @@ test("templates edit con --file reemplaza el body", async (t) => {
   assert.equal(result.code, 0);
 
   const show = await run(["templates", "show", "t"], { dbPath, env: {} });
-  assert.equal(JSON.parse(show.stdout).state, "nuevo");
+  assert.equal(JSON.parse(show.stdout).state, "new");
 });

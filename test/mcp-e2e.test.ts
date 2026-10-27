@@ -12,8 +12,8 @@ import { openDatabase } from "../src/database.js";
 
 const TEMPLATE_BODY = JSON.stringify({
   model: "jev-1.13",
-  state: { ticket: "{{ticket}}", cliente: "{{cliente.nombre}}" },
-  questions: { urgent: { type: "noul", instructions: "¿Es urgente?" } },
+  state: { ticket: "{{ticket}}", customer: "{{customer.name}}" },
+  questions: { urgent: { type: "noul", instructions: "Is it urgent?" } },
 });
 
 async function fakeJevServer(): Promise<{ server: Server; url: string }> {
@@ -64,7 +64,7 @@ async function callText(
   return { isError: result.isError as boolean | undefined, json: JSON.parse(text) };
 }
 
-test("E2E stdio: handshake, tools por plantilla, ejecución y persistencia", async (t) => {
+test("E2E stdio: handshake, per-template tools, execution and persistence", async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), "jev-mcp-e2e-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const dbPath = path.join(root, "jev.db");
@@ -81,21 +81,21 @@ test("E2E stdio: handshake, tools por plantilla, ejecución y persistencia", asy
   await client.connect(transport);
   t.after(() => client.close());
 
-  // Crear plantilla → tool dinámica.
+  // Create template → dynamic tool.
   const create = await callText(client, "jev_template_create", {
-    name: "pedido",
-    description: "Pedido de soporte",
+    name: "order",
+    description: "Order request",
     body: TEMPLATE_BODY,
   });
   assert.equal(create.isError, undefined);
 
   const list = await client.listTools();
-  assert.ok(list.tools.some((tool) => tool.name === "pedido"));
+  assert.ok(list.tools.some((tool) => tool.name === "order"));
 
-  // Invocar la tool dinámica → llama a Jev y guarda con template_name.
-  const dynamic = await callText(client, "pedido", {
+  // Invoke the dynamic tool → calls Jev and stores with template_name.
+  const dynamic = await callText(client, "order", {
     ticket: "TCK-1",
-    "cliente.nombre": "Ana",
+    "customer.name": "Ana",
   });
   assert.equal(dynamic.isError, undefined);
   const dynamicPayload = dynamic.json as { requestId: number; answers: Record<string, unknown> };
@@ -105,30 +105,30 @@ test("E2E stdio: handshake, tools por plantilla, ejecución y persistencia", asy
     0.55,
   );
 
-  // jev_ask y jev_batch.
+  // jev_ask and jev_batch.
   const ask = await callText(client, "jev_ask", {
-    state: "hola",
-    questions: { q: { type: "noul", instructions: "¿?" } },
+    state: "hello",
+    questions: { q: { type: "noul", instructions: "?" } },
   });
   assert.equal(ask.isError, undefined);
   assert.equal(typeof (ask.json as { requestId: number }).requestId, "number");
 
   const batch = await callText(client, "jev_batch", {
-    template: "pedido",
-    contexts: [{ ticket: "a", "cliente.nombre": "Ana" }, { ticket: "b", "cliente.nombre": "Luis" }],
+    template: "order",
+    contexts: [{ ticket: "a", "customer.name": "Ana" }, { ticket: "b", "customer.name": "Luis" }],
   });
   assert.equal(batch.isError, undefined);
   const batchJson = batch.json as { batchId: string; items: Array<{ requestId: number }> };
   assert.equal(batchJson.items.length, 2);
 
-  // Historial expone source=mcp y template_name.
+  // History exposes source=mcp and template_name.
   const history = await callText(client, "jev_history_list");
   const rows = history.json as Array<{ source: string; template_name: string | null; batch_id: string | null }>;
   assert.ok(rows.length >= 4);
   assert.ok(rows.every((row) => row.source === "mcp"));
-  assert.ok(rows.some((row) => row.template_name === "pedido"));
+  assert.ok(rows.some((row) => row.template_name === "order"));
 
-  // La persistencia es real en SQLite.
+  // Persistence is real in SQLite.
   await client.close();
   const db = openDatabase(dbPath);
   const persisted = db.prepare("SELECT source, template_name, batch_id FROM requests ORDER BY id").all() as Array<{
@@ -139,6 +139,6 @@ test("E2E stdio: handshake, tools por plantilla, ejecución y persistencia", asy
   db.close();
   assert.ok(persisted.length >= 4);
   assert.ok(persisted.every((row) => row.source === "mcp"));
-  assert.ok(persisted.some((row) => row.template_name === "pedido"));
+  assert.ok(persisted.some((row) => row.template_name === "order"));
   assert.ok(persisted.some((row) => row.batch_id === batchJson.batchId));
 });

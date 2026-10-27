@@ -12,7 +12,7 @@ import { Button, Icon } from "./ui";
 
 const LAST_INDEX = TEMPLATE_STARTERS.length - 1;
 
-/** Modal «Empezar plantilla»: elige el ejemplo que inicializa el body JSON. */
+/** “Start template” modal: picks the example that initializes the JSON body. */
 export function TemplateStarterModal({
   onChoose,
   onClose,
@@ -61,16 +61,16 @@ export function TemplateStarterModal({
 
   return (
     <Modal
-      title="Empezar plantilla"
+      title="Start template"
       initialFocus={`#starter-${DEFAULT_TEMPLATE_STARTER}`}
       onClose={onClose}
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button variant="primary" onClick={() => onChoose(selected)}>Crear plantilla</Button>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" onClick={() => onChoose(selected)}>Create template</Button>
       </>}
     >
-      <p className="modal-description">Elige el tipo de pregunta. El editor seguirá siendo libre: el ejemplo solo inicializa el JSON y se puede cambiar después.</p>
-      <div className="starter-grid" role="radiogroup" aria-label="Tipo de pregunta inicial" onKeyDown={onKeyDown}>
+      <p className="modal-description">Choose the question type. The editor stays unrestricted: the example only initializes the JSON and can be changed afterwards.</p>
+      <div className="starter-grid" role="radiogroup" aria-label="Initial question type" onKeyDown={onKeyDown}>
         {TEMPLATE_STARTERS.map((starter, index) => {
           const checked = starter.id === selected;
           return (
@@ -98,7 +98,7 @@ export function TemplateStarterModal({
           );
         })}
       </div>
-      <p className="hint">Atajos: flechas para cambiar de tipo, <kbd className="kbd">Enter</kbd> para crear y <kbd className="kbd">Esc</kbd> para cancelar.</p>
+      <p className="hint">Shortcuts: arrows to change type, <kbd className="kbd">Enter</kbd> to create and <kbd className="kbd">Esc</kbd> to cancel.</p>
     </Modal>
   );
 }

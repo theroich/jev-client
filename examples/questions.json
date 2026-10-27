@@ -1,20 +1,20 @@
 {
   "billing": {
     "type": "noul",
-    "instructions": "¿El mensaje trata sobre facturación o pagos?"
+    "instructions": "Does the message deal with billing or payments?"
   },
   "team": {
     "type": "choice",
-    "instructions": "¿Qué equipo debería gestionar la incidencia?",
+    "instructions": "Which team should handle the issue?",
     "criteria": {
-      "billing": "Cobros, facturas o pagos",
-      "infra": "Caídas, errores 500 o problemas de plataforma",
-      "sales": "Precios o dudas comerciales"
+      "billing": "Charges, invoices or payments",
+      "infra": "Outages, 500 errors or platform problems",
+      "sales": "Pricing or sales questions"
     }
   },
   "urgency": {
     "type": "score",
-    "instructions": "¿Cómo de urgente es la incidencia?",
-    "criteria": ["Puede esperar", "Esta semana", "Hoy mismo"]
+    "instructions": "How urgent is the issue?",
+    "criteria": ["It can wait", "This week", "Today"]
   }
 }
