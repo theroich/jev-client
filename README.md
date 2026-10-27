@@ -540,7 +540,11 @@ jev --web-console              # alias
 jev web-console --port 0 --no-open
 ```
 
-It opens the URL it prints in the browser. Screens:
+It opens the URL it prints in the browser; this is the Overview screen:
+
+![Overview: requests recorded, success rate, tokens, accumulated cost, latest requests and provider status](docs/images/web-console-overview.png)
+
+Screens:
 
 | Screen | What it is for |
 | --- | --- |
@@ -550,6 +554,16 @@ It opens the URL it prints in the browser. Screens:
 | **Batches** | paste an array of contexts, run it and follow the progress |
 | **History** | filter, see the detail and export |
 | **Settings** | edit the configuration and reveal the key only if you ask for it |
+
+Evaluate runs the questions in the order of the form and shows one answer per
+question with its probabilities and the CLI equivalent:
+
+![Evaluate: state on the left, questions below, and on the right the real result for `jev-1.13` with 356 in / 50 out tokens](docs/images/web-console-evaluate.png)
+
+History filters the same SQLite rows the CLI writes, shows the detail per tab and
+is exported as JSONL:
+
+![History: date/status/model/template filters, one row per request and the detail of the selected request](docs/images/web-console-history.png)
 
 Every screen shows the equivalent CLI command. `--port`, `--host`,
 `--allow-remote`, `--open`/`--no-open`, `--dev` and the session flags are
