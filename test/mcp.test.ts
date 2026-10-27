@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -59,8 +62,9 @@ interface Connected {
 async function connect(
   options: McpServerOptions = {},
   env: NodeJS.ProcessEnv = { JEV_API_KEY: "test-key" },
+  fetchImpl: FetchLike = fakeFetch(),
 ): Promise<Connected> {
-  const service = new JevService({ dbPath: ":memory:", env, fetch: fakeFetch() });
+  const service = new JevService({ dbPath: ":memory:", env, fetch: fetchImpl });
   const ctx = createMcpContext(service, {}, options, env);
   const server = createMcpServer(ctx);
 
@@ -285,15 +289,32 @@ test("jev_history_list and jev_history_get expose source", async (t) => {
   assert.equal(ctx.requests.count(), rows.length);
 });
 
-function pngBase64(width: number, height: number): string {
+function pngBuffer(width: number, height: number): Buffer {
   const buffer = Buffer.alloc(24);
   buffer.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
   buffer.writeUInt32BE(13, 8);
   buffer.write("IHDR", 12, "ascii");
   buffer.writeUInt32BE(width, 16);
   buffer.writeUInt32BE(height, 20);
-  return buffer.toString("base64");
+  return buffer;
 }
+
+function pngBase64(width: number, height: number): string {
+  return pngBuffer(width, height).toString("base64");
+}
+
+/** Template whose `imagen` macro carries the image reference. */
+const IMAGE_TEMPLATE_BODY = JSON.stringify({
+  model: "jev-1.13",
+  state: { prenda: "{{imagen}}" },
+  questions: {
+    clasificacion: {
+      type: "choice",
+      instructions: "Which garment is in {{imagen}}?",
+      criteria: { CAMISETA: "T-shirt", PANTALON: "Pants" },
+    },
+  },
+});
 
 test("jev_ask accepts assets and redacts them when persisting", async (t) => {
   const { client, ctx, close } = await connect();
@@ -309,6 +330,106 @@ test("jev_ask accepts assets and redacts them when persisting", async (t) => {
   const row = new RequestRepository(ctx.service.db).get(requestId);
   assert.ok(row);
   assert.equal((row.requestJson ?? "").includes("data_base64"), false);
+});
+
+test("a template tool accepts assets and sends the images header", async (t) => {
+  let capturedHeaders: Record<string, string> = {};
+  let capturedBody: Record<string, unknown> = {};
+  const fetch: FetchLike = async (_input, init = {}) => {
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    capturedHeaders = (init.headers ?? {}) as Record<string, string>;
+    capturedBody = body;
+    const answers = Object.fromEntries(
+      Object.entries(body.questions as Record<string, { type: string }>).map(([name, question]) =>
+        question.type === "choice"
+          ? [name, { type: "choice", choice: "CAMISETA", confidence: 0.8 }]
+          : [name, { type: "noul", noul: 0.5 }],
+      ),
+    );
+    return new Response(
+      JSON.stringify({ model: body.model, answers, usage: { input_tokens: 10, output_tokens: 4, cost: 0.000001 } }),
+      { status: 200 },
+    );
+  };
+
+  const { client, ctx, close } = await connect({}, { JEV_API_KEY: "test-key" }, fetch);
+  t.after(close);
+  new TemplateRepository(ctx.service.db).save("clasificacion", "", IMAGE_TEMPLATE_BODY);
+
+  const result = await callText(client, "clasificacion", {
+    imagen: "clothes1",
+    assets: { clothes1: { data_base64: pngBase64(300, 300), format: "png" } },
+  });
+  assert.equal(result.isError, undefined);
+  assert.equal(capturedHeaders["TypeSafe-Danger-Zone-Images"], "true");
+  assert.deepEqual(capturedBody.state, { prenda: "clothes1" });
+  assert.deepEqual((capturedBody.assets as Record<string, unknown>).clothes1, {
+    type: "image",
+    data_base64: pngBase64(300, 300),
+    format: "png",
+  });
+});
+
+test("a template tool accepts an asset by path", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "jev-mcp-assets-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const png = join(dir, "clothes.png");
+  await writeFile(png, pngBuffer(300, 300));
+
+  const { client, ctx, close } = await connect();
+  t.after(close);
+  new TemplateRepository(ctx.service.db).save("clasificacion", "", IMAGE_TEMPLATE_BODY);
+
+  const result = await callText(client, "clasificacion", {
+    imagen: "clothes1",
+    assets: { clothes1: { path: png } },
+  });
+  assert.equal(result.isError, undefined);
+  const requestId = (result.json as { requestId: number }).requestId;
+  const row = new RequestRepository(ctx.service.db).get(requestId);
+  assert.ok(row);
+  assert.equal((row.requestJson ?? "").includes("data_base64"), false);
+});
+
+test("a template tool rejects an asset whose ref is not referenced", async (t) => {
+  const { client, ctx, close } = await connect();
+  t.after(close);
+  new TemplateRepository(ctx.service.db).save("clasificacion", "", IMAGE_TEMPLATE_BODY);
+
+  const result = await callText(client, "clasificacion", {
+    imagen: "clothes1",
+    assets: { orphan: { data_base64: pngBase64(300, 300), format: "png" } },
+  });
+  assert.equal(result.isError, true);
+  assert.equal((result.json as { code: string }).code, "invalid_arguments");
+});
+
+test("a template tool rejects unknown arguments", async (t) => {
+  const { client, ctx, close } = await connect();
+  t.after(close);
+  new TemplateRepository(ctx.service.db).save("order", "", TEMPLATE_BODY);
+
+  const result = await callText(client, "order", {
+    ticket: "TCK-1",
+    "customer.name": "Ana",
+    extra: "nope",
+  });
+  assert.equal(result.isError, true);
+  assert.equal((result.json as { code: string }).code, "invalid_arguments");
+});
+
+test("a macro named 'assets' is rejected at template creation", async (t) => {
+  const { client, close } = await connect();
+  t.after(close);
+
+  const body = JSON.stringify({
+    model: "jev-1.13",
+    state: { x: "{{assets}}" },
+    questions: { q: { type: "noul", instructions: "?" } },
+  });
+  const result = await callText(client, "jev_template_create", { name: "bad", body });
+  assert.equal(result.isError, true);
+  assert.equal((result.json as { code: string }).code, "invalid_template_body");
 });
 
 test("jev_image_check returns dimensions and the rejection reason", async (t) => {

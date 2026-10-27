@@ -12,6 +12,12 @@ export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Prefix reserved for the server's built-in tools. */
 export const RESERVED_TOOL_PREFIX = "jev_";
 
+/**
+ * Argument reserved for attaching images to a template tool. It wins over a
+ * macro of the same name, so `{{assets}}` is not usable as a macro.
+ */
+export const RESERVED_TEMPLATE_ASSETS_ARG = "assets";
+
 /** MCP annotations for a tool. */
 export interface ToolAnnotations {
   title?: string;
@@ -88,19 +94,40 @@ export function macroParamSchema(macro: TemplateMacro): Record<string, unknown> 
 }
 
 /**
+ * Optional `assets` parameter of a template tool: `{ ref: { path | data_base64,
+ * format } }`, with the same semantics as `jev_ask`/`jev_batch`.
+ */
+export function assetsParamSchema(): Record<string, unknown> {
+  return {
+    type: "object",
+    description:
+      "Optional images: { ref: { path | data_base64, format } }. The reference is written " +
+      "in the template body (state, instructions or criteria). Requires the experimental " +
+      "TypeSafe-Danger-Zone-Images header.",
+  };
+}
+
+/**
  * `inputSchema` JSON Schema for a template: one property per detected macro
- * with its exact key (including dotted paths), all `required` and
- * `additionalProperties: false`.
+ * with its exact key (including dotted paths), all `required`, plus the
+ * reserved optional `assets` argument, and `additionalProperties: false`.
  */
 export function inputSchemaForTemplate(template: Template): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
+  const required: string[] = [];
   for (const macro of template.macros) {
+    if (macro.name === RESERVED_TEMPLATE_ASSETS_ARG) {
+      // The reserved image argument wins over a macro of the same name.
+      continue;
+    }
     properties[macro.name] = macroParamSchema(macro);
+    required.push(macro.name);
   }
+  properties[RESERVED_TEMPLATE_ASSETS_ARG] = assetsParamSchema();
   return {
     type: "object",
     properties,
-    required: template.macros.map((macro) => macro.name),
+    required,
     additionalProperties: false,
   };
 }
