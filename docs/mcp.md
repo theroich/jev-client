@@ -57,11 +57,36 @@ stored.
 
 ## Configuration in OpenCode
 
-In the project `opencode.json` (or the global config):
+With the npm package installed globally:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "jev": { "type": "local", "command": ["jev", "mcp"] }
+    }
+  }
+}
+```
+
+Without installing it globally, `npx` fetches it on demand:
+
+```jsonc
+{
+  "mcp": {
+    "servers": {
+      "jev": { "type": "local", "command": ["npx", "-y", "jev-client", "mcp"] }
+    }
+  }
+}
+```
+
+From a checkout, point at the built binary and, if you want to pin the database,
+at `JEV_DB`:
+
+```jsonc
+{
   "mcp": {
     "servers": {
       "jev": {
@@ -74,34 +99,6 @@ In the project `opencode.json` (or the global config):
 }
 ```
 
-With the package published on npm it can be started with `npx` without
-installing it:
-
-```jsonc
-{
-  "mcp": {
-    "servers": {
-      "jev": { "type": "local", "command": ["npx", "-y", "jev-client", "mcp"] }
-    }
-  }
-}
-```
-
-If the package is **not on npm** but is on GitHub, `npx` installs it from the
-repo (it runs `prepare`, which builds `dist/`). Note the `-p` to choose the
-binary:
-
-```sh
-npx -y -p github:USER/jev-client jev-mcp          # MCP server directly
-npx -y -p github:USER/jev-client jev mcp          # through the CLI
-```
-
-```jsonc
-{
-  "mcp": {
-    "servers": {
-      "jev": { "type": "local", "command": ["npx", "-y", "-p", "github:USER/jev-client", "jev-mcp"] }
-    }
-  }
-}
-```
+Installing from GitHub (`npx -y -p github:theroich/jev-client jev-mcp`) is not a
+supported channel: it runs `prepare`, so it builds the whole console and needs
+the dev dependencies. Use the registry.

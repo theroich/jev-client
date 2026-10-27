@@ -21,6 +21,27 @@ try {
   if (size > MAX_TARBALL_BYTES) throw new Error(`The tarball exceeds 25 MiB: ${size} bytes`);
   console.log(`Tarball: ${(size / 1024 / 1024).toFixed(2)} MiB (25 MiB threshold)`);
 
+  const { stdout: listing } = await execute("tar", ["-tzf", tarball], { maxBuffer: 20 * 1024 * 1024 });
+  const entries = listing.split(/\r?\n/).filter(Boolean);
+  for (const required of [
+    "package/package.json",
+    "package/LICENSE",
+    "package/README.md",
+    "package/dist/src/bin.js",
+    "package/dist/src/mcp-bin.js",
+    "package/dist/web-console/server.js",
+  ]) {
+    if (!entries.includes(required)) throw new Error(`The tarball is missing ${required}`);
+  }
+  // Publishing must never ship local state: databases, environment files, the
+  // checkout-only `web/` tree or installed dependencies.
+  const forbidden = entries.filter((entry) =>
+    /(^|\/)(node_modules|web|\.tmp)(\/|$)/.test(entry) ||
+    /(^|\/)\.env(\.|$)/.test(entry) ||
+    /\.(db|db-journal|db-wal|sqlite|sqlite3|pem|key|p12|log)$/.test(entry),
+  );
+  if (forbidden.length > 0) throw new Error(`The tarball ships local state:\n${forbidden.join("\n")}`);
+
   const install = path.join(temp, "install");
   await mkdir(install, { recursive: true });
   await writeFile(path.join(install, "package.json"), '{"private":true}\n');
@@ -55,9 +76,16 @@ try {
   const asset = await fetch(`${url.origin}${script}`);
   if (!asset.ok || (await asset.text()).length === 0) throw new Error(`Missing standalone asset: ${script}`);
   console.log(JSON.stringify({ ok: true, tarballMiB: Number((size / 1024 / 1024).toFixed(2)), health: health.ok, page: page.status, asset: asset.status }));
-  child.kill("SIGINT");
-  const exitCode = await new Promise((resolve) => child.once("exit", resolve));
-  if (exitCode !== 0) throw new Error(`Package shutdown with code ${exitCode}\n${stderr}`);
+  if (process.platform === "win32") {
+    // Windows cannot deliver SIGINT to a child process: the Ctrl-C handler and
+    // the exit code 0 path can only be asserted on POSIX.
+    child.kill();
+    await new Promise((resolve) => child.once("exit", resolve));
+  } else {
+    child.kill("SIGINT");
+    const exitCode = await new Promise((resolve) => child.once("exit", resolve));
+    if (exitCode !== 0) throw new Error(`Package shutdown with code ${exitCode}\n${stderr}`);
+  }
 } finally {
   if (child && child.exitCode === null) {
     child.kill("SIGKILL");

@@ -27,21 +27,11 @@ details of each operation live in `references/*.md`. It does not duplicate the
 - An API key from [OpenCode Console](https://opencode.ai/console).
 
 ```sh
-cd jev-client
-npm install
-npm run build
 export JEV_API_KEY="sk-..."
-
-npm link        # optional: makes `jev` available on the PATH
-jev demo        # built-in end-to-end example
-```
-
-Without linking:
-
-```sh
-node dist/src/bin.js demo
-npm start -- demo
-npm run dev -- demo   # builds and runs
+npx jev-client demo          # without installing
+# or
+npm install -g jev-client    # installs `jev` and `jev-mcp`
+jev demo                     # built-in end-to-end example
 ```
 
 ## Minimal configuration

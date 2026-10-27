@@ -38,36 +38,36 @@ history.
 
 ## Installation
 
-You need **Node.js 22.13+** (22 LTS, 24 LTS or 26 LTS) and an API key from
+Requirements: **Node.js 22.13+** (22 LTS, 24 LTS or 26 LTS) and an API key from
 [OpenCode Console](https://opencode.ai/console).
 
-```sh
-cd jev-client
-npm install
-npm run build
-```
-
-To have the `jev` command available in any folder:
+Try it without installing anything:
 
 ```sh
-npm link          # optional
-jev demo
+npx jev-client demo
 ```
 
-You can also run it without linking it:
-
-```sh
-node dist/src/bin.js demo
-npm start -- demo
-npm run dev -- demo   # builds and runs
-```
-
-If you install the published package:
+Install it globally:
 
 ```sh
 npm install -g jev-client
-jev --help
+jev --version
 ```
+
+Update or remove it:
+
+```sh
+npm install -g jev-client@latest
+npm uninstall -g jev-client
+```
+
+> Node 20 is not supported: the built-in `node:sqlite` module is unflagged only
+> from 22.13.0. On an older runtime the binary exits with an explicit message
+> instead of a native-module stack trace.
+
+If the global install fails with `EACCES`, see
+[Common problems](#common-problems). Working on the code? The checkout and build
+instructions live in [`docs/development.md`](docs/development.md).
 
 ## First step: the API key
 
@@ -589,24 +589,20 @@ jev mcp --no-execute             # without executing against Jev
 jev mcp --allow-destructive      # allows deleting templates
 ```
 
-Configuration in `opencode.json`:
+Configuration in `opencode.json` (globally installed package):
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "servers": {
-      "jev": {
-        "type": "local",
-        "command": ["node", "dist/src/mcp-bin.js"],
-        "environment": { "JEV_DB": "/Users/me/.jev-client/db/jev.db" }
-      }
+      "jev": { "type": "local", "command": ["jev", "mcp"] }
     }
   }
 }
 ```
 
-With the npm package:
+Without installing it globally:
 
 ```jsonc
 {
@@ -654,6 +650,18 @@ jev requires Node.js >= 22.13; found <version>.
 ```
 
 Upgrade to Node 22 LTS, 24 LTS or 26 LTS. There is no native binary to rebuild.
+npm may refuse the install first with `EBADENGINE`; both cases are covered in
+[`docs/troubleshooting.md`](docs/troubleshooting.md).
+
+**`EACCES` on a global install.** A system Node usually installs into a
+directory your user cannot write to. Use a version manager (nvm, fnm, asdf,
+volta) or point npm at a user prefix:
+
+```sh
+npm config set prefix ~/.npm-global
+export PATH="$HOME/.npm-global/bin:$PATH"
+npm install -g jev-client
+```
 
 **The database uses a newer schema.** Another version of `jev` wrote into the
 same database. Use a temporary database:
@@ -671,8 +679,9 @@ once the quota runs out. Use `jev-1.13` for tests.
 **`422`.** The question is malformed: `choice` uses an object in `criteria` and
 `score` uses an ordered array.
 
-**The web console does not start.** Check the port (`--port 0` picks a free one)
-and that the build exists (`npm run build:web`). More cases in
+**The web console does not start.** Check the port (`--port 0` picks a free one).
+If the installation looks incomplete, reinstall with
+`npm install -g jev-client@latest`. More cases in
 [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 ### Exit codes

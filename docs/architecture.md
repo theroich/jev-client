@@ -32,6 +32,11 @@ or `blessed`:
 
 ## npm packaging
 
+The distribution channel is the **npm registry**: `npm install -g jev-client`
+(or `npx -y jev-client`) installs the CLI, the TUI, the MCP server, the web
+console and the library in one step. The runtime floor is **Node.js 22.13**,
+because `node:sqlite` is unflagged only from that version.
+
 The package includes the **compiled standalone** in `dist/web-console` (no
 checkout), its assets and the CommonJS server. The traced dependencies are
 resolved from the normal npm dependencies (`next`, `react` and `react-dom`),
@@ -40,7 +45,23 @@ option was chosen over an optional package to keep the single-command UX.
 
 The agreed threshold is **25 MiB compressed**; `npm run test:package` checks the
 size, the installation with `npm pack`, startup, health, HTML, assets and a clean
-shutdown.
+shutdown, and refuses a tarball that ships local state (databases, `.env`,
+`web/`, `node_modules`).
+
+### Releases
+
+`1.0.0` is published once with a short-lived granular `NPM_TOKEN` (a trusted
+publisher cannot be configured before the package exists), which is revoked
+right after. From then on npm **Trusted Publishing** is configured for
+`.github/workflows/release.yml` (GitHub Actions, OIDC) and the workflow
+publishes with `--provenance`, so every release carries a sigstore
+attestation that links the tarball to a public commit. There is no long-lived
+`NPM_TOKEN` in GitHub. Provenance requires the repository to be public and
+`repository.url` to point at it.
+
+The tag `v<version>` must match `package.json` and `src/version.ts`
+(`scripts/check-version.mjs`); the release job refuses to republish a version
+that already exists.
 
 ## Visual contract
 
