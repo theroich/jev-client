@@ -2,6 +2,24 @@
   "name": "jev-client",
   "version": "1.0.0",
   "description": "CLI and library for the Jev (System One) API via OpenCode",
+  "keywords": [
+    "jev",
+    "opencode",
+    "classification",
+    "cli",
+    "mcp",
+    "sqlite",
+    "typescript"
+  ],
+  "homepage": "https://github.com/theroich/jev-client#readme",
+  "bugs": {
+    "url": "https://github.com/theroich/jev-client/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theroich/jev-client.git"
+  },
+  "author": "theroich",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -34,12 +52,14 @@
     "test:web": "tsx --tsconfig web/tsconfig.json --conditions=react-server --test web/test/*.test.ts",
     "test:e2e": "npm run build:web && playwright test --config web/playwright.config.ts",
     "test:package": "node scripts/package-smoke.mjs",
+    "check-version": "node scripts/check-version.mjs",
+    "check-node": "node scripts/check-node.mjs",
     "start": "node dist/src/bin.js",
     "dev": "npm run build && node dist/src/bin.js",
     "mcp": "node dist/src/mcp-bin.js",
-    "prepare": "npm run build:web",
-    "prepack": "npm run build:web",
-    "prepublishOnly": "npm test",
+    "prepare": "npm run check-node && npm run build:web",
+    "prepack": "npm run check-node && npm run check-version && npm run build:web",
+    "prepublishOnly": "npm run check-node && npm run check-version && npm test",
     "postbuild": "node -e \"require('node:fs').chmodSync('dist/src/bin.js', 0o755); require('node:fs').chmodSync('dist/src/mcp-bin.js', 0o755)\""
   },
   "devDependencies": {

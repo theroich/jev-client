@@ -7,13 +7,20 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// `npm` is `npm.cmd` on Windows and `execFile` does not resolve it without a
+// shell. Running the npm CLI with the current Node binary works on every OS.
+const npmCli = process.env.npm_execpath;
+const runNpm = (args, options) =>
+  npmCli
+    ? execute(process.execPath, [npmCli, ...args], options)
+    : execute("npm", args, { ...options, shell: process.platform === "win32" });
 await mkdir(path.join(root, ".tmp"), { recursive: true });
 const temp = await mkdtemp(path.join(root, ".tmp", "package-smoke-"));
 const MAX_TARBALL_BYTES = 25 * 1024 * 1024;
 let child;
 
 try {
-  await execute("npm", ["pack", "--pack-destination", temp], { cwd: root, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024 });
+  await runNpm(["pack", "--pack-destination", temp], { cwd: root, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024 });
   const tarballName = (await readdir(temp)).find((name) => /^jev-client-.*\.tgz$/.test(name));
   if (!tarballName) throw new Error("npm pack did not produce the expected tarball");
   const tarball = path.join(temp, tarballName);
@@ -21,10 +28,31 @@ try {
   if (size > MAX_TARBALL_BYTES) throw new Error(`The tarball exceeds 25 MiB: ${size} bytes`);
   console.log(`Tarball: ${(size / 1024 / 1024).toFixed(2)} MiB (25 MiB threshold)`);
 
+  const { stdout: listing } = await execute("tar", ["-tzf", tarball], { maxBuffer: 20 * 1024 * 1024 });
+  const entries = listing.split(/\r?\n/).filter(Boolean);
+  for (const required of [
+    "package/package.json",
+    "package/LICENSE",
+    "package/README.md",
+    "package/dist/src/bin.js",
+    "package/dist/src/mcp-bin.js",
+    "package/dist/web-console/server.js",
+  ]) {
+    if (!entries.includes(required)) throw new Error(`The tarball is missing ${required}`);
+  }
+  // Publishing must never ship local state: databases, environment files, the
+  // checkout-only `web/` tree or installed dependencies.
+  const forbidden = entries.filter((entry) =>
+    /(^|\/)(node_modules|web|\.tmp)(\/|$)/.test(entry) ||
+    /(^|\/)\.env(\.|$)/.test(entry) ||
+    /\.(db|db-journal|db-wal|sqlite|sqlite3|pem|key|p12|log)$/.test(entry),
+  );
+  if (forbidden.length > 0) throw new Error(`The tarball ships local state:\n${forbidden.join("\n")}`);
+
   const install = path.join(temp, "install");
   await mkdir(install, { recursive: true });
   await writeFile(path.join(install, "package.json"), '{"private":true}\n');
-  await execute("npm", ["install", "--no-audit", "--no-fund", tarball], { cwd: install, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024, timeout: 180_000 });
+  await runNpm(["install", "--no-audit", "--no-fund", tarball], { cwd: install, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024, timeout: 180_000 });
   const packageRoot = path.join(install, "node_modules", "jev-client");
   await stat(path.join(packageRoot, "dist", "web-console", "server.js"));
 
@@ -55,13 +83,33 @@ try {
   const asset = await fetch(`${url.origin}${script}`);
   if (!asset.ok || (await asset.text()).length === 0) throw new Error(`Missing standalone asset: ${script}`);
   console.log(JSON.stringify({ ok: true, tarballMiB: Number((size / 1024 / 1024).toFixed(2)), health: health.ok, page: page.status, asset: asset.status }));
-  child.kill("SIGINT");
-  const exitCode = await new Promise((resolve) => child.once("exit", resolve));
-  if (exitCode !== 0) throw new Error(`Package shutdown with code ${exitCode}\n${stderr}`);
+  if (process.platform === "win32") {
+    // Windows cannot deliver SIGINT to a child process: the Ctrl-C handler and
+    // the exit code 0 path can only be asserted on POSIX.
+    child.kill();
+    await waitForExit(child);
+  } else {
+    child.kill("SIGINT");
+    const exitCode = await waitForExit(child);
+    if (exitCode !== 0) throw new Error(`Package shutdown with code ${exitCode}\n${stderr}`);
+  }
 } finally {
-  if (child && child.exitCode === null) {
+  if (child && child.exitCode === null && child.signalCode === null) {
     child.kill("SIGKILL");
-    await new Promise((resolve) => child.once("exit", resolve));
+    await waitForExit(child);
   }
   await rm(temp, { recursive: true, force: true });
+}
+
+/**
+ * Polls instead of waiting for the `exit` event: the event is lost when the
+ * process already exited (or when Windows terminates it), and the await would
+ * hang forever. Returns the exit code, the signal or `null` on timeout.
+ */
+async function waitForExit(proc, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return proc.exitCode ?? proc.signalCode;
 }

@@ -9,3 +9,18 @@ web/.e2e/
 *.tsbuildinfo
 *.log
 .DS_Store
+
+# Local state and secrets: never commit these.
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+.npmrc
+.credentials

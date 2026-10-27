@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write # required for npm provenance (OIDC)
+
+jobs:
+  publish:
+    name: test + publish
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          # Deliberately no `registry-url`: setup-node writes
+          # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and an empty
+          # token shadows OIDC trusted publishing (ENEEDAUTH/E404).
+
+      - run: npm ci
+
+      # The tag must match package.json and src/version.ts.
+      - run: npm run check-version -- --tag "$GITHUB_REF_NAME"
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - run: npm run test:package
+
+      - name: Ensure the version is not published yet
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if npm view "jev-client@${version}" version >/dev/null 2>&1; then
+            echo "jev-client@${version} is already published; bump the version first." >&2
+            exit 1
+          fi
+
+      - name: Pack the exact artifact to publish
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          npm pack --pack-destination "$RUNNER_TEMP/release"
+          cd "$RUNNER_TEMP/release"
+          shasum -a 256 ./*.tgz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish with provenance
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Trusted publishing (OIDC) is the normal path: no token, npm detects
+          # the GitHub OIDC environment. `NPM_TOKEN` exists only for the very
+          # first publish (1.0.0), because a trusted publisher cannot be
+          # configured until the package is on the registry; revoke it after.
+          if [ -n "$NPM_TOKEN" ]; then
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/.npmrc.publish"
+            export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc.publish"
+          fi
+          npm publish "$RUNNER_TEMP"/release/*.tgz --provenance --access public
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP"/release/*.tgz \
+            "$RUNNER_TEMP"/release/SHA256SUMS.txt \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

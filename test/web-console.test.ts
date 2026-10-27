@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { runCli, type CliIO } from "../src/cli.js";
 import { SCHEMA_VERSION, openDatabase } from "../src/database.js";
+import { VERSION } from "../src/version.js";
 import {
   WEB_CONSOLE_USAGE,
   runWebConsoleCommand,
@@ -292,7 +293,7 @@ test("web-console e2e starts the fake standalone, waits for health and closes wi
   assert.equal(childEnv.dbPath, dbPath);
   assert.equal(childEnv.host, "127.0.0.1");
   assert.equal(childEnv.port, consoleUrl.port);
-  assert.equal(childEnv.version, "1.0.0");
+  assert.equal(childEnv.version, VERSION);
   assert.equal(childEnv.schemaVersion, String(SCHEMA_VERSION));
   assert.equal(childEnv.mode, "standalone");
   assert.equal(childEnv.allowRemote, "0");
