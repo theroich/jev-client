@@ -90,7 +90,35 @@ test("inputSchemaForTemplate uses exact flat keys and all required", () => {
   assert.deepEqual(Object.keys(schema.properties as object), [
     "customer.name",
     "customer.plan",
+    "assets",
   ]);
+});
+
+test("inputSchemaForTemplate adds an optional assets argument", () => {
+  const schema = inputSchemaForTemplate(template("plain", []));
+  assert.deepEqual(schema.required, []);
+  assert.deepEqual(Object.keys(schema.properties as object), ["assets"]);
+  const assets = (schema.properties as Record<string, unknown>).assets as {
+    type: string;
+    description: string;
+  };
+  assert.equal(assets.type, "object");
+  assert.match(assets.description, /path \| data_base64/);
+});
+
+test("inputSchemaForTemplate reserves 'assets' over a colliding macro", () => {
+  const schema = inputSchemaForTemplate(
+    template("clasificacion", [
+      { name: "imagen", description: "Image ref" },
+      { name: "assets", description: "Should be shadowed" },
+    ]),
+  );
+  assert.deepEqual(schema.required, ["imagen"]);
+  assert.deepEqual(Object.keys(schema.properties as object), ["imagen", "assets"]);
+  const assets = (schema.properties as Record<string, unknown>).assets as {
+    type: string;
+  };
+  assert.equal(assets.type, "object");
 });
 
 test("valid, invalid and colliding tool names", () => {

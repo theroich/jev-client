@@ -18,6 +18,7 @@ import {
   detectImageFormat,
   loadImageAsset,
   newImageRef,
+  orphanAssetRefs,
   readImageSize,
   validateImageAsset,
 } from "../assets.js";
@@ -31,6 +32,7 @@ import {
 import { McpToolError } from "./errors.js";
 import {
   inputSchemaForTemplate,
+  RESERVED_TEMPLATE_ASSETS_ARG,
   toolDescriptionForTemplate,
   toolNameForTemplate,
   type ToolAnnotations,
@@ -301,6 +303,13 @@ function validateBody(bodyJson: string): void {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     fail("invalid_template_body", message);
+  }
+  if (detectMacros(bodyJson).includes(RESERVED_TEMPLATE_ASSETS_ARG)) {
+    fail(
+      "invalid_template_body",
+      `"${RESERVED_TEMPLATE_ASSETS_ARG}" is a reserved argument for attaching ` +
+        "images and cannot be used as a macro",
+    );
   }
 }
 
@@ -945,17 +954,34 @@ async function runTemplateTool(
     );
   }
   const macroNames = new Set(template.macros.map((macro) => macro.name));
+  const context: TemplateContext = {};
   for (const key of Object.keys(args)) {
+    if (key === RESERVED_TEMPLATE_ASSETS_ARG) {
+      continue;
+    }
     if (!macroNames.has(key)) {
       fail("invalid_arguments", `unknown argument for the template: ${key}`);
     }
+    context[key] = args[key];
   }
   let request: JevRequest;
   try {
-    request = resolveTemplateBody(template.body_json, args as TemplateContext);
+    request = resolveTemplateBody(template.body_json, context);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     fail("invalid_render", message);
+  }
+  const assets = await assetsFromArgs(args);
+  if (assets !== undefined) {
+    request = { ...request, assets: { ...(request.assets ?? {}), ...assets } };
+    const orphan = orphanAssetRefs(request);
+    if (orphan.length > 0) {
+      fail(
+        "invalid_arguments",
+        `assets are not referenced in the resolved template: ${orphan.join(", ")} ` +
+          "(the API would return 400)",
+      );
+    }
   }
   const result = await ctx.service.ask(request, { source: "mcp", templateName });
   return executionResultJson(result);

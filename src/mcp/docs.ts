@@ -78,10 +78,10 @@ export function appOverviewDoc(): string {
     "",
     "Jev accepts images through the `assets` field (`{ ref: { data_base64, format } }`) plus the header",
     "`TypeSafe-Danger-Zone-Images: true`. The reference is written where text would go (`state`, ",
-    "`instructions` or `criteria`) and the API replaces it with the image. `jev_ask`, `jev_batch` and",
-    "`jev_template_render` accept an `assets` parameter; `jev_image_check` validates an image (format,",
-    "dimensions, limits) without spending a call. Images are experimental and their limits may",
-    "change: static PNG/JPEG, 280–1568 px per side and 16 MiB per file.",
+    "`instructions` or `criteria`) and the API replaces it with the image. `jev_ask`, `jev_batch`,",
+    "`jev_template_render` and every template tool accept an `assets` parameter; `jev_image_check`",
+    "validates an image (format, dimensions, limits) without spending a call. Images are experimental",
+    "and their limits may change: static PNG/JPEG, 280–1568 px per side and 16 MiB per file.",
   ].join("\n");
 }
 
