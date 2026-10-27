@@ -1,0 +1,22 @@
+src/mcp/docs.ts
+  h_34a594f8693459 81-84
+src/mcp/schema.ts
+  h_34a594f8693459 15-20,96-109,112-113,117,119-122,124,126,130
+src/mcp/tools.ts
+  h_34a594f8693459 21,35,307-313,957,959-961,965,969,974-985
+test/mcp-schema.test.ts
+  h_34a594f8693459 93,97-123
+test/mcp.test.ts
+  h_34a594f8693459 3-5,65,67,292,299-303,306-318,335-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "10ec5f2665139caac949d48b17e469f3b3ec2d61",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
