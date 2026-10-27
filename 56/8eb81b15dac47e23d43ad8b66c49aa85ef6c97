@@ -1,0 +1,14 @@
+scripts/package-smoke.mjs
+  h_34a594f8693459 10-16,23,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "568eb81b15dac47e23d43ad8b66c49aa85ef6c97",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
