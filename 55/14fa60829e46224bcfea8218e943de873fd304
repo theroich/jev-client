@@ -1,0 +1,40 @@
+.github/workflows/ci.yml
+  h_34a594f8693459 28-29,38-58
+.github/workflows/release.yml
+  h_34a594f8693459 1-70
+.gitignore
+  h_34a594f8693459 12-26
+LICENSE
+  h_34a594f8693459 1-21
+README.md
+  h_34a594f8693459 41,44-45,47,50,53-54,57,60-61,64-66,68-70,592,599,605,653-664,682-684
+docs/architecture.md
+  h_34a594f8693459 35-39,48-62
+docs/development.md
+  h_34a594f8693459 3-30,37,58-83
+docs/mcp.md
+  h_34a594f8693459 60,67,73,85-86,92-96,101-104
+docs/troubleshooting.md
+  h_34a594f8693459 14-50,79-82
+package.json
+  h_34a594f8693459 5-22,55,60-61
+scripts/check-version.mjs
+  h_34a594f8693459 1-46
+scripts/package-smoke.mjs
+  h_34a594f8693459 24-44,79-88
+skills/jev-cli/SKILL.md
+  h_34a594f8693459 31-34
+test/web-console.test.ts
+  h_34a594f8693459 10,296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5514fa60829e46224bcfea8218e943de873fd304",
+  "prompts": {},
+  "humans": {
+    "h_34a594f8693459": {
+      "author": "theroich <9357441+theroich@users.noreply.github.com>"
+    }
+  }
+}
