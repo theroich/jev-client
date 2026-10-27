@@ -131,7 +131,8 @@ export function formatCost(value: number): string {
   if (value !== 0 && Math.abs(value) < 1e-4) {
     return value.toExponential(3);
   }
-  return String(value);
+  // Sums of API costs carry binary float noise (0.00010062999999999999).
+  return String(Number(value.toPrecision(6)));
 }
 
 /** Human-readable size in bytes (KiB/MiB). */

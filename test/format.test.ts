@@ -80,4 +80,7 @@ test("formatCost uses scientific notation only for small amounts", () => {
   assert.equal(formatCost(1.886e-5), "1.886e-5");
   assert.equal(formatCost(0.25), "0.25");
   assert.equal(formatCost(0), "0");
+  // Sums of API costs carry binary float noise.
+  assert.equal(formatCost(0.00010062999999999999), "0.00010063");
+  assert.equal(formatCost(0.1 + 0.2), "0.3");
 });

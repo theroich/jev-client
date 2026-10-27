@@ -16,7 +16,8 @@ export function shellQuote(value: string): string {
 export function formatCost(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   if (value !== 0 && Math.abs(value) < 1e-4) return value.toExponential(3);
-  return String(value);
+  // Sums of API costs carry binary float noise (0.00010062999999999999).
+  return String(Number(value.toPrecision(6)));
 }
 
 export function formatBytes(value: number): string {
