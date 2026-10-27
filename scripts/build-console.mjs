@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,10 +22,6 @@ if (!(await exists(path.join(source, "server.js")))) {
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 await cp(source, destination, { recursive: true });
-// Next creates a symlink under .next/node_modules to externalize better-sqlite3.
-// npm excludes node_modules from any tarball, so the internal name is resolved
-// to the dependency declared in the root package and the symlink is removed.
-await patchExternalAliases(path.join(destination, ".next", "server"));
 await rm(path.join(destination, ".next", "node_modules"), { recursive: true, force: true });
 await mkdir(path.join(destination, ".next", "static"), { recursive: true });
 await cp(path.join(root, "web", ".next", "static"), path.join(destination, ".next", "static"), { recursive: true });
@@ -41,17 +37,5 @@ const manifest = JSON.parse(await readFile(path.join(destination, ".next", "requ
 if (!manifest) throw new Error("Invalid standalone manifest");
 
 console.log(`Standalone console prepared at ${path.relative(root, destination)}`);
-console.log("Traced dependencies are resolved from the package npm dependencies (next, react and better-sqlite3).");
+console.log("Traced dependencies are resolved from the package npm dependencies (next and react).");
 
-async function patchExternalAliases(directory) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      await patchExternalAliases(file);
-    } else if (entry.isFile() && entry.name.endsWith(".js")) {
-      const sourceText = await readFile(file, "utf8");
-      const patched = sourceText.replaceAll(/better-sqlite3-[a-f0-9]{8,64}/g, "better-sqlite3");
-      if (patched !== sourceText) await writeFile(file, patched);
-    }
-  }
-}

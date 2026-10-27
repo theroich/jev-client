@@ -38,7 +38,7 @@ history.
 
 ## Installation
 
-You need **Node.js 20.9+** (or 22+) and an API key from
+You need **Node.js 22.13+** (22 LTS, 24 LTS or 26 LTS) and an API key from
 [OpenCode Console](https://opencode.ai/console).
 
 ```sh
@@ -641,12 +641,14 @@ protocol detail in [`docs/images.md`](docs/images.md).
 
 ## Common problems
 
-**`NODE_MODULE_VERSION` on startup.** The `better-sqlite3` native binary was
-installed with another Node version. Rebuild it:
+**Unsupported Node version.** `jev` uses the built-in `node:sqlite` module and
+needs **Node.js 22.13+**. On an older runtime it exits with code `1` and:
 
-```sh
-npm rebuild better-sqlite3
+```text
+jev requires Node.js >= 22.13; found <version>.
 ```
+
+Upgrade to Node 22 LTS, 24 LTS or 26 LTS. There is no native binary to rebuild.
 
 **The database uses a newer schema.** Another version of `jev` wrote into the
 same database. Use a temporary database:

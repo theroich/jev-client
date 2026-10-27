@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 
-import { runCli, type CliIO } from "./cli.js";
+import type { CliIO } from "./cli.js";
+import { assertSupportedNode, silenceSqliteExperimentalWarning } from "./runtime.js";
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
@@ -61,4 +62,13 @@ const io: CliIO = {
   },
 };
 
-process.exitCode = await runCli(process.argv.slice(2), io);
+silenceSqliteExperimentalWarning();
+
+const versionError = assertSupportedNode(process.version);
+if (versionError !== null) {
+  process.stderr.write(`${versionError}\n`);
+  process.exitCode = 1;
+} else {
+  const { runCli } = await import("./cli.js");
+  process.exitCode = await runCli(process.argv.slice(2), io);
+}

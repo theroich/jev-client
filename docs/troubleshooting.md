@@ -1,15 +1,17 @@
 # Troubleshooting
 
-## `better-sqlite3` compiled against another Node version
+## Unsupported Node version
 
-The typical error is `NODE_MODULE_VERSION 137` versus `115`: the native binary
-was installed with a Node version different from the one running `jev`. Use the
-binary that matches your Node (for example `ivm-node 24.11.1`) or rebuild the
-module:
+`jev` uses the built-in `node:sqlite` module (unflagged since Node 22.13.0), so
+it needs **Node.js 22.13 or higher**. On an older runtime the CLI exits with
+code `1` and:
 
-```sh
-npm rebuild better-sqlite3
+```text
+jev requires Node.js >= 22.13; found <version>.
 ```
+
+Upgrade to Node 22 LTS, 24 LTS or 26 LTS. There is no native binary to rebuild,
+so the previous `NODE_MODULE_VERSION` failure mode no longer applies.
 
 ## SQLite schema mismatch
 

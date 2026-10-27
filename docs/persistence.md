@@ -12,9 +12,9 @@ permissions are used (`0700` and `0600` on POSIX systems).
 
 ## Engine and migrations
 
-**`better-sqlite3` 12.x** is used because it keeps the **Node.js 20 or higher**
-requirement. Version 13 of the driver already requires Node 22, just like the
-`node:sqlite` alternative, so the Node minimum is not raised.
+SQLite comes from **`node:sqlite`**, the built-in module bundled with Node and
+unflagged since Node 22.13.0. The package ships no native code, so `npm install`
+is a plain download and there is no per-ABI binary to compile.
 
 Migrations are versioned with `PRAGMA user_version` (current version: **6**).
 Each version is applied in a transaction, migrations are additive and idempotent

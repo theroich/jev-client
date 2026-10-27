@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import Database from "better-sqlite3";
 
 import { ConfigRepository } from "../src/config-repository.js";
+import { openSqlite } from "../src/sqlite.js";
 import { TemplateRepository } from "../src/template-repository.js";
 import {
   SCHEMA_VERSION,
@@ -101,7 +101,7 @@ test("updates from v1 to v2 preserving config and creating templates", async (t)
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
 
-  const legacy = new Database(path);
+  const legacy = openSqlite(path);
   legacy.exec(
     "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
   );
@@ -130,7 +130,7 @@ test("updates from v3 to v4 creating template_macros without backfill", async (t
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
 
-  const legacy = new Database(path);
+  const legacy = openSqlite(path);
   legacy.exec(`
     CREATE TABLE templates (
       name TEXT PRIMARY KEY,
@@ -174,7 +174,7 @@ test("updates from v4 to v5 adding schema_json without backfill", async (t) => {
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
 
-  const legacy = new Database(path);
+  const legacy = openSqlite(path);
   legacy.exec(`
     CREATE TABLE templates (
       name TEXT PRIMARY KEY,
@@ -290,7 +290,7 @@ test("updates from v5 to v6 adding source to requests", async (t) => {
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "jev.db");
 
-  const legacy = new Database(path);
+  const legacy = openSqlite(path);
   legacy.exec(`
     CREATE TABLE requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
