@@ -87,16 +87,29 @@ try {
     // Windows cannot deliver SIGINT to a child process: the Ctrl-C handler and
     // the exit code 0 path can only be asserted on POSIX.
     child.kill();
-    await new Promise((resolve) => child.once("exit", resolve));
+    await waitForExit(child);
   } else {
     child.kill("SIGINT");
-    const exitCode = await new Promise((resolve) => child.once("exit", resolve));
+    const exitCode = await waitForExit(child);
     if (exitCode !== 0) throw new Error(`Package shutdown with code ${exitCode}\n${stderr}`);
   }
 } finally {
-  if (child && child.exitCode === null) {
+  if (child && child.exitCode === null && child.signalCode === null) {
     child.kill("SIGKILL");
-    await new Promise((resolve) => child.once("exit", resolve));
+    await waitForExit(child);
   }
   await rm(temp, { recursive: true, force: true });
+}
+
+/**
+ * Polls instead of waiting for the `exit` event: the event is lost when the
+ * process already exited (or when Windows terminates it), and the await would
+ * hang forever. Returns the exit code, the signal or `null` on timeout.
+ */
+async function waitForExit(proc, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return proc.exitCode ?? proc.signalCode;
 }
