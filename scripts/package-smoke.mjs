@@ -7,13 +7,20 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// `npm` is `npm.cmd` on Windows and `execFile` does not resolve it without a
+// shell. Running the npm CLI with the current Node binary works on every OS.
+const npmCli = process.env.npm_execpath;
+const runNpm = (args, options) =>
+  npmCli
+    ? execute(process.execPath, [npmCli, ...args], options)
+    : execute("npm", args, { ...options, shell: process.platform === "win32" });
 await mkdir(path.join(root, ".tmp"), { recursive: true });
 const temp = await mkdtemp(path.join(root, ".tmp", "package-smoke-"));
 const MAX_TARBALL_BYTES = 25 * 1024 * 1024;
 let child;
 
 try {
-  await execute("npm", ["pack", "--pack-destination", temp], { cwd: root, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024 });
+  await runNpm(["pack", "--pack-destination", temp], { cwd: root, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024 });
   const tarballName = (await readdir(temp)).find((name) => /^jev-client-.*\.tgz$/.test(name));
   if (!tarballName) throw new Error("npm pack did not produce the expected tarball");
   const tarball = path.join(temp, tarballName);
@@ -45,7 +52,7 @@ try {
   const install = path.join(temp, "install");
   await mkdir(install, { recursive: true });
   await writeFile(path.join(install, "package.json"), '{"private":true}\n');
-  await execute("npm", ["install", "--no-audit", "--no-fund", tarball], { cwd: install, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024, timeout: 180_000 });
+  await runNpm(["install", "--no-audit", "--no-fund", tarball], { cwd: install, env: { ...process.env, CI: "1" }, maxBuffer: 20 * 1024 * 1024, timeout: 180_000 });
   const packageRoot = path.join(install, "node_modules", "jev-client");
   await stat(path.join(packageRoot, "dist", "web-console", "server.js"));
 
