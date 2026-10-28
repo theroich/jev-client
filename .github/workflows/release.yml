@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write # required for npm provenance (OIDC)
 
 jobs:
   publish:
@@ -62,27 +61,18 @@ jobs:
           shasum -a 256 ./*.tgz > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Debug OIDC token claims
-        run: |
-          resp=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL")
-          token=$(printf '%s' "$resp" | jq -r .value)
-          payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
-          case $(( ${#payload} % 4 )) in 2) payload="${payload}==" ;; 3) payload="${payload}=" ;; esac
-          printf '%s' "$payload" | base64 -d 2>/dev/null | jq '{sub, repository, repository_owner, environment, ref, job_workflow_ref, workflow_ref, actor}'
-
-      - name: Publish with provenance
+      - name: Publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Trusted publishing (OIDC) is the normal path: no token, npm detects
-          # the GitHub OIDC environment. `NPM_TOKEN` exists only for the very
-          # first publish (1.0.0), because a trusted publisher cannot be
-          # configured until the package is on the registry; revoke it after.
+          # Trusted publishing (OIDC) is blocked by npm/cli#9969 (immutable
+          # OIDC subjects), so we authenticate with a token. Re-enable
+          # --provenance + id-token: write once npm accepts them.
           if [ -n "$NPM_TOKEN" ]; then
             printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/.npmrc.publish"
             export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc.publish"
           fi
-          npm publish "$RUNNER_TEMP"/release/*.tgz --provenance --access public
+          npm publish "$RUNNER_TEMP"/release/*.tgz --access public
 
       - name: Create the GitHub Release
         env:
