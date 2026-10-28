@@ -62,6 +62,14 @@ jobs:
           shasum -a 256 ./*.tgz > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Debug OIDC token claims
+        run: |
+          resp=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL")
+          token=$(printf '%s' "$resp" | jq -r .value)
+          payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
+          case $(( ${#payload} % 4 )) in 2) payload="${payload}==" ;; 3) payload="${payload}=" ;; esac
+          printf '%s' "$payload" | base64 -d 2>/dev/null | jq '{sub, repository, repository_owner, environment, ref, job_workflow_ref, workflow_ref, actor}'
+
       - name: Publish with provenance
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
