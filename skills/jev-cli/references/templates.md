@@ -30,6 +30,10 @@ Macro rules (see `src/template.ts`):
   inserted with its type (object, array, number, boolean). If it is embedded in
   text, it is interpolated as a string. E.g.: `"plan": "{{customer.plan}}"`
   with `{ "customer": { "plan": "pro" } }` → `"plan": "pro"`.
+- **Bare macros**: a macro may also appear **unquoted** as a JSON value, so an
+  object/array slot can be a whole macro:
+  `"criteria": {{criterias}}`. It is rewritten to `"{{criterias}}"` on parse and
+  resolves to the native object/array. Quoted and bare forms are equivalent.
 - **Escaping**: `\{{...}}` produces the literal text `{{...}}` without
   resolving it.
 - **If a key is missing**, the command fails **before calling the API** and
@@ -169,7 +173,9 @@ agents.
 | `--clear-macro-schema <key>` | removes the schema while keeping the description |
 
 Types accepted by `--macro-type`: `string`, `number`, `integer`, `boolean`,
-`object`, `array`, `null`.
+`object`, `array`, `null`, and the Jev-only `image` (marks a macro that must be
+filled with an image file instead of text — the web console batch table shows a
+file picker per row for it).
 
 ## Minimal template for each question type
 

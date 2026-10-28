@@ -110,6 +110,17 @@ function request(pathname: string, method = "GET", options: { body?: unknown; to
   return new NextRequest(`${ORIGIN}${pathname}`, { method, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
 }
 
+/** A minimal valid PNG (24 bytes) as base64, enough to pass `validateImageAsset`. */
+function tinyPngBase64(): string {
+  const png = Buffer.alloc(24);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  png.writeUInt32BE(13, 8);
+  png.write("IHDR", 12, "ascii");
+  png.writeUInt32BE(300, 16);
+  png.writeUInt32BE(300, 20);
+  return png.toString("base64");
+}
+
 test("health is public and the session requires cookie, CSRF and Origin", async () => {
   const live = await health();
   assert.equal(live.status, 200);
@@ -510,6 +521,65 @@ test("ask accepts assets and redacts them when persisting", async () => {
 
   const invalid = await ask(request("/api/ask", "POST", {
     body: { state: "hello", questions: { q: { type: "noul" } }, assets: { "ref-x": { format: "png" } } },
+  }));
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_assets");
+});
+
+test("template render attaches assets without calling Jev", async () => {
+  const bodyJson = JSON.stringify({ model: "jev-1.13", state: { photo: "{{photo}}" }, questions: { q: { type: "noul" } } });
+  const rendered = await templateRender(request("/api/templates/render", "POST", {
+    body: {
+      bodyJson,
+      context: { photo: "ref-1" },
+      assets: { "ref-1": { data_base64: "YWJj", format: "jpg" } },
+    },
+  }));
+  assert.equal(rendered.status, 200);
+  const body = await rendered.json() as { request: { state: { photo: string }; assets: Record<string, { type: string; format: string; data_base64: string }> } };
+  assert.equal(body.request.state.photo, "ref-1");
+  assert.deepEqual(body.request.assets, { "ref-1": { type: "image", data_base64: "YWJj", format: "jpg" } });
+  assert.equal(runtime.requests.count(), 0);
+});
+
+test("batch accepts shared and per-context assets and redacts them in history", async () => {
+  runtime.templates.save("photo", "Photo", JSON.stringify({
+    model: "jev-1.13",
+    state: "{{photo}}",
+    questions: { q: { type: "noul", instructions: "Compare `{{photo}}` against `shared`." } },
+  }));
+  const png = tinyPngBase64();
+  const response = await batch(request("/api/batch", "POST", {
+    body: {
+      templateName: "photo",
+      assets: { shared: { data_base64: png, format: "png" } },
+      contexts: [
+        { photo: "ref-a", assets: { "ref-a": { data_base64: png, format: "png" } } },
+        { photo: "ref-b", assets: { "ref-b": { data_base64: png, format: "png" } } },
+      ],
+      save: true,
+    },
+  }));
+  assert.equal(response.status, 200);
+  const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as { type: string; summary?: { ok: number; inputTokens: number } });
+  assert.equal(events.find((event) => event.type === "batch.finish")?.summary?.ok, 2);
+  const rows = runtime.requests.list();
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((row) => row.batchId !== null && row.templateName === "photo"));
+  assert.ok(rows.every((row) => !(row.requestJson ?? "").includes("data_base64")));
+});
+
+test("batch rejects an invalid per-context asset before streaming", async () => {
+  runtime.templates.save("photo", "Photo", JSON.stringify({
+    model: "jev-1.13",
+    state: "{{photo}}",
+    questions: { q: { type: "noul" } },
+  }));
+  const invalid = await batch(request("/api/batch", "POST", {
+    body: {
+      templateName: "photo",
+      contexts: [{ photo: "ref-a", assets: { "ref-a": { format: "png" } } }],
+    },
   }));
   assert.equal(invalid.status, 400);
   assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_assets");

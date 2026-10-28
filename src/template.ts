@@ -176,6 +176,59 @@ export function resolveJsonMacros(
 }
 
 /**
+ * Parses a template body that is a superset of JSON: `{{macro}}` placeholders
+ * may also appear bare (unquoted) as values, e.g. `"criteria": {{criterias}}`.
+ * A bare macro is rewritten as the string `"{{macro}}"`, so the rest of the
+ * pipeline treats it exactly like a string macro that resolves to its native
+ * type (object/array/number…). Macros inside strings are left untouched.
+ */
+function parseTemplateJson(text: string): unknown {
+  let out = "";
+  let index = 0;
+  let inString = false;
+
+  while (index < text.length) {
+    const char = text[index] as string;
+
+    if (inString) {
+      if (char === "\\") {
+        out += char;
+        const next = text[index + 1];
+        if (next !== undefined) out += next;
+        index += 2;
+        continue;
+      }
+      out += char;
+      if (char === '"') inString = false;
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      out += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === "{" && text[index + 1] === "{") {
+      const close = text.indexOf("}}", index + 2);
+      if (close !== -1) {
+        const macro = text.slice(index + 2, close).trim();
+        out += `"{{${macro}}}"`;
+        index = close + 2;
+        continue;
+      }
+    }
+
+    out += char;
+    index += 1;
+  }
+
+  return JSON.parse(out);
+}
+
+/**
  * Resolves a template body against a context and validates it as a
  * request. If any macro is missing, it fails listing all absent keys.
  */
@@ -185,7 +238,7 @@ export function resolveTemplateBody(
 ): JevRequest {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(bodyJson);
+    parsed = parseTemplateJson(bodyJson);
   } catch (error) {
     throw new Error(`invalid JSON in template: ${messageOf(error)}`);
   }
@@ -206,7 +259,7 @@ export function resolveTemplateBody(
 export function validateTemplateBody(bodyJson: string): JevRequest {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(bodyJson);
+    parsed = parseTemplateJson(bodyJson);
   } catch (error) {
     throw new Error(`invalid JSON in template: ${messageOf(error)}`);
   }
@@ -221,7 +274,7 @@ export function validateTemplateBody(bodyJson: string): JevRequest {
 export function detectMacros(bodyJson: string): string[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(bodyJson);
+    parsed = parseTemplateJson(bodyJson);
   } catch {
     return [];
   }

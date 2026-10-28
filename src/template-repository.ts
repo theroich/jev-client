@@ -7,7 +7,11 @@ export const MAX_MACRO_DESCRIPTION_LENGTH = 500;
 /** Maximum size of a macro schema's compact JSON. */
 export const MAX_MACRO_SCHEMA_BYTES = 8 * 1024;
 
-/** Types accepted by the basic JSON Schema editor. */
+/**
+ * Types accepted by the basic JSON Schema editor. `image` is a Jev extension:
+ * it marks a macro that must be filled with an image file instead of text, so
+ * the batch editor can render a per-row file picker for it.
+ */
 export const MACRO_SCHEMA_TYPES = [
   "string",
   "number",
@@ -16,6 +20,7 @@ export const MACRO_SCHEMA_TYPES = [
   "object",
   "array",
   "null",
+  "image",
 ] as const;
 
 export type MacroSchemaType = (typeof MACRO_SCHEMA_TYPES)[number];

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { ConsoleError, readJson, withApi } from "@/lib/server/api";
-import { getConsoleRuntime, getTemplate } from "@/lib/server/runtime";
+import { getConsoleRuntime, getTemplate, parseAssetsInput } from "@/lib/server/runtime";
 import { MAX_CONCURRENCY, type BatchEvent, type BatchSummary } from "../../../../dist/src/service.js";
 
 type StreamEvent =
@@ -12,9 +12,12 @@ type StreamEvent =
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Headroom for a request with base64 images (16 MiB + 33% of base64 + JSON). */
+const MAX_BATCH_BODY_BYTES = 36 * 1024 * 1024;
+
 export function POST(request: NextRequest) {
   return withApi(request, true, async () => {
-    const body = await readJson(request, 5_000_000);
+    const body = await readJson(request, MAX_BATCH_BODY_BYTES);
     const templateName = body.templateName;
     if (typeof templateName !== "string" || !templateName.trim()) {
       throw new ConsoleError(400, "invalid_template", "Select a template");
@@ -27,6 +30,13 @@ export function POST(request: NextRequest) {
       throw new ConsoleError(400, "too_many_contexts", "The maximum is 1,000 contexts per batch");
     }
     const contexts = body.contexts;
+    const assets = parseAssetsInput(body.assets);
+    for (const context of contexts) {
+      if (!context || typeof context !== "object" || Array.isArray(context)) continue;
+      if (Object.prototype.hasOwnProperty.call(context, "assets")) {
+        parseAssetsInput((context as Record<string, unknown>).assets);
+      }
+    }
     const concurrency = body.concurrency === undefined ? 1 : Number(body.concurrency);
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_CONCURRENCY) {
       throw new ConsoleError(400, "invalid_concurrency", `concurrency must be an integer between 1 and ${MAX_CONCURRENCY}`);
@@ -58,6 +68,7 @@ export function POST(request: NextRequest) {
             concurrency,
             failFast,
             save,
+            assets,
             signal: controller.signal,
             onEvent: (event) => {
               if (event.type === "batch.start") currentBatchId = event.batchId;

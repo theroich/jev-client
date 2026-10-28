@@ -79,6 +79,19 @@ export function parseStateInput(raw: string): ParsedState {
   return { value: raw, kind: trimmed === "" ? "empty" : "text", error: null };
 }
 
+/**
+ * Whether a template macro is typed as `image` (a Jev extension to JSON Schema).
+ * Image-typed macros are filled with an attached file, not free text.
+ */
+export function macroAcceptsImage(macro: TemplateMacro): boolean {
+  const schema = macro.schema;
+  if (!schema || typeof schema === "boolean") return false;
+  const type = schema.type;
+  if (typeof type === "string") return type === "image";
+  if (Array.isArray(type)) return type.includes("image");
+  return false;
+}
+
 export function buildAskCommand(
   state: string,
   questions: Record<string, Question>,
