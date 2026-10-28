@@ -67,7 +67,9 @@ The API rejects, it does not resize:
 
 In MCP, `jev_ask`/`jev_batch` accept `assets` and `jev_image_check` validates an
 image without spending a call. In the web console, *Evaluate* accepts attaching
-an image (thumbnail + size) and the history shows only the summary.
+an image (thumbnail + size), *Templates* renders a body with an `assets` map
+without calling Jev, and *Batches* supports a shared `assets` map plus per-context
+`assets` (a file picker per image-typed macro). The history shows only the summary.
 
 See [`skills/jev-cli/references/templates.md`](../skills/jev-cli/references/templates.md)
 for the "compare against a known image" pattern.

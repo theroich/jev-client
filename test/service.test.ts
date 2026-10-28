@@ -328,3 +328,79 @@ test("batch honors save false and validates concurrency", async (t) => {
   assert.equal(new RequestRepository(inspect).count(), 0);
   inspect.close();
 });
+
+test("batch merges shared and per-context assets with item precedence", async (t) => {
+  const dbPath = await databasePath(t);
+  const db = openDatabase(dbPath);
+  new TemplateRepository(db).save("photo", "", JSON.stringify({
+    model: "jev-1.13",
+    state: "{{photo}}",
+    questions: { q: { type: "noul", instructions: "Compare `{{photo}}` against `shared`." } },
+  }));
+  db.close();
+
+  const bodies: Array<Record<string, unknown>> = [];
+  const fetch: FetchLike = async (_input, init = {}) => {
+    bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+    return new Response(responseBody(), { status: 200 });
+  };
+  const service = serviceFor(t, dbPath, fetch);
+
+  const result = await service.batch("photo", [
+    { photo: "ref-a", assets: { "ref-a": { type: "image", format: "jpg", data_base64: "YQ==" } } },
+    { photo: "ref-b", assets: { "ref-b": { type: "image", format: "png", data_base64: "Yg==" } } },
+  ], {
+    assets: { shared: { type: "image", format: "jpg", data_base64: "YWJj" } },
+  });
+
+  assert.equal(result.summary.ok, 2);
+  assert.deepEqual(bodies[0]?.assets, {
+    shared: { type: "image", format: "jpg", data_base64: "YWJj" },
+    "ref-a": { type: "image", format: "jpg", data_base64: "YQ==" },
+  });
+  assert.deepEqual(bodies[1]?.assets, {
+    shared: { type: "image", format: "jpg", data_base64: "YWJj" },
+    "ref-b": { type: "image", format: "png", data_base64: "Yg==" },
+  });
+  assert.equal(bodies[0]?.state, "ref-a");
+  assert.equal(bodies[1]?.state, "ref-b");
+});
+
+test("batch rejects the reserved assets key when the template defines an assets macro", async (t) => {
+  const dbPath = await databasePath(t);
+  const db = openDatabase(dbPath);
+  new TemplateRepository(db).save("collision", "", JSON.stringify({
+    model: "jev-1.13",
+    state: "{{assets}}",
+    questions: { q: { type: "noul" } },
+  }));
+  db.close();
+
+  const service = serviceFor(t, dbPath, async () => new Response(responseBody(), { status: 200 }));
+  const result = await service.batch("collision", [
+    { assets: { "ref-a": { type: "image", format: "jpg", data_base64: "YQ==" } } },
+  ]);
+
+  assert.equal(result.summary.ok, 0);
+  assert.equal(result.summary.errors, 1);
+  assert.match(result.items[0]?.error ?? "", /reserved/);
+});
+
+test("batch rejects a per-context asset that is not referenced", async (t) => {
+  const dbPath = await databasePath(t);
+  const db = openDatabase(dbPath);
+  new TemplateRepository(db).save("photo", "", JSON.stringify({
+    model: "jev-1.13",
+    state: "{{photo}}",
+    questions: { q: { type: "noul" } },
+  }));
+  db.close();
+
+  const service = serviceFor(t, dbPath, async () => new Response(responseBody(), { status: 200 }));
+  const result = await service.batch("photo", [
+    { photo: "ref-a", assets: { orphan: { type: "image", format: "jpg", data_base64: "YQ==" } } },
+  ]);
+
+  assert.equal(result.summary.ok, 0);
+  assert.match(result.items[0]?.error ?? "", /not used in state/);
+});

@@ -47,25 +47,32 @@ to the web checkout.
 - **Templates**: search, create/edit/validate/render/rename/delete, nested and
   escaped macros, unsaved changes, transactional rename and a **Macros** tab with
   an optional description and JSON Schema per macro. Each row offers a basic type
-  selector and an advanced JSON editor (format, live validation and blocked
-  saving if invalid), with the summary `N of M described · K typed`, atomic
-  saving together with the body and a warning when removing a described macro or
-  one with a schema. The metadata is persisted in `template_macros`
-  (`description`, `schema_json`) and never sent to Jev. **New template** opens the
-  **Start template** modal with valid examples of `noul`, `choice` and `score`
-  (`src/template-starters.ts`); `noul` is preselected, `choice` uses `criteria` as
-  an object of descriptions and `score` as an ordered array. The editor is free
-  afterwards. Rendering never calls Jev.
+  selector (including the Jev-only `image` type) and an advanced JSON editor
+  (format, live validation and blocked saving if invalid), with the summary
+  `N of M described · K typed`, atomic saving together with the body and a warning
+  when removing a described macro or one with a schema. The metadata is persisted
+  in `template_macros` (`description`, `schema_json`) and never sent to Jev.
+  **New template** opens the **Start template** modal with valid examples of
+  `noul`, `choice` and `score` (`src/template-starters.ts`); `noul` is
+  preselected, `choice` uses `criteria` as an object of descriptions and `score`
+  as an ordered array. The editor is free afterwards. The **Render** tab accepts
+  optional assets (PNG/JPEG, like *Evaluate*) and resolves the macros into a
+  request with the `{ ref: { data_base64, format } }` map attached — it never
+  calls Jev.
 - **Batches**: the context editor starts from a 2-space JSON skeleton containing
   one flat key per macro of the active template (order of `detectMacros`), ready
-  to fill in. When switching templates it is regenerated only if there were no
-  edits; if there were, the text is kept and the action **Fill with the macros of
-  <template>** appears (with confirmation). A **Template macros** dropdown shows
-  `{{key}}` and its description when it exists, and values that are still empty
-  ask for confirmation before running. Then: real pool of 1–10 workers, NDJSON
-  progress per item, `fail-fast`, `--no-save` and a server-side `batch_id`.
-  Cancelling stops the scheduling **and aborts in-flight requests**, keeping the
-  rows already written and marking the rest as skipped.
+  to fill in. A **Table**/**JSON** toggle switches between a per-context table
+  (one column per macro, with a per-row file picker for `image`-typed macros) and
+  the raw JSON editor. When switching templates the skeleton is regenerated only
+  if there were no edits; if there were, the text is kept and the action **Fill
+  with the macros of <template>** appears (with confirmation). A **Template
+  macros** dropdown shows `{{key}}` and its description when it exists, and values
+  that are still empty ask for confirmation before running. **Shared assets**
+  (optional) are attached to every request, while each context may carry its own
+  `assets` map (merged over the shared one, item wins). Then: real pool of 1–10
+  workers, NDJSON progress per item, `fail-fast`, `--no-save` and a server-side
+  `batch_id`. Cancelling stops the scheduling **and aborts in-flight requests**,
+  keeping the rows already written and marking the rest as skipped.
 - **History**: `since/status/model/template/batch/limit` filters, detail by tabs
   and `application/x-ndjson` export using exactly `historyRecordToJson`. Filters
   live in the URL. Limit 1–200, with no additional cursor in this version.

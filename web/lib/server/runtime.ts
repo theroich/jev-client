@@ -19,6 +19,7 @@ import {
   type ConfigKey,
 } from "../../../dist/src/config-repository.js";
 import { JevApiError } from "../../../dist/src/errors.js";
+import { validateImageAsset } from "../../../dist/src/assets.js";
 import { historyRecordToJson, maskSecret } from "../../../dist/src/format.js";
 import {
   RequestRepository,
@@ -463,8 +464,13 @@ export function renderTemplateDraft(body: Record<string, unknown>): { request: J
   if (!context || typeof context !== "object" || Array.isArray(context)) {
     throw new ConsoleError(400, "invalid_context", "the context must be a JSON object");
   }
+  const assets = parseAssetsInput(body.assets);
   try {
-    return { request: resolveTemplateBody(bodyJson, context as TemplateContext) };
+    const request = resolveTemplateBody(bodyJson, context as TemplateContext);
+    if (assets !== undefined) {
+      request.assets = assets;
+    }
+    return { request };
   } catch (error) {
     throw new ConsoleError(400, "invalid_render", error instanceof Error ? error.message : String(error));
   }
@@ -543,9 +549,11 @@ export async function executeAsk(body: Record<string, unknown>, runtime = getCon
 /**
  * Normalizes the console body `assets`: `{ ref: { data_base64, format } }`.
  * The image already arrives as base64 from the client (it is not persisted as
- * is: the repository redacts it).
+ * is: the repository redacts it). Each entry is validated with
+ * `validateImageAsset` so an invalid format or base64 is rejected before any
+ * call is spent.
  */
-function parseAssetsInput(value: unknown): Record<string, ImageAsset> | undefined {
+export function parseAssetsInput(value: unknown): Record<string, ImageAsset> | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new ConsoleError(400, "invalid_assets", "assets must be an object { ref: { data_base64, format } }");
@@ -562,11 +570,14 @@ function parseAssetsInput(value: unknown): Record<string, ImageAsset> | undefine
     if (typeof record.data_base64 !== "string") {
       throw new ConsoleError(400, "invalid_assets", `asset ${JSON.stringify(ref)} has an invalid data_base64`);
     }
-    assets[ref] = {
-      type: "image",
-      data_base64: record.data_base64,
-      format: record.format as ImageAsset["format"],
-    };
+    try {
+      assets[ref] = validateImageAsset(ref, {
+        data_base64: record.data_base64,
+        format: record.format as ImageAsset["format"],
+      });
+    } catch (error) {
+      throw new ConsoleError(400, "invalid_assets", error instanceof Error ? error.message : String(error));
+    }
   }
   return Object.keys(assets).length === 0 ? undefined : assets;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   MACRO_SCHEMA_TYPES,
@@ -16,7 +16,13 @@ import {
   type TemplateStarterId,
 } from "../../dist/src/template-starters.js";
 import type { JevRequest, TemplateDetail, TemplateMacro, TemplateSummary } from "@/lib/types";
-import { parseJsonObject, relativeDate, shellQuote } from "@/lib/utils";
+import {
+  fileToImage,
+  isAcceptedImage,
+  MAX_IMAGE_BYTES,
+  type AttachedImage,
+} from "@/lib/images";
+import { formatBytes, parseJsonObject, relativeDate, shellQuote } from "@/lib/utils";
 import { describeApiError, useConsole } from "./console-context";
 import { ConfirmModal } from "./modal";
 import { TemplateStarterModal } from "./template-starter-modal";
@@ -172,6 +178,7 @@ export function TemplatesScreen({
   const [tab, setTab] = useState("editor");
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [contextText, setContextText] = useState("{}");
+  const [renderImages, setRenderImages] = useState<AttachedImage[]>([]);
   const [rendered, setRendered] = useState<JevRequest | null>(null);
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -179,6 +186,7 @@ export function TemplatesScreen({
   const [starterOpen, setStarterOpen] = useState(false);
   const [focusName, setFocusName] = useState(startsNew);
   const [schemaOpen, setSchemaOpen] = useState<Record<string, boolean>>({});
+  const renderFileInput = useRef<HTMLInputElement | null>(null);
   const { request, notify } = useConsole();
 
   const bodyError = useMemo(() => {
@@ -369,6 +377,39 @@ export function TemplatesScreen({
     }
   };
 
+  const onRenderFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const accepted: AttachedImage[] = [];
+    for (const file of Array.from(files)) {
+      if (!isAcceptedImage(file)) {
+        notify(`Ignored ${file.name}: only PNG/JPEG are accepted`);
+        continue;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        notify(`Ignored ${file.name}: exceeds 16 MiB`);
+        continue;
+      }
+      try {
+        accepted.push(await fileToImage(file));
+      } catch {
+        notify(`Could not read ${file.name}`);
+      }
+    }
+    if (accepted.length > 0) {
+      setRenderImages((current) => [...current, ...accepted]);
+      setRendered(null);
+    }
+  };
+
+  const renderAssetsForRequest = () => {
+    if (renderImages.length === 0) return undefined;
+    const assets: Record<string, { type: "image"; format: "png" | "jpg"; data_base64: string }> = {};
+    for (const image of renderImages) {
+      assets[image.ref] = { type: "image", format: image.format, data_base64: image.dataBase64 };
+    }
+    return assets;
+  };
+
   const render = async () => {
     if (!draft || bodyError) return;
     const context = parseJsonObject(contextText);
@@ -381,7 +422,11 @@ export function TemplatesScreen({
     try {
       const result = await request<{ request: JevRequest }>("/api/templates/render", {
         method: "POST",
-        body: JSON.stringify({ bodyJson: draft.bodyJson, context: context.value }),
+        body: JSON.stringify({
+          bodyJson: draft.bodyJson,
+          context: context.value,
+          assets: renderAssetsForRequest(),
+        }),
       });
       setRendered(result.request);
       notify("Request resolved without calling the API");
@@ -503,13 +548,47 @@ export function TemplatesScreen({
               </div> : null}
               {tab === "render" ? <div className="stack" style={{ gap: 10 }}>
                 <div className="field"><label htmlFor="template-context">Context JSON</label><textarea id="template-context" className="textarea" rows={8} spellCheck={false} value={contextText} onChange={(event) => { setContextText(event.target.value); setRendered(null); }} /></div>
+                <div className="stack" style={{ gap: 6 }}>
+                  <span className="hint">Assets (optional) · PNG/JPEG · max 16 MiB each. The resolved request attaches the <code>{`{ ref: { data_base64, format } }`}</code> map, without calling Jev.</span>
+                  <input
+                    ref={renderFileInput}
+                    className="sr-only"
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    multiple
+                    tabIndex={-1}
+                    onChange={(event) => {
+                      void onRenderFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                    aria-label="Attach images to the render"
+                  />
+                  <div>
+                    <Button variant="outline" size="sm" onClick={() => renderFileInput.current?.click()}>
+                      <Icon name="upload" />
+                      Upload images
+                    </Button>
+                  </div>
+                  {renderImages.length > 0 ? <div className="stack" style={{ gap: 6 }}>
+                    {renderImages.map((image) => <div className="row" key={image.ref} style={{ gap: 8, alignItems: "center" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={image.dataUrl} alt={image.name} width={40} height={40} style={{ objectFit: "cover", borderRadius: 4, border: "1px solid var(--border)" }} />
+                      <div className="stack" style={{ gap: 1 }}>
+                        <span className="mono" style={{ fontSize: 11 }}>{image.ref}</span>
+                        <span className="hint">{image.name} · {image.width}×{image.height} px · {formatBytes(image.bytes)}</span>
+                      </div>
+                      <IconButton label={`Remove ${image.name}`} onClick={() => { setRenderImages((current) => current.filter((item) => item.ref !== image.ref)); setRendered(null); }}><Icon name="close" /></IconButton>
+                    </div>)}
+                    <p className="hint">Use the reference where the body expects it (e.g. <code>{"{{photo}}"}</code> → <code>state.photo</code>).</p>
+                  </div> : null}
+                </div>
                 <p className="hint">Resolves every macro and validates the request without sending it to Jev. Missing keys are listed together.</p>
                 <Button variant="primary" onClick={() => void render()} disabled={saving || Boolean(bodyError)}>{saving ? "Resolving…" : "Render without sending"}</Button>
                 {rendered ? <JsonBlock value={rendered} /> : null}
               </div> : null}
               {tab === "macros" ? <div className="stack" style={{ gap: 10 }}>
                 <div className="row-between" style={{ alignItems: "flex-start" }}>
-                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Required keys detected in the draft. Nested paths such as <code>{"{{customer.name}}"}</code> are supported; <code>\{"{{literal}}"}</code> escapes a macro. The description and schema are optional and are not sent to Jev.</p>
+                  <p className="hint" id="template-macros-hint" style={{ margin: 0 }}>Required keys detected in the draft. Nested paths such as <code>{"{{customer.name}}"}</code> are supported; a macro can also appear bare as a value (e.g. <code>criteria: {"{{criterias}}"}</code>); <code>\{"{{literal}}"}</code> escapes a macro. The description and schema are optional and are not sent to Jev.</p>
                   <div className="macro-summary" aria-live="polite">
                     <span className="chip">{describedCount} of {macros.length} described</span>
                     <span className="chip">{typedCount} typed</span>

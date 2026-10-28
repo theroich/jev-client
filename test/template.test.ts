@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  detectMacros,
   resolveStringMacros,
   resolveTemplateBody,
+  validateTemplateBody,
 } from "../src/template.js";
 import { TemplateRepository } from "../src/template-repository.js";
 import { openDatabase } from "../src/database.js";
@@ -115,6 +117,39 @@ test("nested macros and non-string values preserve the type", () => {
   assert.deepEqual(request.questions, {
     q: { type: "score", criteria: ["low", "high"] },
   });
+});
+
+test("bare macros as values are parsed and resolve to their native type", () => {
+  const body = `{
+    "model": "jev-1.13",
+    "state": { "prenda": "{{imagen}}" },
+    "questions": {
+      "tipo_prenda": { "type": "choice", "instructions": "x", "criteria": {{criterias}} },
+      "nivel": { "type": "score", "criteria": {{levels}} }
+    }
+  }`;
+
+  assert.deepEqual(detectMacros(body), ["criterias", "imagen", "levels"]);
+  assert.doesNotThrow(() => validateTemplateBody(body));
+
+  const request = resolveTemplateBody(body, {
+    imagen: "foto1",
+    criterias: { CAMISA: "camisa", CAMISETA: "camiseta" },
+    levels: ["bajo", "alto"],
+  });
+
+  assert.deepEqual(request.state, { prenda: "foto1" });
+  assert.deepEqual(request.questions.tipo_prenda?.criteria, {
+    CAMISA: "camisa",
+    CAMISETA: "camiseta",
+  });
+  assert.deepEqual(request.questions.nivel?.criteria, ["bajo", "alto"]);
+});
+
+test("macros inside JSON strings are not rewritten as bare macros", () => {
+  const body = `{ "model": "m", "state": "text {{x}}", "questions": { "q": { "type": "noul" } } }`;
+  assert.deepEqual(detectMacros(body), ["x"]);
+  assert.deepEqual(resolveTemplateBody(body, { x: "ok" }).state, "text ok");
 });
 
 test("an incomplete context fails listing the missing keys", () => {

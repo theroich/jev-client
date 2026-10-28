@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { orphanAssetRefs, validateAssets } from "./assets.js";
 import { JevClient, type FetchLike } from "./client.js";
 import {
   resolveConfig,
@@ -18,6 +19,7 @@ import { JevApiError, jevErrorHint } from "./errors.js";
 import { RequestRepository } from "./request-repository.js";
 import { TemplateRepository } from "./template-repository.js";
 import {
+  detectMacros,
   resolveTemplateBody,
   type TemplateContext,
 } from "./template.js";
@@ -260,6 +262,7 @@ export class JevService {
     if (template === undefined) {
       throw new Error(`template not found: ${templateName}`);
     }
+    const assetsMacroReserved = detectMacros(template.body_json).includes("assets");
     const prepared = this.prepare();
     const batchId = randomUUID();
     const items: Array<BatchItemResult | undefined> = Array.from({
@@ -296,13 +299,23 @@ export class JevService {
 
       let request: JevRequest;
       try {
-        request = resolveTemplateBody(
-          template.body_json,
-          rawContext as TemplateContext,
+        const { context, assets: itemAssets } = splitContextAssets(
+          rawContext as Record<string, unknown>,
+          assetsMacroReserved,
+          index,
         );
+        request = resolveTemplateBody(template.body_json, context);
         request = this.withModel(request, options, prepared.stored);
-        if (options.assets !== undefined && Object.keys(options.assets).length > 0) {
-          request = { ...request, assets: options.assets };
+        const assets = mergeRequestAssets(options.assets, itemAssets);
+        if (assets !== undefined) {
+          request = { ...request, assets };
+        }
+        const orphans = orphanAssetRefs(request);
+        if (orphans.length > 0) {
+          throw new Error(
+            `asset refs are not used in state/instructions/criteria: ${orphans.join(", ")} ` +
+              "(attach the image to a macro in the table, or reference its id in the template body)",
+          );
         }
       } catch (error) {
         return {
@@ -490,6 +503,60 @@ export class JevService {
       },
     };
   }
+}
+
+interface ContextAssetsSplit {
+  context: TemplateContext;
+  assets?: Record<string, ImageAsset>;
+}
+
+/**
+ * Splits the reserved `assets` key off a batch context. The key is reserved for
+ * per-context images; a template macro literally named `assets` would collide,
+ * so it is rejected with a clear error instead of being silently shadowed.
+ */
+function splitContextAssets(
+  rawContext: Record<string, unknown>,
+  assetsMacroReserved: boolean,
+  index: number,
+): ContextAssetsSplit {
+  if (!Object.prototype.hasOwnProperty.call(rawContext, "assets")) {
+    return { context: rawContext as TemplateContext };
+  }
+  if (assetsMacroReserved) {
+    throw new Error(
+      `context #${index + 1}: the key "assets" is reserved for per-context images; ` +
+        `the template already defines a {{assets}} macro — rename the macro or move the images to the shared assets`,
+    );
+  }
+  const { assets: rawAssets, ...rest } = rawContext;
+  if (rawAssets === undefined || rawAssets === null) {
+    return { context: rest as TemplateContext };
+  }
+  if (typeof rawAssets !== "object" || Array.isArray(rawAssets)) {
+    throw new Error(
+      `context #${index + 1}: assets must be an object { ref: { data_base64, format } }`,
+    );
+  }
+  const assets = rawAssets as Record<string, ImageAsset>;
+  try {
+    validateAssets(assets);
+  } catch (error) {
+    throw new Error(`context #${index + 1}: ${messageOf(error)}`);
+  }
+  return {
+    context: rest as TemplateContext,
+    assets: Object.keys(assets).length === 0 ? undefined : assets,
+  };
+}
+
+/** Merges shared assets with a context's own assets; the item wins. */
+function mergeRequestAssets(
+  shared: Record<string, ImageAsset> | undefined,
+  item: Record<string, ImageAsset> | undefined,
+): Record<string, ImageAsset> | undefined {
+  const merged = { ...(shared ?? {}), ...(item ?? {}) };
+  return Object.keys(merged).length === 0 ? undefined : merged;
 }
 
 function itemFinishEvent(item: BatchItemResult): BatchEvent {
